@@ -1,0 +1,5 @@
+node_modules/
+backend/database/inventory.db
+.env
+dist/
+.DS_Store
