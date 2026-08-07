@@ -1,3 +1,5 @@
+import { notifyDataSync } from '../lib/dataSync';
+
 export function mergePartyLists(...lists) {
   const map = new Map();
   for (const list of lists) {
@@ -40,6 +42,8 @@ export async function refreshPartiesAfterCreate(partiesAPI, createdParty) {
       saved = createdParty;
     }
   }
+
+  notifyDataSync('parties');
 
   return {
     party: saved,

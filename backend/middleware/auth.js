@@ -1,4 +1,4 @@
-const { supabase, createClientWithToken, assertNoError, getDbClient } = require('../database/supabase');
+  const { supabase, createClientWithToken, assertNoError, getDbClient } = require('../database/supabase');
 const { getSupabaseAdmin } = require('../database/supabaseAdmin');
 
 async function fetchUserProfile(userId, accessToken) {
@@ -59,7 +59,7 @@ async function requireAuth(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
-  if (req.profile?.role !== 'admin') {
+  if (req.profile?.role !== 'admin' && req.profile?.role !== 'super_admin') {
     return res.status(403).json({ error: 'Admin access required' });
   }
   next();

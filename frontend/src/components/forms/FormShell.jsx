@@ -10,7 +10,6 @@ export default function FormShell({ icon: Icon, title, subtitle, children }) {
           )}
           <div className="min-w-0">
             <h3 className="form-title">{title}</h3>
-            <div className="form-title-accent" aria-hidden />
             {subtitle && <p className="form-subtitle">{subtitle}</p>}
           </div>
         </div>

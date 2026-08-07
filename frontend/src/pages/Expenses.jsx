@@ -6,6 +6,9 @@ import PageHeader from '../components/PageHeader';
 import FormShell from '../components/forms/FormShell';
 import { FormField } from '../components/forms/FormField';
 import FormActions from '../components/forms/FormActions';
+import SummaryStatCard from '../components/ui/SummaryStatCard';
+import { useDataSync } from '../hooks/useDataSync';
+import { notifyDataSync, removeById } from '../lib/dataSync';
 
 const CATEGORIES = [
   'Rent',
@@ -53,15 +56,17 @@ export default function Expenses() {
     loadExpenses();
   }, []);
 
-  async function loadExpenses() {
+  useDataSync('expenses', () => loadExpenses(true));
+
+  async function loadExpenses(silent = false) {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const data = await expensesAPI.getAll();
       setExpenses(data);
     } catch (err) {
-      alert('Error: ' + err.message);
+      if (!silent) alert('Error: ' + err.message);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
@@ -116,7 +121,7 @@ export default function Expenses() {
       }
 
       setShowForm(false);
-      loadExpenses();
+      notifyDataSync('expenses');
     } catch (err) {
       alert('Error: ' + err.message);
     }
@@ -126,7 +131,8 @@ export default function Expenses() {
     if (!confirm('Delete this expense?')) return;
     try {
       await expensesAPI.delete(id);
-      loadExpenses();
+      setExpenses((prev) => removeById(prev, id));
+      notifyDataSync('expenses');
     } catch (err) {
       alert('Error: ' + err.message);
     }
@@ -148,36 +154,18 @@ export default function Expenses() {
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="premium-glass-card p-5 sm:p-6 border border-indigo-200/40 bg-gradient-to-br from-indigo-50/60 via-white to-white">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Total expenses this month
-              </p>
-              <p className="mt-2 text-2xl sm:text-3xl font-bold tabular-nums text-slate-900">
-                ₹{monthTotal.toLocaleString('en-IN')}
-              </p>
-            </div>
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-700 to-indigo-950 text-amber-200 shadow-md">
-              <CalendarRange className="h-5 w-5" />
-            </div>
-          </div>
-        </div>
-        <div className="premium-glass-card p-5 sm:p-6 border border-violet-200/40 bg-gradient-to-br from-violet-50/50 via-white to-white">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Total expenses this year
-              </p>
-              <p className="mt-2 text-2xl sm:text-3xl font-bold tabular-nums text-slate-900">
-                ₹{yearTotal.toLocaleString('en-IN')}
-              </p>
-            </div>
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-900 text-white shadow-md">
-              <Banknote className="h-5 w-5" />
-            </div>
-          </div>
-        </div>
+        <SummaryStatCard
+          title="Total expenses this month"
+          value={`₹${monthTotal.toLocaleString('en-IN')}`}
+          icon={CalendarRange}
+          tone="indigo"
+        />
+        <SummaryStatCard
+          title="Total expenses this year"
+          value={`₹${yearTotal.toLocaleString('en-IN')}`}
+          icon={Banknote}
+          tone="violet"
+        />
       </div>
 
       {showForm && (

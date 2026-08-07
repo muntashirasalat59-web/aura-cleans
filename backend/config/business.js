@@ -1,10 +1,13 @@
-const BUSINESS = {
-  name: 'InvoStack',
-  tagline: 'Invoice & Inventory Management',
-  address: 'Your Business Address Line, City, State — PIN',
-  gstin: '29XXXXX0000X1ZX',
-  phone: '+91 XXXXX XXXXX',
-};
+/** Shared helpers for invoices — letterhead lives in business_settings (DB). */
+
+function isRealBusinessValue(value) {
+  if (value == null) return false;
+  const s = String(value).trim();
+  if (!s) return false;
+  if (/X{3,}/i.test(s)) return false;
+  if (/^(n\/a|na|none|tbd|pending)$/i.test(s)) return false;
+  return true;
+}
 
 function splitGst(gstPercent, gstAmount) {
   const rate = Number(gstPercent) || 0;
@@ -17,4 +20,7 @@ function splitGst(gstPercent, gstAmount) {
   };
 }
 
-module.exports = { BUSINESS, splitGst };
+module.exports = {
+  splitGst,
+  isRealBusinessValue,
+};

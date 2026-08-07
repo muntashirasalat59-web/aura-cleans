@@ -1,13 +1,18 @@
 import { useState, useEffect } from 'react';
 import { flushSync } from 'react-dom';
-import { Plus, Trash2, X, ShoppingCart } from 'lucide-react';
+import { Plus, Trash2, X, ShoppingCart, Banknote } from 'lucide-react';
 import { purchasesAPI, partiesAPI, productsAPI } from '../api';
 import LoadingState from '../components/LoadingState';
 import PageHeader from '../components/PageHeader';
+import ExportMenu from '../components/ExportMenu';
+import EmptyState from '../components/EmptyState';
+import { PURCHASE_EXPORT_COLUMNS, mapPurchaseExportRow } from '../config/exportColumns';
 import FormShell from '../components/forms/FormShell';
 import { FormField } from '../components/forms/FormField';
 import FormActions from '../components/forms/FormActions';
 import PartySelectField from '../components/forms/PartySelectField';
+import PurchasePaymentFields from '../components/forms/PurchasePaymentFields';
+import MarkPaidModal from '../components/invoice/MarkPaidModal';
 import GstTaxSummary from '../components/invoice/GstTaxSummary';
 import { computeGstTotals, lineSubtotal } from '../utils/invoiceGst';
 import { formatProductOptionLabel } from '../utils/productDisplay';
@@ -21,6 +26,14 @@ import {
   PURCHASE_QUICK_ADD_TYPES,
 } from '../utils/partyTypes';
 import { refreshPartiesAfterCreate } from '../utils/partyList';
+import { useDataSync } from '../hooks/useDataSync';
+import { notifyDataSync } from '../lib/dataSync';
+import {
+  emptyPaymentDetails,
+  paymentToPayload,
+  formatDisplayDate,
+} from '../utils/invoicePayment';
+import { enrichPaymentFields, paymentStatus, balanceDue } from '../utils/invoiceReceivables';
 
 const NEW_PRODUCT = '__new__';
 
@@ -55,14 +68,20 @@ export default function Purchases() {
     notes: '',
     gst_percent: 18,
     items: [emptyItem()],
+    payment: emptyPaymentDetails(),
   });
+  const [markPaidTarget, setMarkPaidTarget] = useState(null);
+  const [markingPaid, setMarkingPaid] = useState(false);
 
   useEffect(() => {
     loadData();
   }, []);
 
-  async function loadData() {
+  useDataSync(['purchases', 'parties', 'products'], () => loadData(true));
+
+  async function loadData(silent = false) {
     try {
+      if (!silent) setLoading(true);
       const [purchasesData, partiesData, productsData] = await Promise.all([
         purchasesAPI.getAll(),
         partiesAPI.getAll({ activeOnly: true }),
@@ -72,9 +91,9 @@ export default function Purchases() {
       setParties(partiesData);
       setProducts(productsData);
     } catch (err) {
-      alert('Error: ' + err.message);
+      if (!silent) alert('Error: ' + err.message);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
@@ -165,11 +184,17 @@ export default function Purchases() {
     }
 
     try {
+      if (form.payment?.collection === 'pending' && !form.payment?.due_date) {
+        alert('Please set a due date for pending supplier payment.');
+        return;
+      }
+
       await purchasesAPI.create({
         party_id: parseInt(form.party_id, 10),
         purchase_date: form.purchase_date,
         notes: form.notes,
         gst_percent: parseFloat(form.gst_percent) || 18,
+        payment: paymentToPayload(form.payment),
         items: validItems.map((item) => {
           if (isNewProductRow(item)) {
             return {
@@ -195,15 +220,79 @@ export default function Purchases() {
         notes: '',
         gst_percent: 18,
         items: [emptyItem()],
+        payment: emptyPaymentDetails(),
       });
-      await loadData();
+      notifyDataSync('purchases');
+      notifyDataSync('products');
+      notifyDataSync('parties');
       alert('Purchase saved! Stock and party balance updated. New products appear in Products list.');
     } catch (err) {
       alert(err.message);
     }
   }
 
-  if (loading) return <LoadingState />;
+  function openMarkPaid(purchase) {
+    const payment = enrichPaymentFields(purchase);
+    setMarkPaidTarget({
+      id: purchase.id,
+      documentLabel: `purchase on ${purchase.purchase_date}`,
+      partyName: purchase.party_name,
+      amountDue: payment.balance_due,
+    });
+  }
+
+  function closeMarkPaid() {
+    if (markingPaid) return;
+    setMarkPaidTarget(null);
+  }
+
+  async function confirmMarkPaid({ payment_date, payment_method }) {
+    if (!markPaidTarget) return;
+    try {
+      setMarkingPaid(true);
+      const updated = await purchasesAPI.markPaid(markPaidTarget.id, {
+        payment_date,
+        payment_method,
+      });
+      setPurchases((prev) =>
+        prev.map((p) => (p.id === markPaidTarget.id ? { ...p, ...updated } : p))
+      );
+      setMarkPaidTarget(null);
+      notifyDataSync('purchases');
+      notifyDataSync('parties');
+    } catch (err) {
+      alert(err.message || 'Failed to mark purchase as paid.');
+    } finally {
+      setMarkingPaid(false);
+    }
+  }
+
+  async function deletePurchase(id) {
+    const purchase = purchases.find((p) => p.id === id);
+    const label = purchase
+      ? `purchase on ${purchase.purchase_date} from ${purchase.party_name}`
+      : 'this purchase';
+
+    if (
+      !confirm(
+        `Delete ${label}? This will subtract the purchased quantities from product stock.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const result = await purchasesAPI.delete(id);
+      alert(result.message || 'Purchase deleted.');
+      notifyDataSync('purchases');
+      notifyDataSync('products');
+      notifyDataSync('parties');
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  }
+
+  if (loading && purchases.length === 0) return <LoadingState />;
 
   return (
     <div>
@@ -211,22 +300,34 @@ export default function Purchases() {
         title="Purchases"
         description="Record stock from suppliers — existing products gain stock; new products are created automatically."
         action={
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className={`btn w-full sm:w-auto ${showForm ? 'btn-secondary' : 'btn-primary'}`}
-          >
-            {showForm ? (
-              <>
-                <X className="h-4 w-4" />
-                Cancel
-              </>
-            ) : (
-              <>
-                <Plus className="h-4 w-4" />
-                New purchase
-              </>
-            )}
-          </button>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <ExportMenu
+              filePrefix="purchases"
+              successLabel="Purchases"
+              columns={PURCHASE_EXPORT_COLUMNS}
+              getRows={() =>
+                purchases.map((p) =>
+                  mapPurchaseExportRow(p, { paymentStatus, balanceDue })
+                )
+              }
+            />
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className={`btn w-full sm:w-auto ${showForm ? 'btn-secondary' : 'btn-primary'}`}
+            >
+              {showForm ? (
+                <>
+                  <X className="h-4 w-4" />
+                  Cancel
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4" />
+                  New purchase
+                </>
+              )}
+            </button>
+          </div>
         }
       />
 
@@ -288,15 +389,15 @@ export default function Purchases() {
               <p className="text-xs text-slate-500 mb-3">
                 Existing products show name, pack size, and fragrance. New products need all three — each size/fragrance combo is a separate SKU with its own stock.
               </p>
-              <div className="overflow-x-auto mb-4">
-                <table className="line-items-table min-w-[880px]">
+              <div className="invoice-form-table-scroll mb-4">
+                <table className="line-items-table">
                   <thead>
                     <tr>
-                      <th className="min-w-[280px]">Product</th>
+                      <th className="col-item">Product</th>
                       <th className="col-qty text-right">Qty</th>
                       <th className="col-rate text-right whitespace-nowrap">Rate (₹)</th>
                       <th className="col-taxable text-right whitespace-nowrap">Taxable (₹)</th>
-                      <th className="w-10" />
+                      <th className="col-actions" />
                     </tr>
                   </thead>
                   <tbody>
@@ -379,10 +480,12 @@ export default function Purchases() {
                             onChange={(e) => updateItem(index, 'rate', e.target.value)}
                           />
                         </td>
-                        <td className="col-taxable font-semibold tabular-nums text-slate-900 text-right whitespace-nowrap">
-                          ₹{lineSubtotal(item.quantity, item.rate).toFixed(2)}
+                        <td className="col-taxable">
+                          <span className="line-item-cell-amount">
+                            ₹{lineSubtotal(item.quantity, item.rate).toFixed(2)}
+                          </span>
                         </td>
-                        <td>
+                        <td className="col-actions">
                           {form.items.length > 1 && (
                             <button
                               type="button"
@@ -405,7 +508,7 @@ export default function Purchases() {
                 Add line item
               </button>
 
-              <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+              <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-8">
                 <div className="invoice-summary-box lg:ml-auto min-w-[280px]">
                   <GstTaxSummary
                     gstPercent={form.gst_percent}
@@ -416,56 +519,123 @@ export default function Purchases() {
                 </div>
               </div>
 
+              <PurchasePaymentFields
+                payment={form.payment}
+                onChange={(payment) => setForm((prev) => ({ ...prev, payment }))}
+              />
+
               <FormActions submitLabel="Save purchase" onCancel={() => setShowForm(false)} />
             </form>
           </FormShell>
         </div>
       )}
       <div className="table-wrap">
-        <div className="px-6 py-4 border-b border-slate-100">
+        <div className="table-wrap-header">
           <h3 className="card-section-title mb-0">Purchase history</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+            {purchases.length} record{purchases.length === 1 ? '' : 's'}
+          </p>
         </div>
-        <div className="overflow-x-auto">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Supplier</th>
-                <th>Subtotal</th>
-                <th>GST</th>
-                <th>Total</th>
-                <th>Notes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {purchases.length === 0 ? (
+        {purchases.length === 0 ? (
+          <EmptyState
+            icon={ShoppingCart}
+            title="No purchases yet"
+            description="Record a stock purchase from a supplier to update inventory and balances."
+            actionLabel="New purchase"
+            onAction={() => setShowForm(true)}
+          />
+        ) : (
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <td colSpan="6" className="py-12 text-center text-slate-500">
-                    No purchases recorded yet.
-                  </td>
+                  <th>Date</th>
+                  <th>Supplier</th>
+                  <th className="col-num">Subtotal</th>
+                  <th className="col-num">GST</th>
+                  <th className="col-num">Total</th>
+                  <th>Notes</th>
+                  <th className="text-right">Actions</th>
                 </tr>
-              ) : (
-                purchases.map((purchase) => (
-                  <tr key={purchase.id}>
-                    <td>{purchase.purchase_date}</td>
-                    <td className="font-medium text-slate-900">{purchase.party_name}</td>
-                    <td className="tabular-nums">
-                      ₹{Number(purchase.subtotal ?? purchase.total_amount).toLocaleString('en-IN')}
-                    </td>
-                    <td className="tabular-nums text-slate-600">
-                      ₹{Number(purchase.gst_amount ?? 0).toLocaleString('en-IN')}
-                    </td>
-                    <td className="font-semibold text-indigo-700 tabular-nums">
-                      ₹{Number(purchase.total_amount).toLocaleString('en-IN')}
-                    </td>
-                    <td className="text-slate-500 max-w-xs truncate">{purchase.notes || '—'}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {purchases.map((purchase) => {
+                  const status = purchase.payment_status || paymentStatus(purchase);
+                  const due =
+                    purchase.balance_due != null
+                      ? Number(purchase.balance_due)
+                      : balanceDue(purchase);
+                  return (
+                    <tr key={purchase.id}>
+                      <td className="tabular-nums whitespace-nowrap">{purchase.purchase_date}</td>
+                      <td>
+                        <p className="list-primary">{purchase.party_name}</p>
+                        {(status === 'pending' || status === 'partial' || due > 0) && (
+                          <p className="list-secondary">
+                            Due ₹{due.toLocaleString('en-IN')}
+                            {purchase.payment_due_date
+                              ? ` · by ${formatDisplayDate(purchase.payment_due_date)}`
+                              : ''}
+                            {status === 'partial' ? ' · partial' : ''}
+                          </p>
+                        )}
+                      </td>
+                      <td className="col-num">
+                        ₹{Number(purchase.subtotal ?? purchase.total_amount).toLocaleString('en-IN')}
+                      </td>
+                      <td className="col-num text-slate-600 dark:text-slate-400">
+                        ₹{Number(purchase.gst_amount ?? 0).toLocaleString('en-IN')}
+                      </td>
+                      <td className="col-num font-semibold text-indigo-700 dark:text-indigo-300">
+                        ₹{Number(purchase.total_amount).toLocaleString('en-IN')}
+                      </td>
+                      <td className="text-slate-500 dark:text-slate-400 max-w-xs truncate">
+                        {purchase.notes || '—'}
+                      </td>
+                      <td className="text-right">
+                        <div className="list-actions">
+                          {status === 'paid' ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                              Paid
+                            </span>
+                          ) : status === 'pending' || status === 'partial' ? (
+                            <button
+                              type="button"
+                              onClick={() => openMarkPaid(purchase)}
+                              className="link-action text-violet-700 hover:text-violet-600 dark:text-violet-300"
+                            >
+                              <Banknote className="h-3.5 w-3.5" />
+                              Mark as paid
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => deletePurchase(purchase.id)}
+                            className="link-action-danger"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
+
+      <MarkPaidModal
+        open={Boolean(markPaidTarget)}
+        documentLabel={markPaidTarget?.documentLabel}
+        partyName={markPaidTarget?.partyName}
+        amountDue={markPaidTarget?.amountDue}
+        onClose={closeMarkPaid}
+        onConfirm={confirmMarkPaid}
+        confirming={markingPaid}
+      />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { supabase, assertNoError } = require('../database/supabase');
+const { assertNoError } = require('../database/supabase');
+const { logActivity } = require('../utils/activityLog');
 
 const {
   countEmployeeLinks,
@@ -74,10 +75,11 @@ function attachSalaryStatus(employees, payments) {
 router.get('/', async (req, res) => {
   try {
     const month = currentMonthKey();
+    const db = req.db;
 
     const [employeesRes, paymentsRes] = await Promise.all([
-      supabase.from('employees').select('*').order('name'),
-      supabase.from('salary_payments').select('*').eq('month', month),
+      db.from('employees').select('*').order('name'),
+      db.from('salary_payments').select('*').eq('month', month),
     ]);
 
     assertNoError(employeesRes.error);
@@ -93,7 +95,7 @@ router.get('/', async (req, res) => {
 router.post('/:id/deactivate', async (req, res) => {
   try {
     const { id } = req.params;
-    const { data, error } = await supabase
+    const { data, error } = await req.db
       .from('employees')
       .update({ status: 'Inactive' })
       .eq('id', id)
@@ -104,6 +106,14 @@ router.post('/:id/deactivate', async (req, res) => {
     if (!data) {
       return res.status(404).json({ error: 'Employee not found' });
     }
+
+    await logActivity(req, {
+      actionType: 'deactivate',
+      entityType: 'employee',
+      entityId: data.id,
+      entityName: data.name,
+    });
+
     res.json({ message: 'Employee deactivated successfully', employee: data });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -113,7 +123,7 @@ router.post('/:id/deactivate', async (req, res) => {
 router.post('/:id/reactivate', async (req, res) => {
   try {
     const { id } = req.params;
-    const { data, error } = await supabase
+    const { data, error } = await req.db
       .from('employees')
       .update({ status: 'Active' })
       .eq('id', id)
@@ -124,6 +134,14 @@ router.post('/:id/reactivate', async (req, res) => {
     if (!data) {
       return res.status(404).json({ error: 'Employee not found' });
     }
+
+    await logActivity(req, {
+      actionType: 'reactivate',
+      entityType: 'employee',
+      entityId: data.id,
+      entityName: data.name,
+    });
+
     res.json({ message: 'Employee reactivated successfully', employee: data });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -133,7 +151,8 @@ router.post('/:id/reactivate', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const month = currentMonthKey();
-    const { data, error } = await supabase
+    const db = req.db;
+    const { data, error } = await db
       .from('employees')
       .select('*')
       .eq('id', req.params.id)
@@ -144,7 +163,7 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Employee not found' });
     }
 
-    const { data: payment, error: payError } = await supabase
+    const { data: payment, error: payError } = await db
       .from('salary_payments')
       .select('*')
       .eq('employee_id', data.id)
@@ -170,7 +189,7 @@ router.post('/', async (req, res) => {
 
     const { name, role, contact, salary, joining_date, status } = req.body;
 
-    const { data, error } = await supabase
+    const { data, error } = await req.db
       .from('employees')
       .insert({
         name: name.trim(),
@@ -184,6 +203,15 @@ router.post('/', async (req, res) => {
       .single();
 
     assertNoError(error);
+
+    await logActivity(req, {
+      actionType: 'create',
+      entityType: 'employee',
+      entityId: data.id,
+      entityName: data.name,
+      details: { role: data.role, salary: data.salary },
+    });
+
     res.status(201).json({ ...data, salary_paid_this_month: false, salary_payment: null });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -198,7 +226,8 @@ router.put('/:id', async (req, res) => {
     }
 
     const { id } = req.params;
-    const { data: existing, error: fetchError } = await supabase
+    const db = req.db;
+    const { data: existing, error: fetchError } = await db
       .from('employees')
       .select('*')
       .eq('id', id)
@@ -211,7 +240,7 @@ router.put('/:id', async (req, res) => {
 
     const { name, role, contact, salary, joining_date, status } = req.body;
 
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from('employees')
       .update({
         name: name !== undefined ? name.trim() : existing.name,
@@ -227,8 +256,16 @@ router.put('/:id', async (req, res) => {
 
     assertNoError(error);
 
+    await logActivity(req, {
+      actionType: 'update',
+      entityType: 'employee',
+      entityId: data.id,
+      entityName: data.name,
+      details: { role: data.role, salary: data.salary },
+    });
+
     const month = currentMonthKey();
-    const { data: payment } = await supabase
+    const { data: payment } = await db
       .from('salary_payments')
       .select('*')
       .eq('employee_id', id)
@@ -244,8 +281,9 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const db = req.db;
 
-    const { data: existing, error: fetchError } = await supabase
+    const { data: existing, error: fetchError } = await db
       .from('employees')
       .select('id, name')
       .eq('id', id)
@@ -256,7 +294,7 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Employee not found' });
     }
 
-    const links = await countEmployeeLinks(supabase, id);
+    const links = await countEmployeeLinks(db, id);
     const blockedMessage = employeeDeleteBlockedMessage(links);
     if (blockedMessage) {
       return res.status(409).json({
@@ -266,7 +304,7 @@ router.delete('/:id', async (req, res) => {
       });
     }
 
-    const { data, error } = await supabase.from('employees').delete().eq('id', id).select('id');
+    const { data, error } = await db.from('employees').delete().eq('id', id).select('id');
 
     if (error) {
       if (isFkViolation(error)) {
@@ -281,6 +319,14 @@ router.delete('/:id', async (req, res) => {
     if (!data || data.length === 0) {
       return res.status(404).json({ error: 'Employee not found' });
     }
+
+    await logActivity(req, {
+      actionType: 'delete',
+      entityType: 'employee',
+      entityId: existing.id,
+      entityName: existing.name,
+    });
+
     res.json({ message: 'Employee deleted successfully' });
   } catch (error) {
     if (isFkViolation(error)) {
@@ -294,8 +340,9 @@ router.post('/:id/mark-salary-paid', async (req, res) => {
   try {
     const { id } = req.params;
     const month = currentMonthKey();
+    const db = req.db;
 
-    const { data: employee, error: empError } = await supabase
+    const { data: employee, error: empError } = await db
       .from('employees')
       .select('*')
       .eq('id', id)
@@ -310,7 +357,7 @@ router.post('/:id/mark-salary-paid', async (req, res) => {
       return res.status(400).json({ error: 'Cannot mark salary paid for an inactive employee' });
     }
 
-    const { data: existing, error: existingError } = await supabase
+    const { data: existing, error: existingError } = await db
       .from('salary_payments')
       .select('*')
       .eq('employee_id', id)
@@ -323,7 +370,7 @@ router.post('/:id/mark-salary-paid', async (req, res) => {
     }
 
     const amount = Number(employee.salary);
-    const { data: payment, error: insertError } = await supabase
+    const { data: payment, error: insertError } = await db
       .from('salary_payments')
       .insert({
         employee_id: Number(id),
@@ -335,6 +382,14 @@ router.post('/:id/mark-salary-paid', async (req, res) => {
       .single();
 
     assertNoError(insertError);
+
+    await logActivity(req, {
+      actionType: 'mark_salary_paid',
+      entityType: 'employee',
+      entityId: employee.id,
+      entityName: employee.name,
+      details: { month, amount },
+    });
 
     res.status(201).json({
       employee: attachSalaryStatus([employee], [payment])[0],

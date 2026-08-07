@@ -46,6 +46,9 @@ CREATE TABLE IF NOT EXISTS public.purchases (
   gst_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
   total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
   notes TEXT DEFAULT '',
+  payment_due_date DATE,
+  amount_paid NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (amount_paid >= 0),
+  payment_status TEXT NOT NULL DEFAULT 'paid' CHECK (payment_status IN ('paid', 'pending', 'partial')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -67,7 +70,19 @@ CREATE TABLE IF NOT EXISTS public.sales (
   gst_percent NUMERIC(5, 2) NOT NULL DEFAULT 18,
   gst_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
   total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  payment_bank_name TEXT,
+  payment_account_number TEXT,
+  payment_ifsc TEXT,
+  payment_upi TEXT,
+  payment_terms TEXT,
+  payment_due_date DATE,
+  amount_paid NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (amount_paid >= 0),
+  payment_status TEXT NOT NULL DEFAULT 'paid' CHECK (payment_status IN ('paid', 'pending', 'partial')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  is_deleted BOOLEAN NOT NULL DEFAULT false,
+  deleted_at TIMESTAMPTZ,
+  deleted_by UUID REFERENCES public.user_profiles (id),
+  delete_reason TEXT
 );
 
 CREATE TABLE IF NOT EXISTS public.sale_items (
@@ -182,3 +197,55 @@ CREATE TABLE IF NOT EXISTS public.user_profiles (
 ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "user_profiles_select_own" ON public.user_profiles;
 CREATE POLICY "user_profiles_select_own" ON public.user_profiles FOR SELECT USING (auth.uid() = id);
+
+-- Singleton company letterhead (also see supabase.migration.business_settings.sql)
+CREATE TABLE IF NOT EXISTS public.business_settings (
+  id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  company_name TEXT NOT NULL DEFAULT '',
+  address_line1 TEXT NOT NULL DEFAULT '',
+  address_line2 TEXT NOT NULL DEFAULT '',
+  city TEXT NOT NULL DEFAULT '',
+  state TEXT NOT NULL DEFAULT '',
+  gstin TEXT NOT NULL DEFAULT '',
+  phone TEXT NOT NULL DEFAULT '',
+  email TEXT NOT NULL DEFAULT '',
+  bank_name TEXT NOT NULL DEFAULT '',
+  bank_account_number TEXT NOT NULL DEFAULT '',
+  upi_id TEXT NOT NULL DEFAULT '',
+  logo_url TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.business_settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS business_settings_select_authenticated ON public.business_settings;
+CREATE POLICY business_settings_select_authenticated
+  ON public.business_settings FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS business_settings_update_authenticated ON public.business_settings;
+CREATE POLICY business_settings_update_authenticated
+  ON public.business_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- Audit trail (also see supabase.migration.activity_log.sql)
+CREATE TABLE IF NOT EXISTS public.activity_log (
+  id BIGSERIAL PRIMARY KEY,
+  user_id UUID REFERENCES auth.users (id) ON DELETE SET NULL,
+  user_name TEXT NOT NULL DEFAULT '',
+  action_type TEXT NOT NULL CHECK (
+    action_type IN ('create', 'update', 'delete', 'mark_paid')
+  ),
+  entity_type TEXT NOT NULL CHECK (
+    entity_type IN ('product', 'party', 'purchase', 'sale', 'expense', 'settings')
+  ),
+  entity_id TEXT,
+  entity_name TEXT NOT NULL DEFAULT '',
+  details JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS activity_log_created_at_idx
+  ON public.activity_log (created_at DESC);
+
+ALTER TABLE public.activity_log ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS activity_log_all ON public.activity_log;
+CREATE POLICY activity_log_all ON public.activity_log
+  FOR ALL USING (true) WITH CHECK (true);
+

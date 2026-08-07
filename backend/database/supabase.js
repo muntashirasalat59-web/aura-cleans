@@ -37,18 +37,12 @@ function assertNoError(error) {
 
 const { getSupabaseAdmin } = require('./supabaseAdmin');
 
-/** Prefer service role (server-only); otherwise user JWT for RLS. */
+/** Prefer user JWT so RLS (auth.uid()) is enforced. */
 function getDbClient(accessToken) {
-  try {
-    return getSupabaseAdmin();
-  } catch {
-    if (!accessToken) {
-      throw new Error(
-        'Database client unavailable. Add SUPABASE_SERVICE_ROLE_KEY to backend/.env or sign in again.'
-      );
-    }
-    return createClientWithToken(accessToken);
+  if (!accessToken) {
+    throw new Error('Database client unavailable. Sign in again.');
   }
+  return createClientWithToken(accessToken);
 }
 
 module.exports = { supabase, createClientWithToken, assertNoError, getDbClient };

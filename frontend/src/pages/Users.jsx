@@ -7,8 +7,13 @@ import FormShell from '../components/forms/FormShell';
 import { FormField } from '../components/forms/FormField';
 import FormActions from '../components/forms/FormActions';
 import { roleLabel } from '../config/permissions';
+import { useAuth } from '../context/AuthContext';
+import { useDataSync } from '../hooks/useDataSync';
+import { notifyDataSync, removeById } from '../lib/dataSync';
 
 export default function Users() {
+  const { profile } = useAuth();
+  const isPlatformAdmin = Boolean(profile?.is_platform_admin);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -23,15 +28,17 @@ export default function Users() {
     loadUsers();
   }, []);
 
-  async function loadUsers() {
+  useDataSync('user_profiles', () => loadUsers(true));
+
+  async function loadUsers(silent = false) {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const data = await usersAPI.getAll();
       setUsers(data);
     } catch (err) {
-      alert('Error: ' + err.message);
+      if (!silent) alert('Error: ' + err.message);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
@@ -46,7 +53,7 @@ export default function Users() {
       });
       setShowForm(false);
       setForm({ full_name: '', email: '', password: '', role: 'staff' });
-      loadUsers();
+      notifyDataSync('user_profiles');
     } catch (err) {
       alert('Error: ' + err.message);
     }
@@ -56,7 +63,17 @@ export default function Users() {
     if (!confirm(`Remove user ${user.full_name} (${user.email})?`)) return;
     try {
       await usersAPI.delete(user.id);
-      loadUsers();
+      setUsers((prev) => removeById(prev, user.id));
+      notifyDataSync('user_profiles');
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  }
+
+  async function handleMarkPaid(user) {
+    try {
+      await usersAPI.markBusinessPaid(user.id);
+      loadUsers(true);
     } catch (err) {
       alert('Error: ' + err.message);
     }
@@ -138,6 +155,7 @@ export default function Users() {
                 <th>Name</th>
                 <th>Email</th>
                 <th>Role</th>
+                {isPlatformAdmin && <th>Subscription</th>}
                 <th>Added</th>
                 <th className="text-right">Actions</th>
               </tr>
@@ -162,10 +180,24 @@ export default function Users() {
                         {roleLabel(user.role)}
                       </span>
                     </td>
+                    {isPlatformAdmin && (
+                      <td>
+                        {user.payment_status === 'paid' ? (
+                          <span className="badge badge-green">Paid</span>
+                        ) : (
+                          <span className="badge badge-red">Unpaid ₹{user.subscription_amount ?? 999}</span>
+                        )}
+                      </td>
+                    )}
                     <td className="text-sm text-slate-500 whitespace-nowrap">
                       {new Date(user.created_at).toLocaleDateString('en-IN')}
                     </td>
                     <td className="text-right">
+                      {isPlatformAdmin && user.payment_status !== 'paid' && (
+                        <button type="button" onClick={() => handleMarkPaid(user)} className="link-action-primary mr-3">
+                          Mark Paid
+                        </button>
+                      )}
                       <button type="button" onClick={() => handleDelete(user)} className="link-action-danger">
                         <Trash2 className="h-3.5 w-3.5" />
                         Remove

@@ -6,6 +6,9 @@ import PageHeader from '../components/PageHeader';
 import FormShell from '../components/forms/FormShell';
 import { FormField } from '../components/forms/FormField';
 import FormActions from '../components/forms/FormActions';
+import SummaryStatCard from '../components/ui/SummaryStatCard';
+import { useDataSync } from '../hooks/useDataSync';
+import { notifyDataSync, removeById } from '../lib/dataSync';
 
 const ROLES = ['Salesman', 'Manager', 'Accountant', 'Delivery Boy'];
 const STATUSES = ['Active', 'Inactive'];
@@ -42,15 +45,17 @@ export default function Employees() {
     loadEmployees();
   }, []);
 
-  async function loadEmployees() {
+  useDataSync('employees', () => loadEmployees(true));
+
+  async function loadEmployees(silent = false) {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const data = await employeesAPI.getAll();
       setEmployees(data);
     } catch (err) {
-      alert('Error: ' + err.message);
+      if (!silent) alert('Error: ' + err.message);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
@@ -101,7 +106,7 @@ export default function Employees() {
       }
 
       setShowForm(false);
-      loadEmployees();
+      notifyDataSync('employees');
     } catch (err) {
       alert('Error: ' + err.message);
     }
@@ -111,7 +116,10 @@ export default function Employees() {
     if (!confirm('Deactivate this employee? Payroll history will be preserved.')) return;
     try {
       await employeesAPI.deactivate(id);
-      loadEmployees();
+      setEmployees((prev) =>
+        prev.map((employee) => (employee.id === id ? { ...employee, status: 'Inactive' } : employee))
+      );
+      notifyDataSync('employees');
     } catch (err) {
       alert(err.message);
     }
@@ -120,7 +128,10 @@ export default function Employees() {
   async function handleReactivate(id) {
     try {
       await employeesAPI.reactivate(id);
-      loadEmployees();
+      setEmployees((prev) =>
+        prev.map((employee) => (employee.id === id ? { ...employee, status: 'Active' } : employee))
+      );
+      notifyDataSync('employees');
     } catch (err) {
       alert(err.message);
     }
@@ -130,7 +141,8 @@ export default function Employees() {
     if (!confirm('Permanently delete this employee? Only allowed if no salary payment history exists.')) return;
     try {
       await employeesAPI.delete(id);
-      loadEmployees();
+      setEmployees((prev) => removeById(prev, id));
+      notifyDataSync('employees');
     } catch (err) {
       alert(err.message);
     }
@@ -144,7 +156,7 @@ export default function Employees() {
     try {
       setPayingId(employee.id);
       await employeesAPI.markSalaryPaid(employee.id);
-      loadEmployees();
+      notifyDataSync('employees');
     } catch (err) {
       alert('Error: ' + err.message);
     } finally {
@@ -168,44 +180,15 @@ export default function Employees() {
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="premium-glass-card p-5 sm:p-6 border border-indigo-200/40 bg-gradient-to-br from-indigo-50/60 via-white to-white">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total employees</p>
-              <p className="mt-2 text-2xl sm:text-3xl font-bold tabular-nums text-slate-900">{summary.total}</p>
-            </div>
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-700 to-indigo-950 text-amber-200 shadow-md">
-              <Briefcase className="h-5 w-5" />
-            </div>
-          </div>
-        </div>
-        <div className="premium-glass-card p-5 sm:p-6 border border-emerald-200/40 bg-gradient-to-br from-emerald-50/50 via-white to-white">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Active employees</p>
-              <p className="mt-2 text-2xl sm:text-3xl font-bold tabular-nums text-slate-900">{summary.active}</p>
-            </div>
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-700 text-white shadow-md">
-              <Users className="h-5 w-5" />
-            </div>
-          </div>
-        </div>
-        <div className="premium-glass-card p-5 sm:p-6 border border-violet-200/40 bg-gradient-to-br from-violet-50/50 via-white to-white sm:col-span-1">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Total monthly salary expense
-              </p>
-              <p className="mt-2 text-2xl sm:text-3xl font-bold tabular-nums text-slate-900">
-                ₹{summary.monthlySalary.toLocaleString('en-IN')}
-              </p>
-              <p className="text-xs text-slate-500 mt-1">Active staff only</p>
-            </div>
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-900 text-white shadow-md">
-              <Wallet className="h-5 w-5" />
-            </div>
-          </div>
-        </div>
+        <SummaryStatCard title="Total employees" value={summary.total} icon={Briefcase} tone="indigo" />
+        <SummaryStatCard title="Active employees" value={summary.active} icon={Users} tone="emerald" />
+        <SummaryStatCard
+          title="Total monthly salary expense"
+          value={`₹${summary.monthlySalary.toLocaleString('en-IN')}`}
+          subtitle="Active staff only"
+          icon={Wallet}
+          tone="violet"
+        />
       </div>
 
       {showForm && (

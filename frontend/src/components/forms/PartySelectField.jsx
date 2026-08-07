@@ -145,7 +145,7 @@ export default function PartySelectField({
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
               <input
                 type="text"
-                className="input input-premium pl-9 pr-9"
+                className="input input-premium pl-9 pr-9 input-truncate"
                 placeholder={placeholder}
                 value={query}
                 onChange={(e) => {
@@ -167,7 +167,7 @@ export default function PartySelectField({
                 </button>
               )}
               {open && (
-                <ul className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg py-1">
+                <ul className="party-dropdown-list absolute z-20 mt-1 w-full max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg py-1 dark:border-slate-600 dark:bg-slate-900">
                   {filtered.length === 0 ? (
                     <li className="px-4 py-3 text-sm text-slate-500">No parties match your search.</li>
                   ) : (
@@ -175,13 +175,13 @@ export default function PartySelectField({
                       <li key={p.id}>
                         <button
                           type="button"
-                          className={`w-full text-left px-4 py-2.5 hover:bg-indigo-50 transition-colors ${
-                            String(p.id) === String(value) ? 'bg-indigo-50/80' : ''
+                          className={`w-full text-left px-4 py-2.5 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition-colors ${
+                            String(p.id) === String(value) ? 'bg-indigo-50/80 dark:bg-indigo-950/40' : ''
                           }`}
                           onClick={() => selectParty(p)}
                         >
-                          <span className="font-medium text-slate-900">{p.name}</span>
-                          <span className="text-xs text-slate-500 ml-2">
+                          <span className="font-medium text-slate-900 dark:text-slate-100 truncate block">{p.name}</span>
+                          <span className="text-xs text-slate-500 dark:text-slate-400 truncate block">
                             {partyTypeLabel(p.type)}
                             {p.contact ? ` · ${p.contact}` : ''}
                           </span>

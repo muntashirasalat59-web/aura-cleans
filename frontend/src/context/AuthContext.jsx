@@ -1,6 +1,8 @@
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { authAPI, setAccessToken } from '../api';
+import { isSupabaseConfigured } from '../lib/supabaseConfig';
+import { mapAuthError } from '../lib/authErrors';
+import { authAPI, setAccessToken, setUnauthorizedHandler } from '../api';
 
 const AuthContext = createContext(null);
 
@@ -8,6 +10,13 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const signingOutRef = useRef(false);
+
+  const clearAuth = useCallback(() => {
+    setAccessToken(null);
+    setProfile(null);
+    setSession(null);
+  }, []);
 
   const loadProfile = useCallback(async (accessToken) => {
     setAccessToken(accessToken);
@@ -39,61 +48,103 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const refreshSession = useCallback(async () => {
-    const { data } = await supabase.auth.getSession();
-    const current = data.session;
-    setSession(current);
-    if (current?.access_token) {
-      await loadProfile(current.access_token);
-    } else {
-      setAccessToken(null);
-      setProfile(null);
+  const signOut = useCallback(async () => {
+    if (signingOutRef.current) return;
+    signingOutRef.current = true;
+    clearAuth();
+    try {
+      if (isSupabaseConfigured()) {
+        const { error } = await supabase.auth.signOut({ scope: 'local' });
+        if (error) {
+          console.error('[Auth] signOut failed:', error.message);
+        }
+      }
+    } finally {
+      signingOutRef.current = false;
     }
-    setLoading(false);
-  }, [loadProfile]);
+  }, [clearAuth]);
+
+  const applySession = useCallback(
+    async (nextSession) => {
+      setSession(nextSession);
+      if (nextSession?.access_token) {
+        const p = await loadProfile(nextSession.access_token);
+        if (!p) {
+          await signOut();
+        }
+      } else {
+        clearAuth();
+      }
+    },
+    [clearAuth, loadProfile, signOut]
+  );
+
+  const refreshSession = useCallback(async () => {
+    if (!isSupabaseConfigured()) {
+      clearAuth();
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { data } = await supabase.auth.getSession();
+      await applySession(data.session);
+    } catch (err) {
+      console.error('[Auth] session restore failed:', err);
+      clearAuth();
+    } finally {
+      setLoading(false);
+    }
+  }, [applySession, clearAuth]);
 
   useEffect(() => {
     refreshSession();
 
+    if (!isSupabaseConfigured()) {
+      return undefined;
+    }
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
-      setSession(newSession);
-      if (newSession?.access_token) {
-        await loadProfile(newSession.access_token);
-      } else {
-        setAccessToken(null);
-        setProfile(null);
-      }
+      await applySession(newSession);
       setLoading(false);
     });
 
     return () => subscription.unsubscribe();
-  }, [loadProfile, refreshSession]);
+  }, [applySession, refreshSession]);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      signOut();
+    });
+    return () => setUnauthorizedHandler(null);
+  }, [signOut]);
 
   async function signIn(email, password) {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Authentication is not configured.');
+    }
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email: email.trim().toLowerCase(),
       password,
     });
-    if (error) throw error;
+
+    if (error) {
+      throw new Error(mapAuthError(error));
+    }
+
     if (data.session?.access_token) {
       const p = await loadProfile(data.session.access_token);
       if (!p) {
-        await supabase.auth.signOut();
-        throw new Error(
-          'User profile not found. Contact your administrator. Ensure the backend is running (port 5000), user_profiles.id matches your Auth user UUID, and backend/.env includes SUPABASE_SERVICE_ROLE_KEY.'
-        );
+        await signOut();
+        throw new Error('Account not provisioned. Contact your administrator.');
       }
+      setSession(data.session);
     }
-    return data;
-  }
 
-  async function signOut() {
-    setAccessToken(null);
-    setProfile(null);
-    setSession(null);
-    await supabase.auth.signOut();
+    return data;
   }
 
   const value = {
@@ -103,7 +154,8 @@ export function AuthProvider({ children }) {
     loading,
     signIn,
     signOut,
-    isAuthenticated: Boolean(session && profile),
+    isAuthenticated: Boolean(session?.access_token && profile),
+    isConfigured: isSupabaseConfigured(),
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

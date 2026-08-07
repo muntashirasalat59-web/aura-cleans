@@ -9,7 +9,11 @@ function isFkViolation(error) {
 
 async function countPartyLinks(supabase, partyId) {
   const [salesRes, purchasesRes] = await Promise.all([
-    supabase.from('sales').select('id', { count: 'exact', head: true }).eq('party_id', partyId),
+    supabase
+      .from('sales')
+      .select('id', { count: 'exact', head: true })
+      .eq('party_id', partyId)
+      .eq('is_deleted', false),
     supabase.from('purchases').select('id', { count: 'exact', head: true }).eq('party_id', partyId),
   ]);
 
@@ -60,10 +64,13 @@ function partyDeleteBlockedMessage(counts) {
 }
 
 function productDeleteBlockedMessage(counts) {
+  const saleItems = counts.saleItems || 0;
+  if (saleItems > 0) {
+    return `This product cannot be deleted because ${saleItems} sale line item(s) are linked to it. Deactivate this product instead to hide it from new invoices while keeping past records.`;
+  }
   const parts = [];
-  if (counts.saleItems > 0) parts.push(`${counts.saleItems} sale line item(s)`);
   if (counts.purchaseItems > 0) parts.push(`${counts.purchaseItems} purchase line item(s)`);
-  const linked = parts.join(' and ');
+  const linked = parts.join(' and ') || 'linked records';
   return `This product cannot be deleted because ${linked} are linked to it. Deactivate this product instead to hide it from new invoices while keeping past records.`;
 }
 

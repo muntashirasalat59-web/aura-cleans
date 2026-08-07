@@ -1,16 +1,23 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { flushSync } from 'react-dom';
-import { Plus, Trash2, X, Eye, FileDown, FileText, Pencil } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Plus, Trash2, X, Eye, FileDown, FileText, Pencil, Banknote } from 'lucide-react';
 import { salesAPI, partiesAPI, productsAPI } from '../api';
 import LoadingState from '../components/LoadingState';
 import PageHeader from '../components/PageHeader';
+import ExportMenu from '../components/ExportMenu';
+import EmptyState from '../components/EmptyState';
+import { SALE_EXPORT_COLUMNS, mapSaleExportRow } from '../config/exportColumns';
 import FormShell from '../components/forms/FormShell';
 import { FormField } from '../components/forms/FormField';
 import FormActions from '../components/forms/FormActions';
 import PartySelectField from '../components/forms/PartySelectField';
 import InvoiceLetterPreview from '../components/forms/InvoiceLetterPreview';
-import GstTaxSummary from '../components/invoice/GstTaxSummary';
-import InvoiceLineItemsTable from '../components/invoice/InvoiceLineItemsTable';
+import InvoicePaymentFields from '../components/forms/InvoicePaymentFields';
+import InvoicePaymentPreview from '../components/invoice/InvoicePaymentPreview';
+import DeleteInvoiceModal from '../components/invoice/DeleteInvoiceModal';
+import MarkPaidModal from '../components/invoice/MarkPaidModal';
+import ErrorModal from '../components/ErrorModal';
 import { computeGstTotals } from '../utils/invoiceGst';
 import { formatInrAmount, formatLineGstDisplay, enrichInvoiceLine } from '../utils/invoiceLineItems';
 import { formatProductNameWithSize, formatProductOptionLabel } from '../utils/productDisplay';
@@ -19,31 +26,85 @@ import {
   SALES_QUICK_ADD_TYPES,
 } from '../utils/partyTypes';
 import { refreshPartiesAfterCreate } from '../utils/partyList';
+import { useDataSync } from '../hooks/useDataSync';
+import { notifyDataSync } from '../lib/dataSync';
+import {
+  emptyPaymentDetails,
+  paymentFromSale,
+  paymentToPayload,
+  formatDisplayDate,
+} from '../utils/invoicePayment';
+import { balanceDue, paymentStatus, enrichPaymentFields } from '../utils/invoiceReceivables';
 
 export default function Sales() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [sales, setSales] = useState([]);
   const [parties, setParties] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const paymentFilter = searchParams.get('payment');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editingInvoiceNumber, setEditingInvoiceNumber] = useState('');
   const [editStockBaseline, setEditStockBaseline] = useState({});
   const [showPreview, setShowPreview] = useState(false);
   const [viewInvoice, setViewInvoice] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deletingInvoice, setDeletingInvoice] = useState(false);
+  const [markPaidTarget, setMarkPaidTarget] = useState(null);
+  const [markingPaid, setMarkingPaid] = useState(false);
+  const [errorModal, setErrorModal] = useState({ open: false, title: '', message: '' });
   const [form, setForm] = useState({
     party_id: '',
     invoice_date: new Date().toISOString().split('T')[0],
     gst_percent: 18,
     items: [{ product_id: '', quantity: 1, rate: 0 }],
+    payment: emptyPaymentDetails(),
   });
+
+  function showError(title, message) {
+    setErrorModal({ open: true, title, message });
+  }
+
+  function closeErrorModal() {
+    setErrorModal({ open: false, title: '', message: '' });
+  }
+
+  function formatCreateInvoiceError(err) {
+    const msg = err?.message || '';
+    if (
+      err?.code === 'INVOICE_NUMBER_CONFLICT' ||
+      /duplicate key|sales_invoice_number|invoice_number/i.test(msg)
+    ) {
+      return 'Something went wrong while generating the invoice number. Please try again.';
+    }
+    return msg || 'Failed to save invoice.';
+  }
 
   useEffect(() => {
     loadData();
   }, []);
 
-  async function loadData() {
+  useDataSync(['sales', 'parties', 'products'], () => loadData(true));
+
+  const displayedSales = useMemo(() => {
+    if (paymentFilter !== 'pending') return sales;
+    return sales.filter((sale) => {
+      const status = sale.payment_status || paymentStatus(sale);
+      const due = sale.balance_due != null ? Number(sale.balance_due) : balanceDue(sale);
+      return due > 0 && (status === 'pending' || status === 'partial');
+    });
+  }, [sales, paymentFilter]);
+
+  function clearPaymentFilter() {
+    const next = new URLSearchParams(searchParams);
+    next.delete('payment');
+    setSearchParams(next, { replace: true });
+  }
+
+  async function loadData(silent = false) {
     try {
+      if (!silent) setLoading(true);
       const [salesData, partiesData, productsData] = await Promise.all([
         salesAPI.getAll(),
         partiesAPI.getAll({ activeOnly: true }),
@@ -53,9 +114,9 @@ export default function Sales() {
       setParties(partiesData);
       setProducts(productsData);
     } catch (err) {
-      alert('Error: ' + err.message);
+      if (!silent) alert('Error: ' + err.message);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
@@ -103,6 +164,7 @@ export default function Sales() {
       invoice_date: new Date().toISOString().split('T')[0],
       gst_percent: 18,
       items: [{ product_id: '', quantity: 1, rate: 0 }],
+      payment: emptyPaymentDetails(),
     });
   }
 
@@ -198,6 +260,7 @@ export default function Sales() {
           quantity: item.quantity,
           rate: item.rate,
         })),
+        payment: paymentFromSale(data),
       });
       setShowForm(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -253,6 +316,11 @@ export default function Sales() {
       }
     }
 
+    if (form.payment.collection === 'pending' && !form.payment.due_date?.trim()) {
+      alert('Select a due date for pending payment.');
+      return;
+    }
+
     try {
       const payload = {
         party_id: parseInt(form.party_id),
@@ -263,6 +331,7 @@ export default function Sales() {
           quantity: parseInt(item.quantity),
           rate: parseFloat(item.rate),
         })),
+        payment: paymentToPayload(form.payment),
       };
 
       if (editingId) {
@@ -274,9 +343,10 @@ export default function Sales() {
       }
 
       closeForm();
-      loadData();
+      notifyDataSync('sales');
+      notifyDataSync('products');
     } catch (err) {
-      alert('Error: ' + err.message);
+      showError('Could not save invoice', formatCreateInvoiceError(err));
     }
   }
 
@@ -297,7 +367,73 @@ export default function Sales() {
     }
   }
 
-  if (loading) return <LoadingState />;
+  function openDeleteInvoice(id, invoiceNumber) {
+    setDeleteTarget({ id, invoiceNumber });
+  }
+
+  function closeDeleteInvoice() {
+    if (deletingInvoice) return;
+    setDeleteTarget(null);
+  }
+
+  async function confirmDeleteInvoice(reason) {
+    if (!deleteTarget) return;
+
+    const { id } = deleteTarget;
+
+    try {
+      setDeletingInvoice(true);
+      const result = await salesAPI.delete(id, { reason });
+      alert(result.message || 'Invoice deleted.');
+      setDeleteTarget(null);
+      if (editingId === id) closeForm();
+      if (viewInvoice?.id === id) setViewInvoice(null);
+      notifyDataSync('sales');
+      notifyDataSync('products');
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      setDeletingInvoice(false);
+    }
+  }
+
+  function openMarkPaid(sale) {
+    const payment = enrichPaymentFields(sale);
+    setMarkPaidTarget({
+      id: sale.id,
+      invoiceNumber: sale.invoice_number,
+      partyName: sale.party_name,
+      amountDue: payment.balance_due,
+    });
+  }
+
+  function closeMarkPaid() {
+    if (markingPaid) return;
+    setMarkPaidTarget(null);
+  }
+
+  async function confirmMarkPaid({ payment_date, payment_method }) {
+    if (!markPaidTarget) return;
+    try {
+      setMarkingPaid(true);
+      const updated = await salesAPI.markPaid(markPaidTarget.id, {
+        payment_date,
+        payment_method,
+      });
+      setSales((prev) =>
+        prev.map((s) => (s.id === markPaidTarget.id ? { ...s, ...updated } : s))
+      );
+      setMarkPaidTarget(null);
+      notifyDataSync('sales');
+      notifyDataSync('parties');
+    } catch (err) {
+      showError('Could not mark as paid', err.message || 'Failed to update payment status.');
+    } finally {
+      setMarkingPaid(false);
+    }
+  }
+
+  if (loading && sales.length === 0 && parties.length === 0) return <LoadingState />;
 
   return (
     <div>
@@ -305,24 +441,52 @@ export default function Sales() {
         title="Sales & invoices"
         description="Create GST invoices, track revenue, and download PDFs."
         action={
-          <button
-            onClick={() => (showForm ? closeForm() : openCreateForm())}
-            className={`btn w-full sm:w-auto ${showForm ? 'btn-secondary' : 'btn-primary'}`}
-          >
-            {showForm ? (
-              <>
-                <X className="h-4 w-4" />
-                Cancel
-              </>
-            ) : (
-              <>
-                <Plus className="h-4 w-4" />
-                New invoice
-              </>
-            )}
-          </button>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <ExportMenu
+              filePrefix="sales"
+              successLabel="Sales"
+              columns={SALE_EXPORT_COLUMNS}
+              getRows={() =>
+                displayedSales.map((s) =>
+                  mapSaleExportRow(s, { paymentStatus, balanceDue })
+                )
+              }
+            />
+            <button
+              onClick={() => (showForm ? closeForm() : openCreateForm())}
+              className={`btn w-full sm:w-auto ${showForm ? 'btn-secondary' : 'btn-primary'}`}
+            >
+              {showForm ? (
+                <>
+                  <X className="h-4 w-4" />
+                  Cancel
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4" />
+                  New invoice
+                </>
+              )}
+            </button>
+          </div>
         }
       />
+
+      {paymentFilter === 'pending' && (
+        <div className="status-banner status-banner-info mb-4 flex flex-wrap items-center gap-2 py-2 dark:border dark:border-sky-700/50 dark:bg-sky-950/40 dark:text-sky-100">
+          <span className="font-medium">
+            Showing pending / partial invoices ({displayedSales.length})
+          </span>
+          <button
+            type="button"
+            onClick={clearPaymentFilter}
+            className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold hover:bg-[var(--app-accent-soft)] dark:hover:bg-sky-900/50"
+          >
+            Clear filter
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       {showForm && (
         <div className="form-panel">
@@ -386,18 +550,18 @@ export default function Sales() {
               </div>
 
               <p className="form-section-label">Product line items</p>
-              <div className="overflow-x-auto mb-2">
-                <table className="line-items-table min-w-[1080px]">
+              <div className="invoice-form-table-scroll">
+                <table className="line-items-table">
                   <thead>
                     <tr>
-                      <th className="w-10 text-center">#</th>
-                      <th className="min-w-[200px]">Item Name</th>
-                      <th className="min-w-[88px] whitespace-nowrap">HSN/SAC</th>
+                      <th className="col-sn text-center">#</th>
+                      <th className="col-item">Item Name</th>
+                      <th className="col-hsn whitespace-nowrap">HSN/SAC</th>
                       <th className="col-qty text-right">Qty</th>
                       <th className="col-rate text-right whitespace-nowrap">Price/Unit (₹)</th>
-                      <th className="min-w-[120px] text-right whitespace-nowrap">GST</th>
-                      <th className="min-w-[130px] text-right whitespace-nowrap">Amount (excl. GST)</th>
-                      <th className="w-10" />
+                      <th className="col-gst text-right whitespace-nowrap">GST</th>
+                      <th className="col-amount text-right whitespace-nowrap">Amount (excl. GST)</th>
+                      <th className="col-actions" />
                     </tr>
                   </thead>
                   <tbody>
@@ -421,17 +585,13 @@ export default function Sales() {
                         : null;
                       return (
                         <tr key={index}>
-                          <td className="text-center tabular-nums text-slate-500 font-medium">{index + 1}</td>
-                          <td>
-                            {product && (
-                              <p className="font-medium text-slate-900 mb-1.5">
-                                {formatProductNameWithSize(product, 'inline')}
-                              </p>
-                            )}
+                          <td className="col-sn text-center tabular-nums text-slate-500 font-medium">{index + 1}</td>
+                          <td className="col-item">
                             <select
-                              className="line-item-row-input min-w-[180px]"
+                              className="line-item-row-input"
                               value={item.product_id}
                               onChange={(e) => updateItem(index, 'product_id', e.target.value)}
+                              title={product ? formatProductNameWithSize(product, 'inline') : 'Select product'}
                             >
                               <option value="">Select product</option>
                               {products.map((p) => (
@@ -441,8 +601,10 @@ export default function Sales() {
                               ))}
                             </select>
                           </td>
-                          <td className="font-mono text-xs text-slate-600 whitespace-nowrap">
-                            {item.product_id ? getProductHsn(item.product_id) : '—'}
+                          <td className="col-hsn">
+                            <span className="line-item-cell-hsn">
+                              {item.product_id ? getProductHsn(item.product_id) : '—'}
+                            </span>
                           </td>
                           <td className="col-qty">
                             <input
@@ -462,13 +624,17 @@ export default function Sales() {
                               onChange={(e) => updateItem(index, 'rate', e.target.value)}
                             />
                           </td>
-                          <td className="tabular-nums text-xs text-slate-700 whitespace-nowrap">
-                            {line ? formatLineGstDisplay(line) : '—'}
+                          <td className="col-gst">
+                            <span className="line-item-cell-gst">
+                              {line ? formatLineGstDisplay(line) : '—'}
+                            </span>
                           </td>
-                          <td className="font-semibold tabular-nums text-slate-900 whitespace-nowrap">
-                            {line ? formatInrAmount(line.taxable) : '—'}
+                          <td className="col-amount">
+                            <span className="line-item-cell-amount">
+                              {line ? formatInrAmount(line.taxable) : '—'}
+                            </span>
                           </td>
-                          <td>
+                          <td className="col-actions">
                             {form.items.length > 1 && (
                               <button
                                 type="button"
@@ -490,14 +656,20 @@ export default function Sales() {
                 Line amounts exclude GST. GST updates automatically when qty, rate, or invoice GST % changes.
               </p>
 
-              <button type="button" onClick={addItemRow} className="link-action text-sm mb-8">
+              <button type="button" onClick={addItemRow} className="link-action text-sm mb-6">
                 <Plus className="h-4 w-4" />
                 Add line item
               </button>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start mb-2">
-                <div className="hidden lg:block">
-                  <p className="form-section-label mb-3">Live preview</p>
+              <p className="form-section-label">Payment collection</p>
+              <InvoicePaymentFields
+                payment={form.payment}
+                onChange={(payment) => setForm((prev) => ({ ...prev, payment }))}
+              />
+
+              <div className="hidden lg:block mb-2">
+                <p className="form-section-label mb-3">Live preview</p>
+                <div className="invoice-live-preview-wrap">
                   <InvoiceLetterPreview
                     compact
                     invoiceNumber={editingId ? editingInvoiceNumber : 'INV-DRAFT'}
@@ -508,15 +680,7 @@ export default function Sales() {
                     subtotal={calculateSubtotal()}
                     gstAmount={calculateGST()}
                     total={calculateTotal()}
-                  />
-                </div>
-                <div className="invoice-summary-box lg:max-w-none">
-                  <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">Tax summary</p>
-                  <GstTaxSummary
-                    gstPercent={form.gst_percent}
-                    gstAmount={calculateGST()}
-                    subtotal={calculateSubtotal()}
-                    total={calculateTotal()}
+                    payment={form.payment}
                   />
                 </div>
               </div>
@@ -568,17 +732,19 @@ export default function Sales() {
               subtotal={calculateSubtotal()}
               gstAmount={calculateGST()}
               total={calculateTotal()}
+              payment={form.payment}
+              forPrint
             />
           </div>
         </div>
       )}
 
       {viewInvoice && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-          <div className="bg-white surface-light rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto border border-slate-200">
-            <div className="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 flex justify-between items-start">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4 print-modal-root">
+          <div className="bg-white surface-light rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-3xl max-h-[90vh] overflow-y-auto border border-slate-200 print-modal-panel">
+            <div className="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 flex justify-between items-start no-print print:hidden dark:bg-slate-900 dark:border-slate-700">
               <div>
-                <h3 className="text-xl font-bold text-slate-900">{viewInvoice.invoice_number}</h3>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white">{viewInvoice.invoice_number}</h3>
                 <p className="text-sm text-slate-500 mt-0.5">{viewInvoice.invoice_date}</p>
               </div>
               <button
@@ -591,105 +757,212 @@ export default function Sales() {
               </button>
             </div>
 
-            <div className="p-6">
-              <div className="mb-5 p-4 bg-indigo-50/50 rounded-xl border border-indigo-100">
-                <p className="font-semibold text-slate-900">{viewInvoice.party_name}</p>
-                {viewInvoice.contact && <p className="text-sm text-slate-600 mt-1">{viewInvoice.contact}</p>}
-                {viewInvoice.gst_number && (
-                  <p className="text-sm text-slate-500 mt-0.5">GST: {viewInvoice.gst_number}</p>
-                )}
-              </div>
+            <div className="p-4 sm:p-6 print-invoice-shell">
+              <InvoiceLetterPreview
+                invoiceNumber={viewInvoice.invoice_number}
+                invoiceDate={viewInvoice.invoice_date}
+                party={{
+                  name: viewInvoice.party_name,
+                  contact: viewInvoice.contact,
+                  address: viewInvoice.address,
+                  gst_number: viewInvoice.gst_number,
+                }}
+                items={viewInvoice.items.map((item) => ({
+                  product_name: item.product_name,
+                  unit_size: item.unit_size,
+                  unit_type: item.unit_type,
+                  hsn_sac: item.hsn_sac,
+                  quantity: item.quantity,
+                  rate: item.rate,
+                }))}
+                gstPercent={viewInvoice.gst_percent}
+                subtotal={viewInvoice.subtotal}
+                gstAmount={viewInvoice.gst_amount}
+                total={viewInvoice.total_amount}
+                payment={paymentFromSale(viewInvoice)}
+                forPrint
+              />
 
-              <div className="overflow-x-auto rounded-xl border border-slate-100 mb-5">
-                <InvoiceLineItemsTable
-                  items={viewInvoice.items.map((item) => ({
-                    product_name: item.product_name,
-                    unit_size: item.unit_size,
-                    unit_type: item.unit_type,
-                    hsn_sac: item.hsn_sac,
-                    quantity: item.quantity,
-                    rate: item.rate,
-                  }))}
-                  gstPercent={viewInvoice.gst_percent}
-                  className="invoice-lines w-full text-sm"
-                  emptyMessage="No line items"
-                />
+              <div className="flex flex-col sm:flex-row gap-3 mt-6 no-print print:hidden">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="btn btn-secondary flex-1"
+                >
+                  <FileText className="h-4 w-4" />
+                  Print
+                </button>
+                <button onClick={() => downloadPDF(viewInvoice.id)} className="btn btn-primary flex-1">
+                  <FileDown className="h-4 w-4" />
+                  Download PDF
+                </button>
               </div>
-
-              <div className="invoice-summary-box mb-6 text-sm">
-                <GstTaxSummary
-                  gstPercent={viewInvoice.gst_percent}
-                  gstAmount={viewInvoice.gst_amount}
-                  subtotal={viewInvoice.subtotal}
-                  total={viewInvoice.total_amount}
-                />
-              </div>
-
-              <button onClick={() => downloadPDF(viewInvoice.id)} className="btn btn-primary w-full">
-                <FileDown className="h-4 w-4" />
-                Download PDF
-              </button>
             </div>
           </div>
         </div>
       )}
 
-      <div className="table-wrap">
-        <div className="px-6 py-4 border-b border-slate-100">
+      <div className="table-wrap no-print">
+        <div className="table-wrap-header">
           <h3 className="card-section-title mb-0">Invoice history</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+            {displayedSales.length} invoice{displayedSales.length === 1 ? '' : 's'}
+            {paymentFilter === 'pending' && sales.length !== displayedSales.length
+              ? ` of ${sales.length}`
+              : ''}
+          </p>
         </div>
-        <div className="overflow-x-auto">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Invoice No.</th>
-                <th>Date</th>
-                <th>Party</th>
-                <th>Subtotal</th>
-                <th>GST</th>
-                <th>Total</th>
-                <th className="text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sales.length === 0 ? (
+        {displayedSales.length === 0 ? (
+          <EmptyState
+            icon={FileText}
+            title={paymentFilter === 'pending' ? 'No pending invoices' : 'No invoices yet'}
+            description={
+              paymentFilter === 'pending'
+                ? 'All invoices are fully paid, or no receivables match this filter.'
+                : 'Create a GST invoice to record a sale, update stock, and download a PDF.'
+            }
+            actionLabel={paymentFilter === 'pending' ? 'Show all invoices' : 'New invoice'}
+            onAction={paymentFilter === 'pending' ? clearPaymentFilter : openCreateForm}
+          />
+        ) : (
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <td colSpan="7" className="py-12 text-center text-slate-500">
-                    No invoices yet. Create your first invoice above.
-                  </td>
+                  <th>Invoice No.</th>
+                  <th>Date</th>
+                  <th>Party</th>
+                  <th className="col-num">Qty</th>
+                  <th className="col-num">Subtotal</th>
+                  <th className="col-num">GST</th>
+                  <th className="col-num">Total</th>
+                  <th className="text-right">Actions</th>
                 </tr>
-              ) : (
-                sales.map((sale) => (
+              </thead>
+              <tbody>
+                {displayedSales.map((sale) => (
                   <tr key={sale.id}>
-                    <td className="font-medium text-slate-900">{sale.invoice_number}</td>
-                    <td>{sale.invoice_date}</td>
-                    <td>{sale.party_name}</td>
-                    <td>₹{sale.subtotal.toLocaleString('en-IN')}</td>
-                    <td>₹{sale.gst_amount.toLocaleString('en-IN')}</td>
-                    <td className="font-semibold text-emerald-600">₹{sale.total_amount.toLocaleString('en-IN')}</td>
+                    <td>
+                      <p className="list-primary whitespace-nowrap">{sale.invoice_number}</p>
+                      {(sale.payment_status === 'pending' ||
+                        sale.payment_status === 'partial' ||
+                        balanceDue(sale) > 0) && (
+                        <p className="list-secondary">
+                          Due ₹
+                          {(sale.balance_due != null
+                            ? Number(sale.balance_due)
+                            : balanceDue(sale)
+                          ).toLocaleString('en-IN')}
+                          {sale.payment_due_date
+                            ? ` · by ${formatDisplayDate(sale.payment_due_date)}`
+                            : ''}
+                          {sale.payment_status === 'partial' ? ' · partial' : ''}
+                        </p>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap tabular-nums">{sale.invoice_date}</td>
+                    <td>
+                      <p className="list-primary font-medium text-[14px]">{sale.party_name}</p>
+                    </td>
+                    <td className="col-num">
+                      {Number(sale.total_quantity ?? 0).toLocaleString('en-IN')}
+                    </td>
+                    <td className="col-num">₹{Number(sale.subtotal).toLocaleString('en-IN')}</td>
+                    <td className="col-num">₹{Number(sale.gst_amount).toLocaleString('en-IN')}</td>
+                    <td className="col-num font-semibold text-emerald-600 dark:text-emerald-400">
+                      ₹{Number(sale.total_amount).toLocaleString('en-IN')}
+                    </td>
                     <td className="text-right">
-                      <div className="flex justify-end gap-3">
-                        <button type="button" onClick={() => openEditInvoice(sale.id)} className="link-action">
+                      <div className="list-actions">
+                        <button
+                          type="button"
+                          onClick={() => openEditInvoice(sale.id)}
+                          className="link-action"
+                        >
                           <Pencil className="h-3.5 w-3.5" />
                           Edit
                         </button>
-                        <button type="button" onClick={() => viewInvoiceDetails(sale.id)} className="link-action">
+                        <button
+                          type="button"
+                          onClick={() => viewInvoiceDetails(sale.id)}
+                          className="link-action-muted"
+                        >
                           <Eye className="h-3.5 w-3.5" />
                           View
                         </button>
-                        <button type="button" onClick={() => downloadPDF(sale.id)} className="link-action">
+                        <button
+                          type="button"
+                          onClick={() => downloadPDF(sale.id)}
+                          className="link-action-muted"
+                        >
                           <FileDown className="h-3.5 w-3.5" />
                           PDF
+                        </button>
+                        {(() => {
+                          const status = sale.payment_status || paymentStatus(sale);
+                          if (status === 'paid') {
+                            return (
+                              <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                                Paid
+                              </span>
+                            );
+                          }
+                          if (status === 'pending' || status === 'partial') {
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => openMarkPaid(sale)}
+                                className="link-action text-emerald-600 hover:text-emerald-500 dark:text-emerald-400"
+                              >
+                                <Banknote className="h-3.5 w-3.5" />
+                                Mark as paid
+                              </button>
+                            );
+                          }
+                          return null;
+                        })()}
+                        <button
+                          type="button"
+                          onClick={() => openDeleteInvoice(sale.id, sale.invoice_number)}
+                          className="link-action-danger"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Delete
                         </button>
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
+
+      <DeleteInvoiceModal
+        open={Boolean(deleteTarget)}
+        invoiceNumber={deleteTarget?.invoiceNumber}
+        onClose={closeDeleteInvoice}
+        onConfirm={confirmDeleteInvoice}
+        confirming={deletingInvoice}
+      />
+
+      <MarkPaidModal
+        open={Boolean(markPaidTarget)}
+        invoiceNumber={markPaidTarget?.invoiceNumber}
+        partyName={markPaidTarget?.partyName}
+        amountDue={markPaidTarget?.amountDue}
+        onClose={closeMarkPaid}
+        onConfirm={confirmMarkPaid}
+        confirming={markingPaid}
+      />
+
+      <ErrorModal
+        open={errorModal.open}
+        title={errorModal.title || 'Something went wrong'}
+        message={errorModal.message}
+        onClose={closeErrorModal}
+      />
     </div>
   );
 }

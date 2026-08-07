@@ -4,9 +4,14 @@
 const API_BASE = '/api';
 
 let accessToken = null;
+let unauthorizedHandler = null;
 
 export function setAccessToken(token) {
   accessToken = token;
+}
+
+export function setUnauthorizedHandler(handler) {
+  unauthorizedHandler = handler;
 }
 
 async function readJsonResponse(response) {
@@ -52,6 +57,11 @@ async function request(url, options = {}) {
       (response.status === 502
         ? 'Backend unavailable (502). Start the server: cd backend && npm run dev'
         : `Request failed (${response.status})`);
+
+    if (response.status === 401 && unauthorizedHandler) {
+      unauthorizedHandler();
+    }
+
     throw new Error(message);
   }
 
@@ -103,7 +113,9 @@ export const partiesAPI = {
   update: (id, data) => request(`/parties/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deactivate: (id) => request(`/parties/${id}/deactivate`, { method: 'POST' }),
   reactivate: (id) => request(`/parties/${id}/reactivate`, { method: 'POST' }),
+  getLinkedRecords: (id) => request(`/parties/${id}/linked-records`),
   delete: (id) => request(`/parties/${id}`, { method: 'DELETE' }),
+  deleteCascade: (id) => request(`/parties/${id}/cascade`, { method: 'DELETE' }),
 };
 
 // Purchases API
@@ -115,7 +127,13 @@ export const purchasesAPI = {
     return request(`/purchases${qs ? `?${qs}` : ''}`);
   },
   getOne: (id) => request(`/purchases/${id}`),
-  create: (data) => request('/purchases', { method: 'POST', body: JSON.stringify(data) })
+  create: (data) => request('/purchases', { method: 'POST', body: JSON.stringify(data) }),
+  markPaid: (id, data) =>
+    request(`/purchases/${id}/mark-paid`, {
+      method: 'PATCH',
+      body: JSON.stringify(data || {}),
+    }),
+  delete: (id) => request(`/purchases/${id}`, { method: 'DELETE' }),
 };
 
 // Sales API
@@ -124,6 +142,16 @@ export const salesAPI = {
   getOne: (id) => request(`/sales/${id}`),
   create: (data) => request('/sales', { method: 'POST', body: JSON.stringify(data) }),
   update: (id, data) => request(`/sales/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  markPaid: (id, data) =>
+    request(`/sales/${id}/mark-paid`, {
+      method: 'PATCH',
+      body: JSON.stringify(data || {}),
+    }),
+  delete: (id, { reason } = {}) =>
+    request(`/sales/${id}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ reason }),
+    }),
   downloadPDF: async (id) => {
     const response = await request(`/sales/${id}/pdf`);
     const blob = await response.blob();
@@ -175,4 +203,31 @@ export const usersAPI = {
   getAll: () => request('/users'),
   create: (data) => request('/users', { method: 'POST', body: JSON.stringify(data) }),
   delete: (id) => request(`/users/${id}`, { method: 'DELETE' }),
+  markBusinessPaid: (id, data) =>
+    request(`/users/${id}/mark-business-paid`, {
+      method: 'PATCH',
+      body: JSON.stringify(data || {}),
+    }),
+};
+
+export const settingsAPI = {
+  getBusiness: () => request('/settings/business'),
+  updateBusiness: (data) =>
+    request('/settings/business', { method: 'PUT', body: JSON.stringify(data) }),
+};
+
+export const activityLogAPI = {
+  list: (opts = {}) => {
+    const params = new URLSearchParams();
+    if (opts.limit != null) params.set('limit', String(opts.limit));
+    if (opts.offset != null) params.set('offset', String(opts.offset));
+    if (opts.user_id) params.set('user_id', opts.user_id);
+    if (opts.action_type) params.set('action_type', opts.action_type);
+    if (opts.entity_type) params.set('entity_type', opts.entity_type);
+    if (opts.from) params.set('from', opts.from);
+    if (opts.to) params.set('to', opts.to);
+    const qs = params.toString();
+    return request(`/activity-log${qs ? `?${qs}` : ''}`);
+  },
+  getActors: () => request('/activity-log/actors'),
 };

@@ -31,6 +31,7 @@ const employeesRouter = require('./routes/employees');
 const reportsRouter = require('./routes/reports');
 const authRouter = require('./routes/auth');
 const usersRouter = require('./routes/users');
+const activityLogRouter = require('./routes/activityLog');
 const { requireAuth, requireAdmin } = require('./middleware/auth');
 
 // Public
@@ -59,10 +60,12 @@ app.use('/api/expenses', requireAuth, requireAdmin, expensesRouter);
 app.use('/api/employees', requireAuth, requireAdmin, employeesRouter);
 app.use('/api/reports', requireAuth, requireAdmin, reportsRouter);
 app.use('/api/users', requireAuth, requireAdmin, usersRouter);
+app.use('/api/activity-log', requireAuth, requireAdmin, activityLogRouter);
+app.use('/api/settings', requireAuth, require('./routes/settings'));
 
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`📊 API: auth, dashboard, products, parties, sales (staff+admin)`);
-  console.log(`📊 API: purchases, expenses, employees, reports, users (admin)`);
+  console.log(`📊 API: purchases, expenses, employees, reports, users, settings (admin where required)`);
 });

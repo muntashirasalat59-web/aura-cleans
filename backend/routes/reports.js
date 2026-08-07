@@ -38,6 +38,7 @@ router.get('/', async (req, res) => {
       supabase
         .from('sales')
         .select('id, invoice_number, invoice_date, subtotal, gst_amount, total_amount, parties(name)')
+        .eq('is_deleted', false)
         .gte('invoice_date', from)
         .lte('invoice_date', to)
         .order('invoice_date', { ascending: false }),

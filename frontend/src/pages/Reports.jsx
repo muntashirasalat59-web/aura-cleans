@@ -11,8 +11,10 @@ import { reportsAPI } from '../api';
 import LoadingState from '../components/LoadingState';
 import PageHeader from '../components/PageHeader';
 import SegmentedControl from '../components/forms/SegmentedControl';
+import SummaryStatCard from '../components/ui/SummaryStatCard';
 import { downloadCsv } from '../utils/csvExport';
 import { formatProductNameWithSize } from '../utils/productDisplay';
+import { useDataSync } from '../hooks/useDataSync';
 
 function formatDateISO(d) {
   return d.toISOString().split('T')[0];
@@ -55,22 +57,24 @@ export default function Reports() {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const loadReport = useCallback(async () => {
+  const loadReport = useCallback(async (silent = false) => {
     if (!fromDate || !toDate || fromDate > toDate) return;
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const data = await reportsAPI.get({ from: fromDate, to: toDate });
       setReport(data);
     } catch (err) {
-      alert('Error loading report: ' + err.message);
+      if (!silent) alert('Error loading report: ' + err.message);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [fromDate, toDate]);
 
   useEffect(() => {
     loadReport();
   }, [loadReport]);
+
+  useDataSync('*', () => loadReport(true));
 
   function applyPreset(value) {
     setPreset(value);
@@ -173,15 +177,15 @@ export default function Reports() {
         description="Sales, purchases, and expenses for any date range — export to CSV for Excel."
       />
 
-      <div className="premium-glass-card p-5 sm:p-6 border border-indigo-200/40">
+      <div className="surface-panel p-5 sm:p-6">
         <div className="flex items-center gap-2 mb-4">
-          <CalendarRange className="h-5 w-5 text-indigo-600" />
-          <h2 className="text-lg font-semibold text-slate-900">Date range</h2>
+          <CalendarRange className="h-5 w-5 text-[var(--app-accent)] dark:text-indigo-400" />
+          <h2 className="text-lg font-semibold text-[var(--app-heading)] dark:text-white">Date range</h2>
         </div>
         <div className="flex flex-col lg:flex-row lg:items-end gap-4 lg:gap-6">
           <div className="flex flex-col sm:flex-row gap-3 flex-1">
             <label className="flex flex-col gap-1.5 text-sm flex-1">
-              <span className="font-medium text-slate-600">From</span>
+              <span className="font-medium text-slate-600 dark:text-slate-300">From</span>
               <input
                 type="date"
                 className="input input-premium"
@@ -190,7 +194,7 @@ export default function Reports() {
               />
             </label>
             <label className="flex flex-col gap-1.5 text-sm flex-1">
-              <span className="font-medium text-slate-600">To</span>
+              <span className="font-medium text-slate-600 dark:text-slate-300">To</span>
               <input
                 type="date"
                 className="input input-premium"
@@ -219,25 +223,25 @@ export default function Reports() {
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            <SummaryCard
+            <SummaryStatCard
               title="Total sales"
               value={`₹${(summary?.totalSales ?? 0).toLocaleString('en-IN')}`}
               icon={TrendingUp}
               tone="emerald"
             />
-            <SummaryCard
+            <SummaryStatCard
               title="Total purchases"
               value={`₹${(summary?.totalPurchases ?? 0).toLocaleString('en-IN')}`}
               icon={ShoppingBag}
               tone="indigo"
             />
-            <SummaryCard
+            <SummaryStatCard
               title="Total expenses"
               value={`₹${(summary?.totalExpenses ?? 0).toLocaleString('en-IN')}`}
               icon={Banknote}
               tone="violet"
             />
-            <SummaryCard
+            <SummaryStatCard
               title="Net profit"
               value={`₹${(summary?.netProfit ?? 0).toLocaleString('en-IN')}`}
               subtitle="Sales − purchases − expenses"
@@ -457,47 +461,13 @@ export default function Reports() {
   );
 }
 
-function SummaryCard({ title, value, subtitle, icon: Icon, tone }) {
-  const styles = {
-    emerald: 'border-emerald-200/50 from-emerald-50/50',
-    indigo: 'border-indigo-200/50 from-indigo-50/50',
-    violet: 'border-violet-200/50 from-violet-50/50',
-    amber: 'border-amber-200/50 from-amber-50/40',
-  };
-  const icons = {
-    emerald: 'from-emerald-500 to-emerald-700',
-    indigo: 'from-indigo-700 to-indigo-950',
-    violet: 'from-violet-600 to-indigo-900',
-    amber: 'from-amber-500 to-amber-700',
-  };
-
-  return (
-    <div
-      className={`premium-glass-card p-5 border bg-gradient-to-br via-white to-white ${styles[tone]}`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{title}</p>
-          <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">{value}</p>
-          {subtitle && <p className="text-xs text-slate-500 mt-1">{subtitle}</p>}
-        </div>
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-md ${icons[tone]}`}
-        >
-          <Icon className="h-5 w-5" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function ReportSection({ title, description, onExport, exportLabel, children }) {
   return (
     <div className="table-wrap">
-      <div className="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-gradient-to-r from-slate-50/80 to-white">
+      <div className="table-section-header px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-gradient-to-r from-slate-50/80 to-white dark:from-slate-800/90 dark:to-slate-900">
         <div>
           <h3 className="card-section-title mb-0">{title}</h3>
-          <p className="text-sm text-slate-500 mt-0.5">{description}</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{description}</p>
         </div>
         <button type="button" onClick={onExport} className="btn btn-secondary w-full sm:w-auto">
           <FileSpreadsheet className="h-4 w-4" />

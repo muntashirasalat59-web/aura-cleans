@@ -9,7 +9,7 @@ export default function ProtectedRoute({ children }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex items-center justify-center bg-[#F7F8FA] dark:bg-slate-950 transition-colors duration-200">
         <LoadingState message="Checking session…" />
       </div>
     );

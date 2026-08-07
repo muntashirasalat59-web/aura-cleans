@@ -2,8 +2,11 @@ const express = require('express');
 const router = express.Router();
 const { assertNoError } = require('../database/supabase');
 
-const LOW_STOCK_THRESHOLD = 10;
+/** Keep in sync with frontend/src/config/stock.js → LOW_STOCK_THRESHOLD */
+const LOW_STOCK_THRESHOLD = 50;
 const REORDER_TARGET = 25;
+/** Keep in sync with frontend/src/config/payments.js → DUE_SOON_DAYS */
+const DUE_SOON_DAYS = 3;
 
 function isMissingTableError(error) {
   if (!error) return false;
@@ -46,8 +49,314 @@ function getYearStartDate() {
   return formatDate(new Date(d.getFullYear(), 0, 1));
 }
 
+function dueUrgency(dueDateIso, today = new Date()) {
+  if (!dueDateIso) return 'none';
+  const due = new Date(`${String(dueDateIso).slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(due.getTime())) return 'none';
+  const start = new Date(today);
+  start.setHours(12, 0, 0, 0);
+  const diffDays = Math.round((due.getTime() - start.getTime()) / 86400000);
+  if (diffDays < 0) return 'overdue';
+  if (diffDays <= DUE_SOON_DAYS) return 'due_soon';
+  return 'upcoming';
+}
+
+/**
+ * @param {Array} saleRows
+ * @param {'full'|'due_date'} mode
+ *  - full: use amount_paid / payment_status columns
+ *  - due_date: columns missing — any invoice with payment_due_date is unpaid credit
+ */
+function buildPendingReceivables(saleRows, mode = 'full') {
+  const pendingInvoices = (saleRows || [])
+    .map((row) => {
+      const total = Number(row.total_amount) || 0;
+      let paid = Number(row.amount_paid) || 0;
+      let payment_status = row.payment_status || null;
+
+      if (mode === 'due_date') {
+        if (row.payment_due_date) {
+          paid = 0;
+          payment_status = 'pending';
+        } else {
+          paid = total;
+          payment_status = 'paid';
+        }
+      } else if (payment_status === 'paid') {
+        paid = Math.max(paid, total);
+      } else if (payment_status === 'pending') {
+        // keep paid as-is (usually 0)
+      } else if (!payment_status) {
+        const due = Math.max(0, total - paid);
+        payment_status = due <= 0 ? 'paid' : paid > 0 ? 'partial' : 'pending';
+      }
+
+      const balance_due = Math.max(0, Math.round((total - paid) * 100) / 100);
+      if (balance_due <= 0) payment_status = 'paid';
+      else if (!payment_status || payment_status === 'paid') {
+        payment_status = paid > 0 ? 'partial' : 'pending';
+      }
+
+      return {
+        id: row.id,
+        invoice_number: row.invoice_number,
+        party_name: row.parties?.name || '—',
+        invoice_date: row.invoice_date,
+        payment_due_date: row.payment_due_date || null,
+        total_amount: total,
+        amount_paid: paid,
+        balance_due,
+        payment_status,
+        urgency: dueUrgency(row.payment_due_date),
+      };
+    })
+    .filter((s) => s.balance_due > 0 && (s.payment_status === 'pending' || s.payment_status === 'partial'))
+    .sort((a, b) => {
+      const rank = { overdue: 0, due_soon: 1, upcoming: 2, none: 3 };
+      const diff = rank[a.urgency] - rank[b.urgency];
+      if (diff !== 0) return diff;
+      return String(a.payment_due_date || '9999-99-99').localeCompare(
+        String(b.payment_due_date || '9999-99-99')
+      );
+    });
+
+  const pendingPayments = pendingInvoices.reduce((acc, s) => acc + s.balance_due, 0);
+  const hasOverdue = pendingInvoices.some((s) => s.urgency === 'overdue');
+  const hasDueSoon = pendingInvoices.some((s) => s.urgency === 'due_soon');
+
+  return {
+    pendingInvoices,
+    pendingPayments: Math.round(pendingPayments * 100) / 100,
+    pendingInvoiceCount: pendingInvoices.length,
+    pendingTone: hasOverdue ? 'danger' : hasDueSoon ? 'warning' : 'info',
+  };
+}
+
+async function fetchReceivableSales(db) {
+  const full = await db
+    .from('sales')
+    .select(
+      'id, invoice_number, invoice_date, total_amount, amount_paid, payment_status, payment_due_date, parties(name)'
+    )
+    .eq('is_deleted', false)
+    .order('invoice_date', { ascending: false });
+
+  if (!full.error) {
+    return { rows: full.data || [], mode: 'full' };
+  }
+
+  if (/amount_paid|payment_status/i.test(full.error.message || '')) {
+    console.warn(
+      '[dashboard] amount_paid/payment_status missing — pending from payment_due_date'
+    );
+    const legacy = await db
+      .from('sales')
+      .select('id, invoice_number, invoice_date, total_amount, payment_due_date, parties(name)')
+      .eq('is_deleted', false)
+      .order('invoice_date', { ascending: false });
+    assertNoError(legacy.error);
+    return { rows: legacy.data || [], mode: 'due_date' };
+  }
+
+  assertNoError(full.error);
+  return { rows: [], mode: 'full' };
+}
+
+/** Supplier payables — same payment columns as sales (after purchases_payment migration). */
+function buildPendingPayables(purchaseRows, mode = 'full') {
+  const pendingPurchases = (purchaseRows || [])
+    .map((row) => {
+      const total = Number(row.total_amount) || 0;
+      let paid = Number(row.amount_paid) || 0;
+      let payment_status = row.payment_status || null;
+
+      if (mode === 'due_date') {
+        if (row.payment_due_date) {
+          paid = 0;
+          payment_status = 'pending';
+        } else {
+          paid = total;
+          payment_status = 'paid';
+        }
+      } else if (payment_status === 'paid') {
+        paid = Math.max(paid, total);
+      } else if (!payment_status) {
+        const due = Math.max(0, total - paid);
+        payment_status = due <= 0 ? 'paid' : paid > 0 ? 'partial' : 'pending';
+      }
+
+      const balance_due = Math.max(0, Math.round((total - paid) * 100) / 100);
+      if (balance_due <= 0) payment_status = 'paid';
+      else if (!payment_status || payment_status === 'paid') {
+        payment_status = paid > 0 ? 'partial' : 'pending';
+      }
+
+      return {
+        id: row.id,
+        purchase_date: row.purchase_date,
+        party_name: row.parties?.name || '—',
+        payment_due_date: row.payment_due_date || null,
+        total_amount: total,
+        amount_paid: paid,
+        balance_due,
+        payment_status,
+        urgency: dueUrgency(row.payment_due_date),
+      };
+    })
+    .filter((p) => p.balance_due > 0 && (p.payment_status === 'pending' || p.payment_status === 'partial'))
+    .sort((a, b) => {
+      const rank = { overdue: 0, due_soon: 1, upcoming: 2, none: 3 };
+      const diff = rank[a.urgency] - rank[b.urgency];
+      if (diff !== 0) return diff;
+      return String(a.payment_due_date || '9999-99-99').localeCompare(
+        String(b.payment_due_date || '9999-99-99')
+      );
+    });
+
+  const pendingPayables = pendingPurchases.reduce((acc, p) => acc + p.balance_due, 0);
+  const hasOverdue = pendingPurchases.some((p) => p.urgency === 'overdue');
+  const hasDueSoon = pendingPurchases.some((p) => p.urgency === 'due_soon');
+
+  return {
+    pendingPurchases,
+    pendingPayables: Math.round(pendingPayables * 100) / 100,
+    pendingPurchaseCount: pendingPurchases.length,
+    pendingPayableTone: hasOverdue ? 'danger' : hasDueSoon ? 'warning' : 'info',
+  };
+}
+
+async function fetchPayablePurchases(db) {
+  const full = await db
+    .from('purchases')
+    .select(
+      'id, purchase_date, total_amount, amount_paid, payment_status, payment_due_date, parties(name)'
+    )
+    .order('purchase_date', { ascending: false });
+
+  if (!full.error) {
+    return { rows: full.data || [], mode: 'full' };
+  }
+
+  if (/amount_paid|payment_status|payment_due_date/i.test(full.error.message || '')) {
+    console.warn(
+      '[dashboard] purchase payment columns missing — run supabase.migration.purchases_payment.sql'
+    );
+    return { rows: [], mode: 'due_date' };
+  }
+
+  assertNoError(full.error);
+  return { rows: [], mode: 'full' };
+}
+
 function sumAmount(rows, field = 'total_amount') {
   return (rows || []).reduce((acc, row) => acc + Number(row[field] || 0), 0);
+}
+
+/** Compare first half vs second half of a daily sales trend (−1 / 0 / +1). */
+function salesTrendDirection(dailyTrend) {
+  const days = dailyTrend || [];
+  if (days.length < 4) return 0;
+  const mid = Math.floor(days.length / 2);
+  const earlier = days.slice(0, mid).reduce((acc, d) => acc + (Number(d.sales) || 0), 0);
+  const later = days.slice(mid).reduce((acc, d) => acc + (Number(d.sales) || 0), 0);
+  if (earlier <= 0 && later <= 0) return 0;
+  if (later > earlier * 1.15) return 1;
+  if (later < earlier * 0.85) return -1;
+  return 0;
+}
+
+/**
+ * Business health 0–100. Soft on early stock-build phase; skips score when too little sales history.
+ */
+function computeBusinessHealth({
+  totalSales,
+  totalPurchases,
+  netProfit,
+  profitMarginPercent,
+  pendingPayments,
+  lowStockCount,
+  invoiceCount,
+  monthNetProfit,
+  salesTrend7,
+}) {
+  const sales = Number(totalSales) || 0;
+  const purchases = Number(totalPurchases) || 0;
+  const pending = Math.max(0, Number(pendingPayments) || 0);
+  const invoices = Number(invoiceCount) || 0;
+  const lowStock = Number(lowStockCount) || 0;
+  const margin = Number(profitMarginPercent) || 0;
+
+  const collectionRate = sales > 0 ? Math.max(0, Math.min(1, 1 - pending / sales)) : 1;
+  const collectionRatePercent = Math.round(collectionRate * 1000) / 10;
+
+  if (invoices < 3 || sales <= 0) {
+    return {
+      insufficientData: true,
+      healthScore: null,
+      healthStatus: 'insufficient',
+      healthLabel: 'Not enough data yet',
+      profitMarginPercent: margin,
+      netProfit: Number(netProfit) || 0,
+      monthNetProfit: Number(monthNetProfit) || 0,
+      collectionRatePercent,
+      setupPhase: true,
+      hint: 'Add a few more invoices to unlock a reliable health score.',
+    };
+  }
+
+  // Stock-heavy early phase: purchases well above sales, limited invoice history
+  const setupPhase = purchases > sales * 1.5 && invoices < 15;
+
+  // Neutral-stable baseline (not 50 + harsh margin/2 which collapsed new businesses to 0)
+  let score = 58;
+
+  // Collections — strongest operational signal (±18)
+  score += (collectionRate - 0.7) * 60;
+
+  // Low stock — moderate
+  if (lowStock >= 5) score -= 14;
+  else if (lowStock >= 3) score -= 10;
+  else if (lowStock >= 1) score -= 5;
+  else score += 4;
+
+  // Margin — light weight; even lighter while building stock
+  const marginClamped = Math.max(-60, Math.min(60, margin));
+  const marginDivisor = setupPhase ? 10 : 5;
+  score += Math.max(-10, Math.min(12, marginClamped / marginDivisor));
+
+  // 7-day sales trend
+  const trend = salesTrendDirection(salesTrend7);
+  score += trend * 8;
+
+  score = Math.round(Math.max(0, Math.min(100, score)));
+
+  let healthStatus;
+  let healthLabel;
+  if (score >= 70) {
+    healthStatus = 'healthy';
+    healthLabel = 'Healthy';
+  } else if (score >= 40) {
+    healthStatus = 'stable';
+    healthLabel = 'Stable';
+  } else {
+    healthStatus = 'attention';
+    healthLabel = 'Needs attention';
+  }
+
+  return {
+    insufficientData: false,
+    healthScore: score,
+    healthStatus,
+    healthLabel,
+    profitMarginPercent: margin,
+    netProfit: Number(netProfit) || 0,
+    monthNetProfit: Number(monthNetProfit) || 0,
+    collectionRatePercent,
+    setupPhase,
+    hint: setupPhase
+      ? 'Early setup — stock purchases weigh less on this score.'
+      : null,
+  };
 }
 
 function aggregateByDate(rows, dateField, amountField = 'total_amount') {
@@ -130,7 +439,7 @@ function buildProductInsights(products, purchaseItems, saleItems) {
 
   return (products || []).map((p) => {
     const stock = Number(p.stock_quantity);
-    const needsReorder = stock < LOW_STOCK_THRESHOLD;
+    const needsReorder = stock <= LOW_STOCK_THRESHOLD;
     const suggestedReorderQty = needsReorder
       ? Math.max(REORDER_TARGET - stock, LOW_STOCK_THRESHOLD)
       : 0;
@@ -178,19 +487,21 @@ router.get('/', async (req, res) => {
       expenseRows,
     ] = await Promise.all([
       db.from('products').select('*'),
-      db.from('sales').select('total_amount, invoice_date, gst_amount'),
+      db.from('sales').select('total_amount, invoice_date, gst_amount').eq('is_deleted', false),
       db.from('purchases').select('total_amount, purchase_date'),
       db
         .from('sales')
         .select('*, parties(name)')
+        .eq('is_deleted', false)
         .order('created_at', { ascending: false })
         .limit(5),
       db.from('parties').select('type'),
       db.from('purchase_items').select('product_id, quantity, amount'),
-      db.from('sale_items').select('product_id, quantity, amount'),
+      db.from('sale_items').select('product_id, quantity, amount, sales!inner(is_deleted)').eq('sales.is_deleted', false),
       db
         .from('sales')
         .select('id, invoice_number, total_amount, invoice_date, created_at, parties(name)')
+        .eq('is_deleted', false)
         .order('created_at', { ascending: false })
         .limit(10),
       db
@@ -234,23 +545,30 @@ router.get('/', async (req, res) => {
     const invoiceCountToday = salesRows.filter((r) => normalizeDateKey(r.invoice_date) === today).length;
     const monthInvoiceCount = salesRows.filter((r) => normalizeDateKey(r.invoice_date) >= monthStart).length;
 
-    const partyBalanceRows = partiesBalanceRes.data || [];
-    const outstandingAR = partyBalanceRows
-      .filter((p) => ['retailer', 'wholesaler'].includes(p.type) && Number(p.balance) > 0)
-      .reduce((acc, p) => acc + Number(p.balance), 0);
+    // Invoice-level receivables only (payment_status / amount_paid, or legacy payment_due_date).
+    // Do NOT fall back to parties.balance — that ledger stays stale after Mark as paid.
+    const { rows: receivableRows, mode: receivableMode } = await fetchReceivableSales(db);
+    const summary = buildPendingReceivables(receivableRows, receivableMode);
+    const pendingPayments = summary.pendingPayments;
+    const pendingInvoiceCount = summary.pendingInvoiceCount;
+    const pendingInvoices = summary.pendingInvoices;
+    const pendingTone = summary.pendingTone;
+    const pendingPartiesCount = new Set(summary.pendingInvoices.map((s) => s.party_name)).size;
+    const outstandingAR = pendingPayments;
 
-    const pendingPayments = partyBalanceRows
-      .filter((p) => Number(p.balance) > 0)
-      .reduce((acc, p) => acc + Number(p.balance), 0);
-
-    const pendingPartiesCount = partyBalanceRows.filter((p) => Number(p.balance) > 0).length;
+    const { rows: payableRows, mode: payableMode } = await fetchPayablePurchases(db);
+    const payableSummary = buildPendingPayables(payableRows, payableMode);
+    const pendingPayables = payableSummary.pendingPayables;
+    const pendingPurchaseCount = payableSummary.pendingPurchaseCount;
+    const pendingPurchases = payableSummary.pendingPurchases;
+    const pendingPayableTone = payableSummary.pendingPayableTone;
     const stockValue = products.reduce(
       (acc, p) => acc + Number(p.price) * Number(p.stock_quantity),
       0
     );
     const totalStock = products.reduce((acc, p) => acc + Number(p.stock_quantity), 0);
     const lowStockProducts = products
-      .filter((p) => Number(p.stock_quantity) < LOW_STOCK_THRESHOLD)
+      .filter((p) => Number(p.stock_quantity) <= LOW_STOCK_THRESHOLD)
       .sort((a, b) => Number(a.stock_quantity) - Number(b.stock_quantity));
     const lowStockCount = lowStockProducts.length;
 
@@ -314,20 +632,18 @@ router.get('/', async (req, res) => {
     const profitMarginPercent =
       totalSales > 0 ? Math.round(((netProfit / totalSales) * 100 + Number.EPSILON) * 10) / 10 : 0;
 
-    let healthStatus = 'strong';
-    let healthLabel = 'Strong';
-    if (profitMarginPercent < 10 || lowStockCount >= 3) {
-      healthStatus = 'attention';
-      healthLabel = 'Needs attention';
-    } else if (profitMarginPercent < 25 || lowStockCount >= 1) {
-      healthStatus = 'moderate';
-      healthLabel = 'Moderate';
-    }
-
-    const healthScore = Math.max(
-      0,
-      Math.min(100, Math.round(50 + profitMarginPercent / 2 - lowStockCount * 5 - (pendingPayments > totalSales * 0.3 ? 15 : 0)))
-    );
+    const trend7Days = buildDailyTrendFromRows(salesForTrend, purchasesForTrend, 7);
+    const businessHealth = computeBusinessHealth({
+      totalSales,
+      totalPurchases,
+      netProfit,
+      profitMarginPercent,
+      pendingPayments,
+      lowStockCount,
+      invoiceCount: salesRows.length,
+      monthNetProfit,
+      salesTrend7: trend7Days,
+    });
 
     res.json({
       totalSales,
@@ -342,6 +658,14 @@ router.get('/', async (req, res) => {
       outstandingAR,
       pendingPayments,
       pendingPartiesCount,
+      pendingInvoiceCount,
+      pendingInvoices,
+      pendingTone,
+      pendingPayables,
+      pendingPurchaseCount,
+      pendingPurchases,
+      pendingPayableTone,
+      dueSoonDays: DUE_SOON_DAYS,
       lowStockCount,
       expensesThisMonth,
       expensesThisYear,
@@ -356,15 +680,9 @@ router.get('/', async (req, res) => {
       productInsights,
       recentActivity,
       topSellingProducts,
-      businessHealth: {
-        profitMarginPercent,
-        netProfit,
-        healthScore,
-        healthStatus,
-        healthLabel,
-      },
+      businessHealth,
       trends: {
-        last7Days: buildDailyTrendFromRows(salesForTrend, purchasesForTrend, 7),
+        last7Days: trend7Days,
         last30Days: buildDailyTrendFromRows(salesForTrend, purchasesForTrend, 30),
         thisMonth: buildMonthTrendFromRows(salesRows, purchaseRows),
       },

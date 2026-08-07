@@ -75,15 +75,19 @@ export default function TrendChart({ data, range, onRangeChange }) {
       </div>
 
       <div className="flex flex-wrap gap-4 mb-6 text-sm">
-        <div className="flex items-center gap-2 rounded-lg bg-emerald-50/80 px-3 py-1.5 ring-1 ring-emerald-600/10">
+        <div className="trend-pill-sales flex items-center gap-2 rounded-lg bg-emerald-50/80 px-3 py-1.5 ring-1 ring-emerald-600/10">
           <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-          <span className="text-slate-600">Sales</span>
-          <span className="font-bold text-emerald-700 tabular-nums">₹{totalSales.toLocaleString('en-IN')}</span>
+          <span className="trend-pill-label text-slate-600 dark:text-slate-300">Sales</span>
+          <span className="trend-pill-value font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
+            ₹{totalSales.toLocaleString('en-IN')}
+          </span>
         </div>
-        <div className="flex items-center gap-2 rounded-lg bg-indigo-50/80 px-3 py-1.5 ring-1 ring-indigo-600/10">
+        <div className="trend-pill-purchases flex items-center gap-2 rounded-lg bg-indigo-50/80 px-3 py-1.5 ring-1 ring-indigo-600/10">
           <span className="h-2.5 w-2.5 rounded-full bg-indigo-600" />
-          <span className="text-slate-600">Purchases</span>
-          <span className="font-bold text-indigo-700 tabular-nums">₹{totalPurchases.toLocaleString('en-IN')}</span>
+          <span className="trend-pill-label text-slate-600 dark:text-slate-300">Purchases</span>
+          <span className="trend-pill-value font-bold text-indigo-700 dark:text-indigo-400 tabular-nums">
+            ₹{totalPurchases.toLocaleString('en-IN')}
+          </span>
         </div>
       </div>
 
@@ -100,7 +104,7 @@ export default function TrendChart({ data, range, onRangeChange }) {
                 <stop offset="100%" stopColor="#312e81" stopOpacity={0.45} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} className="dark:opacity-20" />
             <XAxis
               dataKey="label"
               tick={{ fill: '#64748b', fontSize: 11 }}

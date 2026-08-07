@@ -1,15 +1,18 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 
 import { AuthProvider } from './context/AuthContext';
 
 import { ThemeProvider } from './context/ThemeContext';
+import { ToastProvider } from './context/ToastContext';
 
 import ProtectedRoute from './components/ProtectedRoute';
+import GuestRoute from './components/GuestRoute';
 
 import Layout from './components/Layout';
+import DataSyncProvider from './components/DataSyncProvider';
 
 import Login from './pages/Login';
-
+import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 
 import Products from './pages/Products';
@@ -27,91 +30,75 @@ import Employees from './pages/Employees';
 import Reports from './pages/Reports';
 
 import Users from './pages/Users';
+import ActivityLog from './pages/ActivityLog';
+import BusinessSettings from './pages/BusinessSettings';
+import { BusinessSettingsProvider } from './context/BusinessSettingsContext';
 
-
-
-function AppShell() {
-
+function AppRoutes() {
   return (
-
-    <Layout>
-
-      <Routes>
-
-        <Route path="/" element={<Dashboard />} />
-
-        <Route path="/products" element={<Products />} />
-
-        <Route path="/parties" element={<Parties />} />
-
-        <Route path="/purchases" element={<Purchases />} />
-
-        <Route path="/sales" element={<Sales />} />
-
-        <Route path="/expenses" element={<Expenses />} />
-
-        <Route path="/reports" element={<Reports />} />
-
-        <Route path="/employees" element={<Employees />} />
-
-        <Route path="/users" element={<Users />} />
-
-        <Route path="*" element={<Navigate to="/" replace />} />
-
-      </Routes>
-
-    </Layout>
-
+    <DataSyncProvider>
+      <BusinessSettingsProvider>
+        <Outlet />
+      </BusinessSettingsProvider>
+    </DataSyncProvider>
   );
-
 }
-
-
 
 function App() {
-
   return (
-
-    <BrowserRouter>
-
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <ThemeProvider>
-
         <AuthProvider>
-
+          <ToastProvider>
           <Routes>
-
-            <Route path="/login" element={<Login />} />
+            <Route
+               path="/login"
+                element={
+        <GuestRoute>
+      <Login />
+    </GuestRoute>
+  }
+/>
+<Route
+     path="/signup"
+      element={
+     <GuestRoute>
+   <Signup />
+    </GuestRoute>
+  }
+/>
 
             <Route
-
-              path="/*"
-
+              path="/"
               element={
-
                 <ProtectedRoute>
-
-                  <AppShell />
-
+                  <Layout />
                 </ProtectedRoute>
-
               }
+            >
+              <Route element={<AppRoutes />}>
+                <Route index element={<Dashboard />} />
+                <Route path="products" element={<Products />} />
+                <Route path="parties" element={<Parties />} />
+                <Route path="purchases" element={<Purchases />} />
+                <Route path="sales" element={<Sales />} />
+                <Route path="expenses" element={<Expenses />} />
+                <Route path="reports" element={<Reports />} />
+                <Route path="employees" element={<Employees />} />
+                <Route path="users" element={<Users />} />
+                <Route path="activity-log" element={<ActivityLog />} />
+                <Route path="settings/business" element={<BusinessSettings />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Route>
+            </Route>
 
-            />
-
+            <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
-
+          </ToastProvider>
         </AuthProvider>
-
       </ThemeProvider>
-
     </BrowserRouter>
-
   );
-
 }
 
-
-
 export default App;
-
-
