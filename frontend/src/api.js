@@ -1,7 +1,7 @@
 // API helper - all backend calls in one place
 // Base URL is proxied through Vite to http://localhost:5000
 
-const API_BASE = '/api';
+const API_BASE = `${import.meta.env.VITE_API_URL || ''}/api`;
 
 let accessToken = null;
 let unauthorizedHandler = null;
@@ -214,6 +214,11 @@ export const settingsAPI = {
   getBusiness: () => request('/settings/business'),
   updateBusiness: (data) =>
     request('/settings/business', { method: 'PUT', body: JSON.stringify(data) }),
+  uploadImage: (type, base64Data) =>
+    request('/settings/business/upload-image', {
+      method: 'POST',
+      body: JSON.stringify({ type, data: base64Data }),
+    }),
 };
 
 export const activityLogAPI = {
