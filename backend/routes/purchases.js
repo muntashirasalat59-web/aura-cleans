@@ -10,6 +10,7 @@ const {
   resolvePaymentStatus,
 } = require('../utils/salePayment');
 const { logActivity } = require('../utils/activityLog');
+const { updatePurchaseDirect } = require('../utils/updatePurchaseDirect');
 
 function mapPurchaseRow(row) {
   const party = row.parties;
@@ -251,6 +252,50 @@ router.post('/', async (req, res) => {
     res.status(201).json(withPayment);
   } catch (error) {
     res.status(400).json({ error: error.message || 'Failed to save purchase' });
+  }
+});
+
+router.put('/:id', async (req, res) => {
+  try {
+    const purchaseId = Number(req.params.id);
+    if (!Number.isFinite(purchaseId)) {
+      return res.status(400).json({ error: 'Invalid purchase id' });
+    }
+
+    const { party_id, purchase_date, notes, items } = req.body || {};
+    if (!party_id || !purchase_date || !items || items.length === 0) {
+      return res.status(400).json({ error: 'Party, date and items are required' });
+    }
+
+    const db = req.db;
+    await updatePurchaseDirect(db, purchaseId, {
+      ...req.body,
+      party_id,
+      purchase_date,
+      notes: notes || '',
+      gst_percent: req.body.gst_percent ?? 18,
+      items,
+    });
+
+    const withPayment = await fetchPurchaseWithItems(db, purchaseId);
+    await logActivity(req, {
+      actionType: 'update',
+      entityType: 'purchase',
+      entityId: purchaseId,
+      entityName: withPayment?.party_name
+        ? `${withPayment.party_name} · ${withPayment.purchase_date}`
+        : `Purchase #${purchaseId}`,
+      details: {
+        total_amount: withPayment?.total_amount,
+        payment_status: withPayment?.payment_status,
+      },
+    });
+    res.json(withPayment);
+  } catch (error) {
+    if (error.code === 'PGRST116') {
+      return res.status(404).json({ error: 'Purchase not found' });
+    }
+    res.status(400).json({ error: error.message || 'Failed to update purchase' });
   }
 });
 

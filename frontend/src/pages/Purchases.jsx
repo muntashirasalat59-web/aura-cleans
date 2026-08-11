@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { flushSync } from 'react-dom';
-import { Plus, Trash2, X, ShoppingCart, Banknote } from 'lucide-react';
+import { Plus, Trash2, X, ShoppingCart, Banknote, Pencil } from 'lucide-react';
 import { purchasesAPI, partiesAPI, productsAPI } from '../api';
 import LoadingState from '../components/LoadingState';
 import PageHeader from '../components/PageHeader';
@@ -31,6 +31,7 @@ import { notifyDataSync } from '../lib/dataSync';
 import {
   emptyPaymentDetails,
   paymentToPayload,
+  paymentFromSale,
   formatDisplayDate,
 } from '../utils/invoicePayment';
 import { enrichPaymentFields, paymentStatus, balanceDue } from '../utils/invoiceReceivables';
@@ -45,6 +46,15 @@ const emptyItem = () => ({
   custom_fragrance: '',
   quantity: 1,
   rate: 0,
+});
+
+const emptyPurchaseForm = () => ({
+  party_id: '',
+  purchase_date: new Date().toISOString().split('T')[0],
+  notes: '',
+  gst_percent: 18,
+  items: [emptyItem()],
+  payment: emptyPaymentDetails(),
 });
 
 function isNewProductRow(item) {
@@ -62,14 +72,8 @@ export default function Purchases() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({
-    party_id: '',
-    purchase_date: new Date().toISOString().split('T')[0],
-    notes: '',
-    gst_percent: 18,
-    items: [emptyItem()],
-    payment: emptyPaymentDetails(),
-  });
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState(emptyPurchaseForm());
   const [markPaidTarget, setMarkPaidTarget] = useState(null);
   const [markingPaid, setMarkingPaid] = useState(false);
 
@@ -94,6 +98,86 @@ export default function Purchases() {
       if (!silent) alert('Error: ' + err.message);
     } finally {
       if (!silent) setLoading(false);
+    }
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    setEditingId(null);
+    setForm(emptyPurchaseForm());
+  }
+
+  function openNewPurchase() {
+    setEditingId(null);
+    setForm(emptyPurchaseForm());
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function ensurePartyInList(partyId) {
+    if (!partyId) return;
+    if (parties.some((p) => String(p.id) === String(partyId))) return;
+    try {
+      const party = await partiesAPI.getOne(partyId);
+      if (party) {
+        setParties((prev) =>
+          prev.some((p) => String(p.id) === String(party.id)) ? prev : [...prev, party]
+        );
+      }
+    } catch {
+      /* ignore — dropdown may still work after refresh */
+    }
+  }
+
+  async function ensureProductsInList(productIds) {
+    const missing = [...new Set(productIds.filter(Boolean))].filter(
+      (id) => !products.some((p) => String(p.id) === String(id))
+    );
+    if (missing.length === 0) return;
+    const fetched = await Promise.all(
+      missing.map(async (id) => {
+        try {
+          return await productsAPI.getOne(id);
+        } catch {
+          return null;
+        }
+      })
+    );
+    const valid = fetched.filter(Boolean);
+    if (valid.length > 0) {
+      setProducts((prev) => [...prev, ...valid]);
+    }
+  }
+
+  async function openEditPurchase(id) {
+    try {
+      const data = await purchasesAPI.getOne(id);
+      await ensurePartyInList(data.party_id);
+      await ensureProductsInList((data.items || []).map((item) => item.product_id));
+      setEditingId(data.id);
+      setForm({
+        party_id: String(data.party_id),
+        purchase_date: data.purchase_date,
+        notes: data.notes || '',
+        gst_percent: data.gst_percent ?? 18,
+        items:
+          data.items?.length > 0
+            ? data.items.map((item) => ({
+                product_id: String(item.product_id),
+                product_name: '',
+                pack_size: '500 ML',
+                fragrance: 'Unscented',
+                custom_fragrance: '',
+                quantity: item.quantity,
+                rate: item.rate,
+              }))
+            : [emptyItem()],
+        payment: paymentFromSale(data),
+      });
+      setShowForm(true);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      alert('Error loading purchase: ' + err.message);
     }
   }
 
@@ -189,7 +273,7 @@ export default function Purchases() {
         return;
       }
 
-      await purchasesAPI.create({
+      const payload = {
         party_id: parseInt(form.party_id, 10),
         purchase_date: form.purchase_date,
         notes: form.notes,
@@ -211,21 +295,22 @@ export default function Purchases() {
             rate: parseFloat(item.rate),
           };
         }),
-      });
+      };
 
-      setShowForm(false);
-      setForm({
-        party_id: '',
-        purchase_date: new Date().toISOString().split('T')[0],
-        notes: '',
-        gst_percent: 18,
-        items: [emptyItem()],
-        payment: emptyPaymentDetails(),
-      });
+      if (editingId) {
+        await purchasesAPI.update(editingId, payload);
+        alert('Purchase updated! Stock, GST totals, and party balance recalculated.');
+      } else {
+        await purchasesAPI.create(payload);
+        alert(
+          'Purchase saved! Stock and party balance updated. New products appear in Products list.'
+        );
+      }
+
+      closeForm();
       notifyDataSync('purchases');
       notifyDataSync('products');
       notifyDataSync('parties');
-      alert('Purchase saved! Stock and party balance updated. New products appear in Products list.');
     } catch (err) {
       alert(err.message);
     }
@@ -284,6 +369,7 @@ export default function Purchases() {
     try {
       const result = await purchasesAPI.delete(id);
       alert(result.message || 'Purchase deleted.');
+      if (editingId === id) closeForm();
       notifyDataSync('purchases');
       notifyDataSync('products');
       notifyDataSync('parties');
@@ -312,7 +398,7 @@ export default function Purchases() {
               }
             />
             <button
-              onClick={() => setShowForm(!showForm)}
+              onClick={() => (showForm ? closeForm() : openNewPurchase())}
               className={`btn w-full sm:w-auto ${showForm ? 'btn-secondary' : 'btn-primary'}`}
             >
               {showForm ? (
@@ -335,8 +421,12 @@ export default function Purchases() {
         <div className="form-panel">
           <FormShell
             icon={ShoppingCart}
-            title="New purchase"
-            subtitle="Select existing products or add new ones — inventory and party ledger update on save."
+            title={editingId ? 'Edit purchase' : 'New purchase'}
+            subtitle={
+              editingId
+                ? 'Update supplier, line items, GST, or notes — stock and balances recalculate on save.'
+                : 'Select existing products or add new ones — inventory and party ledger update on save.'
+            }
           >
             <form onSubmit={handleSubmit}>
               <p className="form-section-label">Supplier details</p>
@@ -387,7 +477,8 @@ export default function Purchases() {
 
               <p className="form-section-label">Line items</p>
               <p className="text-xs text-slate-500 mb-3">
-                Existing products show name, pack size, and fragrance. New products need all three — each size/fragrance combo is a separate SKU with its own stock.
+                Existing products show name, pack size, and fragrance. New products need all three —
+                each size/fragrance combo is a separate SKU with its own stock.
               </p>
               <div className="invoice-form-table-scroll mb-4">
                 <table className="line-items-table">
@@ -455,7 +546,9 @@ export default function Purchases() {
                                   className="line-item-row-input text-sm"
                                   placeholder="Custom fragrance name"
                                   value={item.custom_fragrance}
-                                  onChange={(e) => updateItem(index, 'custom_fragrance', e.target.value)}
+                                  onChange={(e) =>
+                                    updateItem(index, 'custom_fragrance', e.target.value)
+                                  }
                                   required
                                 />
                               )}
@@ -524,7 +617,10 @@ export default function Purchases() {
                 onChange={(payment) => setForm((prev) => ({ ...prev, payment }))}
               />
 
-              <FormActions submitLabel="Save purchase" onCancel={() => setShowForm(false)} />
+              <FormActions
+                submitLabel={editingId ? 'Update purchase' : 'Save purchase'}
+                onCancel={closeForm}
+              />
             </form>
           </FormShell>
         </div>
@@ -542,7 +638,7 @@ export default function Purchases() {
             title="No purchases yet"
             description="Record a stock purchase from a supplier to update inventory and balances."
             actionLabel="New purchase"
-            onAction={() => setShowForm(true)}
+            onAction={openNewPurchase}
           />
         ) : (
           <div className="table-scroll">
@@ -594,6 +690,14 @@ export default function Purchases() {
                       </td>
                       <td className="text-right">
                         <div className="list-actions">
+                          <button
+                            type="button"
+                            onClick={() => openEditPurchase(purchase.id)}
+                            className="link-action"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            Edit
+                          </button>
                           {status === 'paid' ? (
                             <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
                               Paid
