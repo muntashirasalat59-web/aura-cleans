@@ -7,6 +7,7 @@ import LoadingState from '../components/LoadingState';
 import PageHeader from '../components/PageHeader';
 import ExportMenu from '../components/ExportMenu';
 import EmptyState from '../components/EmptyState';
+import ListSearchInput, { matchesListSearch } from '../components/ListSearchInput';
 import { SALE_EXPORT_COLUMNS, mapSaleExportRow } from '../config/exportColumns';
 import FormShell from '../components/forms/FormShell';
 import { FormField } from '../components/forms/FormField';
@@ -54,6 +55,7 @@ export default function Sales() {
   const [markPaidTarget, setMarkPaidTarget] = useState(null);
   const [markingPaid, setMarkingPaid] = useState(false);
   const [sharingWhatsAppId, setSharingWhatsAppId] = useState(null);
+  const [listSearch, setListSearch] = useState('');
   const [errorModal, setErrorModal] = useState({ open: false, title: '', message: '' });
   const [form, setForm] = useState({
     party_id: '',
@@ -89,13 +91,18 @@ export default function Sales() {
   useDataSync(['sales', 'parties', 'products'], () => loadData(true));
 
   const displayedSales = useMemo(() => {
-    if (paymentFilter !== 'pending') return sales;
-    return sales.filter((sale) => {
-      const status = sale.payment_status || paymentStatus(sale);
-      const due = sale.balance_due != null ? Number(sale.balance_due) : balanceDue(sale);
-      return due > 0 && (status === 'pending' || status === 'partial');
-    });
-  }, [sales, paymentFilter]);
+    let list = sales;
+    if (paymentFilter === 'pending') {
+      list = list.filter((sale) => {
+        const status = sale.payment_status || paymentStatus(sale);
+        const due = sale.balance_due != null ? Number(sale.balance_due) : balanceDue(sale);
+        return due > 0 && (status === 'pending' || status === 'partial');
+      });
+    }
+    return list.filter((sale) =>
+      matchesListSearch(listSearch, sale.invoice_number, sale.party_name)
+    );
+  }, [sales, paymentFilter, listSearch]);
 
   function clearPaymentFilter() {
     const next = new URLSearchParams(searchParams);
@@ -834,26 +841,55 @@ export default function Sales() {
       )}
 
       <div className="table-wrap no-print">
-        <div className="table-wrap-header">
-          <h3 className="card-section-title mb-0">Invoice history</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
-            {displayedSales.length} invoice{displayedSales.length === 1 ? '' : 's'}
-            {paymentFilter === 'pending' && sales.length !== displayedSales.length
-              ? ` of ${sales.length}`
-              : ''}
-          </p>
+        <div className="table-wrap-header flex-wrap">
+          <div className="min-w-0">
+            <h3 className="card-section-title mb-0">Invoice history</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+              {displayedSales.length} invoice{displayedSales.length === 1 ? '' : 's'}
+              {paymentFilter === 'pending' && sales.length !== displayedSales.length
+                ? ` of ${sales.length}`
+                : ''}
+              {listSearch.trim() ? ' matching search' : ''}
+            </p>
+          </div>
+          <ListSearchInput
+            value={listSearch}
+            onChange={setListSearch}
+            placeholder="Search invoices..."
+            aria-label="Search invoices by number or party name"
+          />
         </div>
         {displayedSales.length === 0 ? (
           <EmptyState
             icon={FileText}
-            title={paymentFilter === 'pending' ? 'No pending invoices' : 'No invoices yet'}
-            description={
-              paymentFilter === 'pending'
-                ? 'All invoices are fully paid, or no receivables match this filter.'
-                : 'Create a GST invoice to record a sale, update stock, and download a PDF.'
+            title={
+              listSearch.trim()
+                ? 'No matching invoices'
+                : paymentFilter === 'pending'
+                  ? 'No pending invoices'
+                  : 'No invoices yet'
             }
-            actionLabel={paymentFilter === 'pending' ? 'Show all invoices' : 'New invoice'}
-            onAction={paymentFilter === 'pending' ? clearPaymentFilter : openCreateForm}
+            description={
+              listSearch.trim()
+                ? 'Try another invoice number or party name.'
+                : paymentFilter === 'pending'
+                  ? 'All invoices are fully paid, or no receivables match this filter.'
+                  : 'Create a GST invoice to record a sale, update stock, and download a PDF.'
+            }
+            actionLabel={
+              listSearch.trim()
+                ? undefined
+                : paymentFilter === 'pending'
+                  ? 'Show all invoices'
+                  : 'New invoice'
+            }
+            onAction={
+              listSearch.trim()
+                ? undefined
+                : paymentFilter === 'pending'
+                  ? clearPaymentFilter
+                  : openCreateForm
+            }
           />
         ) : (
           <div className="table-scroll">
