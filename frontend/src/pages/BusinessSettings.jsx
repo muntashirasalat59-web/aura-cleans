@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Building2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Building2, Image as ImageIcon, PenTool, Stamp, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { settingsAPI } from '../api';
 import LoadingState from '../components/LoadingState';
@@ -20,6 +20,95 @@ const emptyForm = () => ({
   phone: '',
   email: '',
 });
+
+const MAX_BYTES = 2 * 1024 * 1024; // 2MB
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function BrandImageUpload({ label, icon: Icon, type, currentUrl, onUploaded }) {
+  const inputRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [localError, setLocalError] = useState('');
+
+  async function handleFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setLocalError('Please choose an image file');
+      return;
+    }
+    if (file.size > MAX_BYTES) {
+      setLocalError('Image must be under 2MB');
+      return;
+    }
+
+    try {
+      setUploading(true);
+      setLocalError('');
+      const base64 = await fileToBase64(file);
+      const result = await settingsAPI.uploadImage(type, base64);
+      onUploaded(result.url);
+    } catch (err) {
+      setLocalError(err.message || 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-sm font-medium text-[var(--aura-text)]">{label}</span>
+      <div className="flex items-center gap-3">
+        <div
+          className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[var(--aura-radius-input)] border border-[var(--aura-border)] bg-[var(--aura-elevated)]"
+          style={{ boxShadow: 'var(--aura-shadow-soft)' }}
+        >
+          {currentUrl ? (
+            <img src={currentUrl} alt={label} className="h-full w-full object-contain p-1" />
+          ) : (
+            <Icon size={22} className="text-[var(--aura-muted)]" />
+          )}
+        </div>
+        <div className="flex flex-col gap-1">
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm w-fit"
+            onClick={() => inputRef.current?.click()}
+            disabled={uploading}
+          >
+            {uploading ? (
+              <span className="flex items-center gap-1.5">
+                <Loader2 size={14} className="animate-spin" /> Uploading…
+              </span>
+            ) : currentUrl ? (
+              'Replace'
+            ) : (
+              'Upload'
+            )}
+          </button>
+          <span className="text-xs text-[var(--aura-muted)]">PNG/JPEG, up to 2MB</span>
+          {localError && <span className="text-xs text-[var(--aura-danger)]">{localError}</span>}
+        </div>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          className="hidden"
+          onChange={handleFile}
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function BusinessSettings() {
   const { settings, loading: settingsLoading, refresh } = useBusinessSettings();
@@ -63,6 +152,18 @@ export default function BusinessSettings() {
       setError(err.message || 'Failed to save settings');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleImageUploaded(field, url) {
+    try {
+      setError('');
+      await settingsAPI.updateBusiness({ [field]: url });
+      await refresh(true);
+      notifyDataSync('business_settings');
+      setMessage('Image updated.');
+    } catch (err) {
+      setError(err.message || 'Failed to save image');
     }
   }
 
@@ -156,6 +257,36 @@ export default function BusinessSettings() {
                 placeholder="accounts@example.com"
               />
             </FormField>
+          </div>
+        </FormShell>
+
+        <FormShell
+          icon={ImageIcon}
+          title="Branding"
+          subtitle="Logo, signature and stamp used on invoice PDFs."
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <BrandImageUpload
+              label="Logo"
+              icon={ImageIcon}
+              type="logo"
+              currentUrl={settings?.logo_url}
+              onUploaded={(url) => handleImageUploaded('logo_url', url)}
+            />
+            <BrandImageUpload
+              label="Signature"
+              icon={PenTool}
+              type="signature"
+              currentUrl={settings?.signature_url}
+              onUploaded={(url) => handleImageUploaded('signature_url', url)}
+            />
+            <BrandImageUpload
+              label="Stamp"
+              icon={Stamp}
+              type="stamp"
+              currentUrl={settings?.stamp_url}
+              onUploaded={(url) => handleImageUploaded('stamp_url', url)}
+            />
           </div>
         </FormShell>
 

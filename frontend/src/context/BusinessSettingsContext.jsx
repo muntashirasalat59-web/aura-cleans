@@ -16,6 +16,8 @@ const EMPTY = {
   bank_account_number: '',
   upi_id: '',
   logo_url: '',
+  signature_url: '',
+  stamp_url: '',
   configured: false,
   address_display: '',
 };
