@@ -171,7 +171,7 @@ export default function Reports() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageHeader
         title="Reports"
         description="Sales, purchases, and expenses for any date range — export to CSV for Excel."
