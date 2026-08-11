@@ -26,6 +26,13 @@ function paymentForDb(paymentRow) {
 const { rollbackSale } = require('../utils/saleRollback');
 const { formatSaleDeleteMessage } = require('../utils/stockMessages');
 const { createSaleDirect, updateSaleDirect } = require('../utils/createSaleDirect');
+const { buildInvoicePdfBuffer } = require('../utils/invoicePdfBuffer');
+const {
+  normalizeIndiaWhatsAppPhone,
+  buildWhatsAppInvoiceMessage,
+  buildWhatsAppShareUrl,
+  uploadInvoicePdf,
+} = require('../utils/whatsappShare');
 
 async function generateInvoiceNumber(db, atLeast = 0) {
   const year = new Date().getFullYear();
@@ -299,6 +306,54 @@ router.get('/:id/pdf', async (req, res) => {
       return res.status(404).json({ error: 'Invoice not found' });
     }
     res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/sales/:id/whatsapp-share
+ * Generate PDF → upload to public "invoices" bucket → return WhatsApp deep link.
+ */
+router.post('/:id/whatsapp-share', async (req, res) => {
+  try {
+    const sale = await fetchSaleWithItems(req.db, req.params.id);
+    const phone = normalizeIndiaWhatsAppPhone(sale.contact);
+
+    if (!phone) {
+      return res.status(400).json({
+        error: 'Party ka contact number add karo pehle',
+        code: 'PARTY_CONTACT_MISSING',
+      });
+    }
+
+    const business = await fetchBusinessSettings(req.accessToken, req.profile?.business_id);
+    const pdfBuffer = await buildInvoicePdfBuffer(sale, business);
+    const pdfUrl = await uploadInvoicePdf({
+      businessId: req.profile?.business_id,
+      saleId: sale.id,
+      invoiceNumber: sale.invoice_number,
+      pdfBuffer,
+    });
+
+    const message = buildWhatsAppInvoiceMessage({
+      invoiceNumber: sale.invoice_number,
+      amount: sale.total_amount,
+      pdfUrl,
+      partyName: sale.party_name,
+    });
+    const whatsappUrl = buildWhatsAppShareUrl(phone, message);
+
+    res.json({
+      whatsappUrl,
+      pdfUrl,
+      phone,
+      invoice_number: sale.invoice_number,
+      total_amount: sale.total_amount,
+    });
+  } catch (error) {
+    if (error.code === 'PGRST116') {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+    res.status(500).json({ error: error.message || 'Failed to prepare WhatsApp share' });
   }
 });
 
