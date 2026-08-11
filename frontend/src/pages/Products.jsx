@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Pencil, Trash2, Package, AlertTriangle, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, Package, AlertTriangle, X, IndianRupee } from 'lucide-react';
 import { productsAPI } from '../api';
 import LoadingState from '../components/LoadingState';
 import PageHeader from '../components/PageHeader';
@@ -58,6 +58,18 @@ function profitMargin(selling, cost) {
   return Number(selling || 0) - Number(cost || 0);
 }
 
+/** Potential profit for on-hand stock. Non-positive margin or stock → 0. */
+function potentialProfit(selling, cost, stock) {
+  const margin = profitMargin(selling, cost);
+  const qty = Number(stock) || 0;
+  if (margin <= 0 || qty <= 0) return 0;
+  return margin * qty;
+}
+
+function formatInr(amount) {
+  return `₹${Number(amount || 0).toLocaleString('en-IN')}`;
+}
+
 export default function Products() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
@@ -78,6 +90,13 @@ export default function Products() {
       .filter((p) => Number(p.stock_quantity) <= stockThreshold)
       .sort((a, b) => Number(a.stock_quantity) - Number(b.stock_quantity));
   }, [products, stockFilterActive, stockThreshold]);
+
+  const totalPotentialProfit = useMemo(() => {
+    return products.reduce((sum, product) => {
+      if (product.is_active === false) return sum;
+      return sum + potentialProfit(product.price, product.cost_price, product.stock_quantity);
+    }, 0);
+  }, [products]);
 
   useEffect(() => {
     loadProducts();
@@ -577,6 +596,25 @@ export default function Products() {
         </div>
       )}
 
+      <div className="mb-6 group rounded-[var(--aura-radius-card)] border border-aura-border bg-aura-card p-6 shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-medium">
+        <div className="relative flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <p className="text-[length:var(--aura-type-caption)] font-semibold uppercase tracking-wider text-aura-muted">
+              Total Potential Profit (All Stock)
+            </p>
+            <p className="mt-2 truncate text-[length:var(--aura-type-h3)] font-bold tracking-tight tabular-nums text-aura-text">
+              {formatInr(totalPotentialProfit)}
+            </p>
+            <p className="mt-2 text-[length:var(--aura-type-body)] text-aura-text-secondary">
+              Sum of margin × stock across active products
+            </p>
+          </div>
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--aura-radius-button)] bg-[color-mix(in_srgb,var(--aura-primary)_16%,transparent)] text-aura-primary shadow-soft transition-transform duration-200 group-hover:scale-[1.02]">
+            <IndianRupee className="h-5 w-5" />
+          </div>
+        </div>
+      </div>
+
       <div className="table-wrap">
         <div className="table-wrap-header">
           <h3 className="card-section-title mb-0">Product catalog</h3>
@@ -610,6 +648,7 @@ export default function Products() {
                   <th>HSN/SAC</th>
                   <th>Fragrance</th>
                   <th className="col-num">Margin</th>
+                  <th className="col-num">Potential Profit</th>
                   <th className="col-num">Stock</th>
                   <th className="text-right">Actions</th>
                 </tr>
@@ -617,6 +656,11 @@ export default function Products() {
               <tbody>
                 {displayedProducts.map((product) => {
                   const margin = profitMargin(product.price, product.cost_price);
+                  const profit = potentialProfit(
+                    product.price,
+                    product.cost_price,
+                    product.stock_quantity
+                  );
                   const isActive = product.is_active !== false;
                   return (
                     <tr key={product.id} className={!isActive ? 'opacity-80' : undefined}>
@@ -667,7 +711,18 @@ export default function Products() {
                             margin >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600'
                           }`}
                         >
-                          ₹{margin.toLocaleString('en-IN')}
+                          {formatInr(margin)}
+                        </span>
+                      </td>
+                      <td className="col-num">
+                        <span
+                          className={`font-semibold tabular-nums ${
+                            profit > 0
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : 'text-slate-500 dark:text-slate-400'
+                          }`}
+                        >
+                          {formatInr(profit)}
                         </span>
                       </td>
                       <td className="col-num">
