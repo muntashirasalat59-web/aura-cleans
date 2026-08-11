@@ -128,6 +128,8 @@ export const purchasesAPI = {
   },
   getOne: (id) => request(`/purchases/${id}`),
   create: (data) => request('/purchases', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id, data) =>
+    request(`/purchases/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   markPaid: (id, data) =>
     request(`/purchases/${id}/mark-paid`, {
       method: 'PATCH',
