@@ -163,7 +163,9 @@ export const salesAPI = {
     a.download = `invoice-${id}.pdf`;
     a.click();
     window.URL.revokeObjectURL(url);
-  }
+  },
+  shareWhatsApp: (id) =>
+    request(`/sales/${id}/whatsapp-share`, { method: 'POST', body: JSON.stringify({}) }),
 };
 
 // Dashboard API

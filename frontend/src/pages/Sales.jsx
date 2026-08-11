@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { flushSync } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Trash2, X, Eye, FileDown, FileText, Pencil, Banknote } from 'lucide-react';
+import { Plus, Trash2, X, Eye, FileDown, FileText, Pencil, Banknote, MessageCircle } from 'lucide-react';
 import { salesAPI, partiesAPI, productsAPI } from '../api';
 import LoadingState from '../components/LoadingState';
 import PageHeader from '../components/PageHeader';
@@ -53,6 +53,7 @@ export default function Sales() {
   const [deletingInvoice, setDeletingInvoice] = useState(false);
   const [markPaidTarget, setMarkPaidTarget] = useState(null);
   const [markingPaid, setMarkingPaid] = useState(false);
+  const [sharingWhatsAppId, setSharingWhatsAppId] = useState(null);
   const [errorModal, setErrorModal] = useState({ open: false, title: '', message: '' });
   const [form, setForm] = useState({
     party_id: '',
@@ -364,6 +365,27 @@ export default function Sales() {
       await salesAPI.downloadPDF(id);
     } catch (err) {
       alert('Error downloading PDF: ' + err.message);
+    }
+  }
+
+  async function shareOnWhatsApp(id) {
+    if (sharingWhatsAppId) return;
+    try {
+      setSharingWhatsAppId(id);
+      const result = await salesAPI.shareWhatsApp(id);
+      if (!result?.whatsappUrl) {
+        throw new Error('WhatsApp link could not be created');
+      }
+      window.open(result.whatsappUrl, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      const message = err.message || 'Failed to share on WhatsApp';
+      if (/contact number|PARTY_CONTACT/i.test(message)) {
+        showError('Contact missing', 'Party ka contact number add karo pehle');
+      } else {
+        showError('WhatsApp share failed', message);
+      }
+    } finally {
+      setSharingWhatsAppId(null);
     }
   }
 
@@ -796,6 +818,15 @@ export default function Sales() {
                   <FileDown className="h-4 w-4" />
                   Download PDF
                 </button>
+                <button
+                  type="button"
+                  onClick={() => shareOnWhatsApp(viewInvoice.id)}
+                  disabled={sharingWhatsAppId === viewInvoice.id}
+                  className="btn btn-secondary flex-1"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  {sharingWhatsAppId === viewInvoice.id ? 'Sharing…' : 'Share on WhatsApp'}
+                </button>
               </div>
             </div>
           </div>
@@ -897,6 +928,16 @@ export default function Sales() {
                         >
                           <FileDown className="h-3.5 w-3.5" />
                           PDF
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => shareOnWhatsApp(sale.id)}
+                          disabled={sharingWhatsAppId === sale.id}
+                          className="link-action-muted disabled:opacity-60"
+                          title="Share invoice PDF on WhatsApp"
+                        >
+                          <MessageCircle className="h-3.5 w-3.5" />
+                          {sharingWhatsAppId === sale.id ? 'Sharing…' : 'WhatsApp'}
                         </button>
                         {(() => {
                           const status = sale.payment_status || paymentStatus(sale);
