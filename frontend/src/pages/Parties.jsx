@@ -5,6 +5,7 @@ import LoadingState from '../components/LoadingState';
 import PageHeader from '../components/PageHeader';
 import ExportMenu from '../components/ExportMenu';
 import EmptyState from '../components/EmptyState';
+import ListSearchInput, { matchesListSearch } from '../components/ListSearchInput';
 import { PARTY_EXPORT_COLUMNS, mapPartyExportRow } from '../config/exportColumns';
 import ErrorModal from '../components/ErrorModal';
 import DeletePartyModal from '../components/DeletePartyModal';
@@ -45,6 +46,7 @@ export default function Parties() {
   const [editingId, setEditingId] = useState(null);
   const [filter, setFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [listSearch, setListSearch] = useState('');
   const [partyPurchases, setPartyPurchases] = useState([]);
   const [errorModal, setErrorModal] = useState({ open: false, title: '', message: '' });
   const [deleteModal, setDeleteModal] = useState({
@@ -97,6 +99,11 @@ export default function Parties() {
   }, [filter, statusFilter]);
 
   useDataSync('parties', () => loadParties(true));
+
+  const displayedParties = useMemo(
+    () => parties.filter((party) => matchesListSearch(listSearch, party.name, party.contact)),
+    [parties, listSearch]
+  );
 
   async function loadParties(silent = false) {
     try {
@@ -318,7 +325,7 @@ export default function Parties() {
               filePrefix="parties"
               successLabel="Parties"
               columns={PARTY_EXPORT_COLUMNS}
-              getRows={() => parties.map(mapPartyExportRow)}
+              getRows={() => displayedParties.map(mapPartyExportRow)}
             />
             <button onClick={openAddForm} className="btn btn-primary w-full sm:w-auto">
               <Plus className="h-4 w-4" />
@@ -457,19 +464,32 @@ export default function Parties() {
       )}
 
       <div className="table-wrap">
-        <div className="table-wrap-header">
-          <h3 className="card-section-title mb-0">Party directory</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
-            {parties.length} part{parties.length === 1 ? 'y' : 'ies'}
-          </p>
+        <div className="table-wrap-header flex-wrap">
+          <div className="min-w-0">
+            <h3 className="card-section-title mb-0">Party directory</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+              {displayedParties.length} part{displayedParties.length === 1 ? 'y' : 'ies'}
+              {listSearch.trim() ? ' matching search' : ''}
+            </p>
+          </div>
+          <ListSearchInput
+            value={listSearch}
+            onChange={setListSearch}
+            placeholder="Search parties..."
+            aria-label="Search parties by name or contact number"
+          />
         </div>
-        {parties.length === 0 ? (
+        {displayedParties.length === 0 ? (
           <EmptyState
             icon={Users}
-            title="No parties found"
-            description="Add a retailer, wholesaler, or manufacturer to start invoicing and purchases."
-            actionLabel="Add party"
-            onAction={openAddForm}
+            title={listSearch.trim() ? 'No matching parties' : 'No parties found'}
+            description={
+              listSearch.trim()
+                ? 'Try another party name or contact number.'
+                : 'Add a retailer, wholesaler, or manufacturer to start invoicing and purchases.'
+            }
+            actionLabel={listSearch.trim() ? undefined : 'Add party'}
+            onAction={listSearch.trim() ? undefined : openAddForm}
           />
         ) : (
           <div className="table-scroll">
@@ -486,7 +506,7 @@ export default function Parties() {
                 </tr>
               </thead>
               <tbody>
-                {parties.map((party) => {
+                {displayedParties.map((party) => {
                   const isActive = party.is_active !== false;
                   return (
                     <tr key={party.id} className={!isActive ? 'opacity-80' : undefined}>

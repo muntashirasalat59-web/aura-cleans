@@ -6,6 +6,7 @@ import LoadingState from '../components/LoadingState';
 import PageHeader from '../components/PageHeader';
 import ExportMenu from '../components/ExportMenu';
 import EmptyState from '../components/EmptyState';
+import ListSearchInput, { matchesListSearch } from '../components/ListSearchInput';
 import { PRODUCT_EXPORT_COLUMNS, mapProductExportRow } from '../config/exportColumns';
 import FormShell from '../components/forms/FormShell';
 import { FormField, inputClassName } from '../components/forms/FormField';
@@ -77,6 +78,7 @@ export default function Products() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [listSearch, setListSearch] = useState('');
   const [form, setForm] = useState(emptyForm);
   const [formErrors, setFormErrors] = useState({});
   const [formWarnings, setFormWarnings] = useState({});
@@ -85,11 +87,16 @@ export default function Products() {
   const stockThreshold = Number(searchParams.get('threshold')) || LOW_STOCK_THRESHOLD;
 
   const displayedProducts = useMemo(() => {
-    if (!stockFilterActive) return products;
-    return products
-      .filter((p) => Number(p.stock_quantity) <= stockThreshold)
-      .sort((a, b) => Number(a.stock_quantity) - Number(b.stock_quantity));
-  }, [products, stockFilterActive, stockThreshold]);
+    let list = products;
+    if (stockFilterActive) {
+      list = list
+        .filter((p) => Number(p.stock_quantity) <= stockThreshold)
+        .sort((a, b) => Number(a.stock_quantity) - Number(b.stock_quantity));
+    }
+    return list.filter((p) =>
+      matchesListSearch(listSearch, p.name, p.category, p.hsn_sac, p.sku)
+    );
+  }, [products, stockFilterActive, stockThreshold, listSearch]);
 
   const totalPotentialProfit = useMemo(() => {
     return products.reduce((sum, product) => {
@@ -616,23 +623,42 @@ export default function Products() {
       </div>
 
       <div className="table-wrap">
-        <div className="table-wrap-header">
-          <h3 className="card-section-title mb-0">Product catalog</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
-            {displayedProducts.length} item{displayedProducts.length === 1 ? '' : 's'}
-          </p>
+        <div className="table-wrap-header flex-wrap">
+          <div className="min-w-0">
+            <h3 className="card-section-title mb-0">Product catalog</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+              {displayedProducts.length} item{displayedProducts.length === 1 ? '' : 's'}
+              {listSearch.trim() ? ' matching search' : ''}
+            </p>
+          </div>
+          <ListSearchInput
+            value={listSearch}
+            onChange={setListSearch}
+            placeholder="Search products..."
+            aria-label="Search products by name, category, or HSN"
+          />
         </div>
         {displayedProducts.length === 0 ? (
           <EmptyState
             icon={Package}
-            title={stockFilterActive ? 'No low-stock products' : 'No products yet'}
-            description={
-              stockFilterActive
-                ? `Nothing at or below ${stockThreshold} units with the current filters.`
-                : 'Add your first product to track cost, selling price, and stock.'
+            title={
+              listSearch.trim()
+                ? 'No matching products'
+                : stockFilterActive
+                  ? 'No low-stock products'
+                  : 'No products yet'
             }
-            actionLabel={stockFilterActive ? undefined : 'Add product'}
-            onAction={stockFilterActive ? undefined : openAddForm}
+            description={
+              listSearch.trim()
+                ? 'Try another name, category, or HSN/SAC code.'
+                : stockFilterActive
+                  ? `Nothing at or below ${stockThreshold} units with the current filters.`
+                  : 'Add your first product to track cost, selling price, and stock.'
+            }
+            actionLabel={
+              listSearch.trim() || stockFilterActive ? undefined : 'Add product'
+            }
+            onAction={listSearch.trim() || stockFilterActive ? undefined : openAddForm}
           />
         ) : (
           <div className="table-scroll">
