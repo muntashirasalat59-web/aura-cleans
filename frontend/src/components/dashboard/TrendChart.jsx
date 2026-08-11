@@ -9,6 +9,7 @@ import {
   Legend,
 } from 'recharts';
 import { TrendingUp } from 'lucide-react';
+import { useTheme } from '../../context/ThemeContext';
 
 function formatRupee(value) {
   if (value >= 100000) {
@@ -24,8 +25,8 @@ function ChartTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
 
   return (
-    <div className="rounded-xl border border-slate-200/90 bg-white/95 backdrop-blur-md px-4 py-3 shadow-xl text-sm dark:border-slate-600 dark:bg-slate-900/95">
-      <p className="font-semibold text-slate-900 dark:text-slate-100 mb-2">{label}</p>
+    <div className="rounded-[var(--aura-radius-dropdown)] border border-aura-border bg-aura-card px-4 py-3 text-[length:var(--aura-type-body)] shadow-floating">
+      <p className="mb-2 font-semibold text-aura-text">{label}</p>
       {payload.map((entry) => (
         <p key={entry.dataKey} className="flex items-center justify-between gap-6" style={{ color: entry.color }}>
           <span>{entry.name}</span>
@@ -39,6 +40,7 @@ function ChartTooltip({ active, payload, label }) {
 }
 
 export default function TrendChart({ data, range, onRangeChange }) {
+  const { tokens } = useTheme();
   const ranges = [
     { id: '7', label: 'Last 7 days' },
     { id: '30', label: 'Last 30 days' },
@@ -49,15 +51,19 @@ export default function TrendChart({ data, range, onRangeChange }) {
   const totalPurchases = data.reduce((s, d) => s + d.purchases, 0);
 
   return (
-    <div className="premium-glass-card p-6 sm:p-8">
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
+    <div className="rounded-[var(--aura-radius-card)] border border-aura-border bg-aura-card p-6 shadow-soft">
+      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-950 to-indigo-800 text-amber-300 shadow-lg shadow-indigo-900/20">
+          <div className="flex h-11 w-11 items-center justify-center rounded-[var(--aura-radius-button)] bg-aura-accent text-white shadow-soft">
             <TrendingUp className="h-5 w-5" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 tracking-tight">Sales vs purchases trend</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-300 mt-0.5">Date-wise revenue and procurement (₹)</p>
+            <h3 className="text-[length:var(--aura-type-h5)] font-semibold tracking-tight text-aura-text">
+              Sales vs purchases trend
+            </h3>
+            <p className="mt-1 text-[length:var(--aura-type-body)] text-aura-text-secondary">
+              Date-wise revenue and procurement (₹)
+            </p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -74,47 +80,47 @@ export default function TrendChart({ data, range, onRangeChange }) {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-4 mb-6 text-sm">
-        <div className="trend-pill-sales flex items-center gap-2 rounded-lg bg-emerald-50/80 px-3 py-1.5 ring-1 ring-emerald-600/10">
-          <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-          <span className="trend-pill-label text-slate-600 dark:text-slate-300">Sales</span>
-          <span className="trend-pill-value font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
+      <div className="mb-6 flex flex-wrap gap-4 text-[length:var(--aura-type-body)]">
+        <div className="flex items-center gap-2 rounded-[var(--aura-radius-button)] border border-aura-border bg-[color-mix(in_srgb,var(--aura-primary)_10%,var(--aura-card))] px-3 py-2">
+          <span className="h-2 w-2 rounded-full bg-aura-primary" />
+          <span className="text-aura-text-secondary">Sales</span>
+          <span className="font-bold tabular-nums text-aura-primary">
             ₹{totalSales.toLocaleString('en-IN')}
           </span>
         </div>
-        <div className="trend-pill-purchases flex items-center gap-2 rounded-lg bg-indigo-50/80 px-3 py-1.5 ring-1 ring-indigo-600/10">
-          <span className="h-2.5 w-2.5 rounded-full bg-indigo-600" />
-          <span className="trend-pill-label text-slate-600 dark:text-slate-300">Purchases</span>
-          <span className="trend-pill-value font-bold text-indigo-700 dark:text-indigo-400 tabular-nums">
+        <div className="flex items-center gap-2 rounded-[var(--aura-radius-button)] border border-aura-border bg-[color-mix(in_srgb,var(--aura-warning)_10%,var(--aura-card))] px-3 py-2">
+          <span className="h-2 w-2 rounded-full bg-aura-warning" />
+          <span className="text-aura-text-secondary">Purchases</span>
+          <span className="font-bold tabular-nums text-aura-warning">
             ₹{totalPurchases.toLocaleString('en-IN')}
           </span>
         </div>
       </div>
 
-      <div className="h-[280px] sm:h-[320px] w-full min-w-0">
+      <div className="h-80 w-full min-w-0">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="salesBar" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#10b981" stopOpacity={0.9} />
-                <stop offset="100%" stopColor="#059669" stopOpacity={0.5} />
+                <stop offset="0%" stopColor={tokens.primary} stopOpacity={0.95} />
+                <stop offset="100%" stopColor={tokens.primaryHover} stopOpacity={0.55} />
               </linearGradient>
               <linearGradient id="purchaseBar" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#4f46e5" stopOpacity={0.85} />
-                <stop offset="100%" stopColor="#312e81" stopOpacity={0.45} />
+                <stop offset="0%" stopColor={tokens.warning} stopOpacity={0.9} />
+                <stop offset="100%" stopColor={tokens.warning} stopOpacity={0.45} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} className="dark:opacity-20" />
+            <CartesianGrid strokeDasharray="3 3" stroke={tokens.border} vertical={false} />
             <XAxis
               dataKey="label"
-              tick={{ fill: '#64748b', fontSize: 11 }}
-              axisLine={{ stroke: '#e2e8f0' }}
+              tick={{ fill: tokens.textSecondary, fontSize: 12 }}
+              axisLine={{ stroke: tokens.border }}
               tickLine={false}
               interval={data.length > 14 ? Math.floor(data.length / 7) : 0}
             />
             <YAxis
               tickFormatter={formatRupee}
-              tick={{ fill: '#64748b', fontSize: 11 }}
+              tick={{ fill: tokens.textSecondary, fontSize: 12 }}
               axisLine={false}
               tickLine={false}
               width={52}
@@ -122,7 +128,7 @@ export default function TrendChart({ data, range, onRangeChange }) {
             <Tooltip content={<ChartTooltip />} />
             <Legend
               wrapperStyle={{ paddingTop: 16, fontSize: 13 }}
-              formatter={(value) => <span className="text-slate-600">{value}</span>}
+              formatter={(value) => <span className="text-aura-text-secondary">{value}</span>}
             />
             <Bar dataKey="sales" name="Sales" fill="url(#salesBar)" radius={[6, 6, 0, 0]} maxBarSize={28} />
             <Bar dataKey="purchases" name="Purchases" fill="url(#purchaseBar)" radius={[6, 6, 0, 0]} maxBarSize={28} />

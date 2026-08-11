@@ -167,7 +167,7 @@ export default function Employees() {
   if (loading && employees.length === 0) return <LoadingState />;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageHeader
         title="Employees"
         description="Team roster, monthly salary, and simple salary payment tracking."

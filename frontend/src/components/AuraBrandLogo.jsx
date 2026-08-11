@@ -50,7 +50,9 @@ export default function AuraBrandLogo({ variant = 'sidebar', className = '' }) {
         fetchPriority={variant === 'login-hero' ? 'high' : undefined}
       />
       {variant === 'sidebar' && (
-        <p className="hidden sm:block text-[11px] text-emerald-400/90 truncate leading-tight">{AURA.tagline}</p>
+        <p className="hidden truncate text-[length:var(--aura-type-caption)] leading-tight text-[color:var(--aura-shell-sidebar-nav)] sm:block">
+          {AURA.tagline}
+        </p>
       )}
     </div>
   );

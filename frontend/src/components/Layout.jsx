@@ -1,16 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
+  Activity,
   Building2,
   ChevronDown,
   ChevronRight,
+  ClipboardList,
   LayoutDashboard,
   LogOut,
   Menu,
   Moon,
+  Package,
   Search,
+  Settings,
+  ShoppingBag,
   Sun,
+  TrendingUp,
   UserCircle,
+  Users,
+  Wallet,
   X,
   Zap,
 } from 'lucide-react';
@@ -31,6 +39,21 @@ const QUICK_ACTIONS = [
   { label: 'Add product', path: '/products' },
   { label: 'Add party', path: '/parties' },
 ];
+
+/** Presentation-only icons for existing nav paths (no nav data changes). */
+const NAV_ICONS = {
+  '/': LayoutDashboard,
+  '/products': Package,
+  '/parties': Users,
+  '/purchases': ShoppingBag,
+  '/sales': TrendingUp,
+  '/expenses': Wallet,
+  '/reports': ClipboardList,
+  '/employees': Users,
+  '/users': UserCircle,
+  '/activity-log': Activity,
+  '/settings/business': Settings,
+};
 
 export default function Layout() {
   const location = useLocation();
@@ -65,6 +88,11 @@ export default function Layout() {
     }),
     [liveWeather, weatherLoading, weatherError, company.city, company.lat, company.lon]
   );
+
+  const trialDaysLeft = profile?.trial_ends_at
+    ? Math.ceil((new Date(profile.trial_ends_at) - new Date()) / (1000 * 60 * 60 * 24))
+    : null;
+  const isOnTrial = profile?.payment_status !== 'paid' && trialDaysLeft !== null;
 
   useEffect(() => {
     function onKey(e) {
@@ -112,35 +140,39 @@ export default function Layout() {
 
   return (
     <LiveWeatherProvider value={liveWeatherValue}>
-    <div className="min-h-screen bg-[#F7F8FA] dark:bg-slate-950 transition-colors duration-200">
+    <div className="app-shell min-h-screen bg-aura-bg transition-colors duration-200">
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
 
       {sidebarOpen && (
         <button
           type="button"
           aria-label="Close menu"
-          className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-[color-mix(in_srgb,var(--aura-shell-sidebar-from)_70%,transparent)] backdrop-blur-sm lg:hidden"
           onClick={closeSidebar}
         />
       )}
 
       <aside
-        className={`no-print fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-sidebar dark:bg-slate-950 text-slate-200 border-r border-sidebar-border dark:border-slate-800 transition-transform duration-300 lg:translate-x-0 ${
+        className={`app-shell-sidebar no-print fixed inset-y-0 left-0 z-50 flex w-72 flex-col transition-transform duration-200 lg:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-5 lg:hidden">
-          <AuraBrandLogo variant="sidebar" className="flex-1 min-w-0" />
-          <button type="button" className="btn-icon text-slate-400 hover:text-white hover:bg-sidebar-hover" onClick={closeSidebar}>
+        <div className="flex h-[72px] items-center justify-between border-b border-[color:var(--aura-shell-sidebar-border)] px-5 lg:hidden">
+          <AuraBrandLogo variant="sidebar" className="min-w-0 flex-1" />
+          <button
+            type="button"
+            className="btn-icon text-[color:var(--aura-shell-sidebar-nav)] hover:bg-white/10 hover:text-white"
+            onClick={closeSidebar}
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="hidden lg:block border-b border-sidebar-border px-5 py-5">
+        <div className="hidden border-b border-[color:var(--aura-shell-sidebar-border)] px-5 py-5 lg:block">
           <AuraBrandLogo variant="sidebar" />
         </div>
 
-        <nav className="flex-1 overflow-y-auto p-3 space-y-4">
+        <nav className="flex-1 space-y-4 overflow-y-auto p-3">
           {sections.map((section) => {
             const isOpen = collapsed[section.id] === false || activeSectionId === section.id || collapsed[section.id] === undefined;
             return (
@@ -148,7 +180,7 @@ export default function Layout() {
                 <button
                   type="button"
                   onClick={() => toggleSection(section.id)}
-                  className="app-nav-section-label flex w-full items-center justify-between px-2 py-1.5 hover:text-slate-200"
+                  className="app-nav-section-label flex w-full items-center justify-between px-2 py-2 hover:text-[color:var(--aura-shell-sidebar-nav-hover)]"
                 >
                   {section.label}
                   {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
@@ -157,18 +189,19 @@ export default function Layout() {
                   <ul className="mt-1 space-y-1">
                     {section.items.map((item) => {
                       const active = isActive(item.path);
+                      const Icon = NAV_ICONS[item.path] || LayoutDashboard;
                       return (
                         <li key={item.path}>
                           <Link
                             to={item.path}
                             onClick={closeSidebar}
-                            className={`app-nav-link flex items-center gap-3 rounded-xl px-3 py-2.5 font-medium transition-all ${
+                            className={`app-nav-link flex items-center gap-2.5 rounded-[var(--aura-radius-button)] px-3 py-2 font-medium transition-all duration-200 ${
                               active
-                                ? 'bg-sidebar-active text-white shadow-inner ring-1 ring-brand-500/40'
-                                : 'text-slate-300 hover:bg-sidebar-hover hover:text-white'
+                                ? 'bg-[color:var(--aura-shell-sidebar-active)] text-white shadow-soft'
+                                : 'text-[color:var(--aura-shell-sidebar-nav)] hover:bg-white/5 hover:text-[color:var(--aura-shell-sidebar-nav-hover)]'
                             }`}
                           >
-                            <LayoutDashboard className={`h-4 w-4 shrink-0 ${active ? 'text-emerald-400' : 'text-slate-300 opacity-90'}`} />
+                            <Icon className={`h-3.5 w-3.5 shrink-0 ${active ? 'text-white' : ''}`} />
                             <span className="truncate">{item.label}</span>
                           </Link>
                         </li>
@@ -181,17 +214,25 @@ export default function Layout() {
           })}
         </nav>
 
-        <div className="border-t border-sidebar-border p-4 space-y-3">
-          <div className="rounded-xl bg-sidebar-hover/80 px-4 py-3">
-            <p className="text-xs font-medium text-slate-400">Signed in as</p>
-            <p className="mt-0.5 truncate text-sm font-semibold text-slate-100">{profile?.full_name || 'User'}</p>
-            <p className="text-[11px] text-slate-400 capitalize">{roleLabel(role)}</p>
-          </div>
+        <div className="space-y-3 border-t border-[color:var(--aura-shell-sidebar-border)] p-4">
+          {isOnTrial && (
+            <div
+              className={`rounded-[var(--aura-radius-button)] px-4 py-3 text-[length:var(--aura-type-body)] font-medium ${
+                trialDaysLeft > 0
+                  ? 'bg-[color-mix(in_srgb,var(--aura-warning)_18%,transparent)] text-[color:var(--aura-warning)]'
+                  : 'bg-[color-mix(in_srgb,var(--aura-danger)_18%,transparent)] text-[color:var(--aura-danger)]'
+              }`}
+            >
+              {trialDaysLeft > 0
+                ? `Trial: ${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'} left`
+                : 'Trial expired'}
+            </div>
+          )}
           <button
             type="button"
             onClick={handleLogout}
             disabled={loggingOut}
-            className="sidebar-logout-btn flex w-full items-center justify-center gap-2 rounded-xl border border-slate-600/80 bg-slate-800/60 px-4 py-2.5 text-sm font-semibold text-slate-100 transition-colors hover:border-red-500/60 hover:bg-red-950/40 hover:text-red-100 disabled:opacity-60"
+            className="sidebar-logout-btn flex w-full items-center justify-center gap-2 rounded-full bg-[color:var(--aura-shell-logout-bg)] px-4 py-3 text-[length:var(--aura-type-body)] font-semibold text-[color:var(--aura-shell-logout-text)] shadow-soft transition-transform duration-200 hover:scale-[1.02] disabled:opacity-50"
           >
             <LogOut className="h-4 w-4 shrink-0" />
             {loggingOut ? 'Signing out…' : 'Sign out'}
@@ -200,61 +241,98 @@ export default function Layout() {
       </aside>
 
       <div className="lg:pl-72">
-        <header className="app-header no-print sticky top-0 z-30 flex min-h-16 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-slate-900/[0.08] dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 px-4 py-2 shadow-header backdrop-blur-md sm:px-6 lg:flex-nowrap lg:py-0 transition-colors duration-200">
-          {/* Left: page title */}
-          <div className="app-header-left flex min-w-0 items-center gap-3 shrink-0 max-w-[min(100%,220px)] xl:max-w-[280px]">
-            <button type="button" className="btn-icon lg:hidden shrink-0" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
+        <header className="app-header no-print sticky top-0 z-30 flex h-14 min-h-14 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-aura-border bg-aura-card/90 px-4 shadow-soft backdrop-blur-[12px] sm:px-6 lg:h-[64px] lg:min-h-[64px] lg:flex-nowrap transition-colors duration-200">
+          <div className="app-header-left flex max-w-[min(100%,220px)] min-w-0 shrink-0 items-center gap-3 xl:max-w-[280px]">
+            <button type="button" className="btn-icon shrink-0 lg:hidden" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
               <Menu className="h-5 w-5" />
             </button>
             <div className="min-w-0">
-              <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              <p className="truncate text-[10px] font-medium uppercase tracking-wider text-aura-muted">
                 {company.name}
               </p>
-              <h2 className="truncate type-widget-title text-slate-900 dark:text-slate-100">{currentTitle}</h2>
+              <h2 className="truncate text-[15px] font-semibold tracking-tight text-aura-text">
+                {currentTitle}
+              </h2>
             </div>
           </div>
 
-          {/* Center: search (capped width so it never crowds utilities) */}
           <div className="app-header-center hidden min-w-0 flex-1 md:flex md:justify-center lg:max-w-sm xl:max-w-md">
             <button
               type="button"
               onClick={() => setSearchOpen(true)}
-              className="app-header-search flex w-full min-w-0 max-w-[320px] items-center gap-2 rounded-xl border border-slate-900/10 dark:border-slate-700 bg-[#F7F8FA] dark:bg-slate-800/80 px-3 py-2 text-sm text-slate-500 hover:border-[#1e3a5f]/40 dark:hover:border-brand-300 transition-colors"
+              className="app-header-search flex w-full min-w-0 max-w-[320px] items-center gap-2 rounded-[var(--aura-radius-input)] border border-aura-border bg-aura-bg px-3 py-2.5 text-[length:var(--aura-type-body)] text-aura-muted transition-colors duration-200 hover:border-aura-primary"
             >
               <Search className="h-4 w-4 shrink-0" />
               <span className="min-w-0 flex-1 truncate text-left">Search…</span>
-              <kbd className="hidden xl:inline text-[10px] rounded border border-slate-200 dark:border-slate-600 px-1.5 py-0.5 shrink-0">
+              <kbd className="hidden shrink-0 rounded-[var(--aura-radius-dropdown)] border border-aura-border bg-aura-card px-2 py-1 text-[length:var(--aura-type-caption)] text-aura-muted xl:inline">
                 ⌘K
               </kbd>
             </button>
           </div>
 
-          {/* Right: utilities — never shrink below content; wrap on narrow widths */}
-          <div className="app-header-right flex flex-wrap items-center justify-end gap-2 shrink-0 ml-auto">
-            <div className="hidden md:block shrink-0">
+          <div className="app-header-right ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+            <div className="hidden shrink-0 md:block">
               <HeaderLiveClock />
+            </div>
+
+            <div className="relative hidden shrink-0 lg:block">
+              <button
+                type="button"
+                className="inline-flex h-11 max-w-[200px] items-center gap-2 rounded-[var(--aura-radius-button)] bg-[color:var(--aura-shell-quick-add)] px-3 text-[length:var(--aura-type-body)] font-semibold text-white shadow-soft transition-all duration-200 hover:scale-[1.02] hover:bg-[color:var(--aura-shell-quick-add-hover)]"
+                onClick={() => setCompanyOpen((o) => !o)}
+              >
+                <Building2 className="h-4 w-4 shrink-0" />
+                <span className="truncate">{company.city}</span>
+                {!weatherLoading && liveWeather && (
+                  <span className="hidden shrink-0 text-[length:var(--aura-type-caption)] font-semibold tabular-nums text-white/90 xl:inline">
+                    {liveWeather.temp}°C
+                  </span>
+                )}
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-white/80" />
+              </button>
+              {companyOpen && (
+                <>
+                  <button type="button" className="fixed inset-0 z-40" aria-label="Close company menu" onClick={() => setCompanyOpen(false)} />
+                  <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-[var(--aura-radius-dropdown)] border border-aura-border bg-aura-card py-1 shadow-floating">
+                    {AURA.companies.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          setCompanyId(c.id);
+                          setCompanyOpen(false);
+                        }}
+                        className={`w-full px-4 py-2 text-left text-[length:var(--aura-type-body)] text-aura-text hover:bg-aura-bg ${c.id === companyId ? 'font-semibold text-aura-primary' : ''}`}
+                      >
+                        {c.name}
+                        <span className="block text-[length:var(--aura-type-caption)] text-aura-muted">{c.city}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="relative shrink-0">
               <button
                 type="button"
-                className="btn btn-secondary text-sm py-2 hidden sm:inline-flex shrink-0"
+                className="inline-flex h-11 items-center gap-2 rounded-[var(--aura-radius-button)] bg-[color:var(--aura-shell-quick-add)] px-4 text-[length:var(--aura-type-body)] font-semibold text-white shadow-soft transition-all duration-200 hover:scale-[1.02] hover:bg-[color:var(--aura-shell-quick-add-hover)] sm:inline-flex"
                 onClick={() => setQuickOpen((o) => !o)}
               >
-                <Zap className="h-4 w-4 text-orange-500" />
-                <span className="hidden lg:inline">Quick</span>
+                <Zap className="h-4 w-4" />
+                <span className="hidden lg:inline">Quick Add</span>
                 <ChevronDown className="h-3.5 w-3.5" />
               </button>
               {quickOpen && (
                 <>
                   <button type="button" className="fixed inset-0 z-40" aria-label="Close quick actions" onClick={() => setQuickOpen(false)} />
-                  <div className="absolute right-0 top-full mt-2 z-50 w-48 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl py-1">
+                  <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-[var(--aura-radius-dropdown)] border border-aura-border bg-aura-card py-1 shadow-floating">
                     {QUICK_ACTIONS.map((a) => (
                       <Link
                         key={a.path}
                         to={a.path}
                         onClick={() => setQuickOpen(false)}
-                        className="block px-4 py-2 text-sm text-slate-800 dark:text-slate-100 hover:bg-brand-50 dark:hover:bg-brand-950/50"
+                        className="block px-4 py-2 text-[length:var(--aura-type-body)] text-aura-text hover:bg-aura-bg"
                       >
                         {a.label}
                       </Link>
@@ -264,76 +342,35 @@ export default function Layout() {
               )}
             </div>
 
-            <div className="relative hidden lg:block shrink-0">
-              <button
-                type="button"
-                className="btn btn-secondary text-sm py-2 max-w-[160px] xl:max-w-[200px] shrink-0"
-                onClick={() => setCompanyOpen((o) => !o)}
-              >
-                <Building2 className="h-4 w-4 shrink-0" />
-                <span className="truncate">{company.city}</span>
-                {!weatherLoading && liveWeather && (
-                  <span className="hidden xl:inline text-xs font-semibold text-brand-700 dark:text-brand-300 tabular-nums shrink-0">
-                    {liveWeather.temp}°C
-                  </span>
-                )}
-                <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-              </button>
-              {companyOpen && (
-                <>
-                  <button type="button" className="fixed inset-0 z-40" aria-label="Close company menu" onClick={() => setCompanyOpen(false)} />
-                  <div className="absolute right-0 top-full mt-2 z-50 w-56 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl py-1">
-                    {AURA.companies.map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => {
-                          setCompanyId(c.id);
-                          setCompanyOpen(false);
-                        }}
-                        className={`w-full text-left px-4 py-2 text-sm text-slate-800 dark:text-slate-100 hover:bg-brand-50 dark:hover:bg-brand-950/50 ${c.id === companyId ? 'font-semibold text-brand-700 dark:text-brand-300' : ''}`}
-                      >
-                        {c.name}
-                        <span className="block text-xs text-slate-500">{c.city}</span>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-
-            <button type="button" onClick={toggleTheme} className="btn-icon shrink-0" aria-label="Toggle theme">
-              {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-            </button>
-
             <button
               type="button"
-              onClick={handleLogout}
-              disabled={loggingOut}
-              title="Sign out"
-              aria-label="Sign out"
-              className="btn btn-secondary text-sm shrink-0 px-2.5 xl:px-3"
+              onClick={toggleTheme}
+              className="header-icon-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--aura-radius-button)] bg-[color:var(--aura-shell-quick-add)] text-white shadow-soft transition-all duration-200 hover:scale-[1.02] hover:bg-[color:var(--aura-shell-quick-add-hover)]"
+              aria-label="Toggle theme"
             >
-              <LogOut className="h-4 w-4 shrink-0" />
-              <span className="hidden xl:inline">{loggingOut ? 'Signing out…' : 'Sign out'}</span>
+              {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </button>
 
             <div className="relative shrink-0">
               <button
                 type="button"
                 onClick={() => setUserMenuOpen((open) => !open)}
-                className="flex items-center gap-2 rounded-xl border border-slate-900/10 dark:border-slate-700 bg-[#F7F8FA] dark:bg-slate-800 pl-1 pr-2 xl:pr-3 py-1 hover:border-[#1e3a5f]/40 dark:hover:border-brand-600 transition-colors shrink-0"
+                className="flex h-11 items-center gap-2 rounded-[var(--aura-radius-button)] border border-transparent bg-[color:var(--aura-shell-quick-add)] py-1 pl-1 pr-2 text-white shadow-soft transition-all duration-200 hover:scale-[1.02] hover:bg-[color:var(--aura-shell-quick-add-hover)] xl:pr-3"
                 aria-expanded={userMenuOpen}
                 aria-haspopup="menu"
               >
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#1e3a5f]/10 dark:bg-brand-900 text-[#1e3a5f] dark:text-brand-200">
+                <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-white/20 text-white">
                   <UserCircle className="h-5 w-5" />
                 </div>
-                <div className="hidden xl:block text-left max-w-[120px]">
-                  <p className="text-xs font-medium text-slate-900 dark:text-white leading-tight truncate">{profile?.full_name}</p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 capitalize">{roleLabel(role)}</p>
+                <div className="hidden max-w-[120px] text-left xl:block">
+                  <p className="truncate text-[length:var(--aura-type-caption)] font-bold leading-tight text-white">
+                    {profile?.full_name}
+                  </p>
+                  <p className="truncate text-[length:var(--aura-type-caption)] capitalize text-white/80">
+                    {roleLabel(role)}
+                  </p>
                 </div>
-                <ChevronDown className="h-3.5 w-3.5 text-slate-400 hidden xl:block" />
+                <ChevronDown className="hidden h-3.5 w-3.5 text-white/80 xl:block" />
               </button>
               {userMenuOpen && (
                 <>
@@ -345,18 +382,22 @@ export default function Layout() {
                   />
                   <div
                     role="menu"
-                    className="absolute right-0 top-full mt-2 z-50 w-56 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl py-1"
+                    className="absolute right-0 top-full z-50 mt-2 w-56 rounded-[var(--aura-radius-dropdown)] border border-aura-border bg-aura-card py-1 shadow-floating"
                   >
-                    <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
-                      <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{profile?.full_name}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">{roleLabel(role)}</p>
+                    <div className="border-b border-aura-border px-4 py-3">
+                      <p className="truncate text-[length:var(--aura-type-body)] font-semibold text-aura-text">
+                        {profile?.full_name}
+                      </p>
+                      <p className="text-[length:var(--aura-type-caption)] capitalize text-aura-muted">
+                        {roleLabel(role)}
+                      </p>
                     </div>
                     <button
                       type="button"
                       role="menuitem"
                       onClick={handleLogout}
                       disabled={loggingOut}
-                      className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-60"
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-[length:var(--aura-type-body)] text-aura-danger hover:bg-[color-mix(in_srgb,var(--aura-danger)_8%,transparent)] disabled:opacity-50"
                     >
                       <LogOut className="h-4 w-4 shrink-0" />
                       {loggingOut ? 'Signing out…' : 'Sign out'}
@@ -368,7 +409,7 @@ export default function Layout() {
           </div>
         </header>
 
-        <main className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10 max-w-[1600px] mx-auto w-full transition-colors duration-200">
+        <main className="mx-auto w-full max-w-[1600px] px-5 py-5 transition-colors duration-200 sm:px-6 sm:py-6">
           <Outlet />
         </main>
       </div>

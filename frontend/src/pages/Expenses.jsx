@@ -141,7 +141,7 @@ export default function Expenses() {
   if (loading && expenses.length === 0) return <LoadingState />;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageHeader
         title="Expenses"
         description="Track rent, salaries, utilities, and other operating costs."

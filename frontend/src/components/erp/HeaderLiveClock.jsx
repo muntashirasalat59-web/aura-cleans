@@ -20,23 +20,20 @@ export default function HeaderLiveClock() {
 
   return (
     <div
-      className="header-live-clock flex shrink-0 items-center gap-2 rounded-xl border border-slate-900/10 dark:border-slate-700 bg-[#F7F8FA] dark:bg-slate-800/70 px-2.5 py-1.5 whitespace-nowrap"
+      className="header-live-clock flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-[var(--aura-radius-button)] bg-[color:var(--aura-shell-quick-add)] px-3 text-white shadow-soft"
       aria-live="polite"
       aria-label={`Live date and time: ${dateLine}, ${timeLine}`}
       title={`${dateLine} · ${timeLine} IST`}
     >
-      <Clock className="h-4 w-4 text-brand-600 dark:text-brand-400 shrink-0" />
-      {/* Compact: time only on mid widths; full date+time when space allows */}
-      <p className="text-sm font-bold tabular-nums text-slate-900 dark:text-white xl:hidden">
-        {timeLine}
-      </p>
-      <div className="hidden xl:block leading-tight shrink-0">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+      <Clock className="h-4 w-4 shrink-0" />
+      <p className="text-[length:var(--aura-type-body)] font-bold tabular-nums xl:hidden">{timeLine}</p>
+      <div className="hidden shrink-0 leading-tight xl:block">
+        <p className="text-[length:var(--aura-type-caption)] font-semibold uppercase tracking-wide text-white/80">
           {dateLine}
         </p>
-        <p className="text-sm font-bold tabular-nums text-slate-900 dark:text-white">{timeLine}</p>
+        <p className="text-[length:var(--aura-type-body)] font-bold tabular-nums">{timeLine}</p>
       </div>
-      <span className="hidden 2xl:inline text-[10px] font-medium text-slate-400 dark:text-slate-500 shrink-0">
+      <span className="hidden shrink-0 text-[length:var(--aura-type-caption)] font-medium text-white/80 2xl:inline">
         IST
       </span>
     </div>
