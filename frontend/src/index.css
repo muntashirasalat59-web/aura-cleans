@@ -2584,7 +2584,7 @@ label:focus-within .login-field-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 60px 40px;
+  padding: 48px 32px;
   background: #0a1220;
   perspective: 1400px;
   position: relative;
@@ -2601,11 +2601,11 @@ label:focus-within .login-field-icon {
 .login-3d-row {
   position: relative;
   width: 100%;
-  max-width: 960px;
+  max-width: 1160px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 60px;
+  gap: 72px;
   transform-style: preserve-3d;
 }
 
@@ -2617,18 +2617,18 @@ label:focus-within .login-field-icon {
 
 .login-3d-headline {
   color: #f8fafc;
-  font-size: 28px;
+  font-size: 38px;
   font-weight: 500;
-  line-height: 1.35;
-  margin: 0 0 14px;
+  line-height: 1.3;
+  margin: 0 0 16px;
 }
 
 .login-3d-sub {
   color: #64748b;
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.6;
-  margin: 0 0 24px;
-  max-width: 300px;
+  margin: 0 0 28px;
+  max-width: 420px;
 }
 
 .login-3d-badges {
@@ -2640,15 +2640,15 @@ label:focus-within .login-field-icon {
   background: rgba(255, 255, 255, 0.06);
   border: 0.5px solid rgba(255, 255, 255, 0.12);
   border-radius: 20px;
-  padding: 5px 12px;
-  font-size: 11px;
+  padding: 6px 14px;
+  font-size: 12px;
   color: #94a3b8;
 }
 
 .login-3d-stack {
   position: relative;
-  width: 340px;
-  min-height: 400px;
+  width: 430px;
+  min-height: 480px;
   flex-shrink: 0;
   transform-style: preserve-3d;
   transform: rotateY(-14deg) rotateX(3deg);
@@ -2675,27 +2675,27 @@ label:focus-within .login-field-icon {
 
 .login-3d-card {
   position: relative;
-  min-height: 400px;
+  min-height: 480px;
   transform: translateZ(0px);
   transform-style: preserve-3d;
   background: #111827;
   border: 0.5px solid rgba(255, 255, 255, 0.15);
   border-radius: 18px;
-  padding: 32px 28px;
+  padding: 40px 36px;
   box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
 }
 
 .login-3d-brand {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 24px;
+  gap: 10px;
+  margin-bottom: 28px;
   transform: translateZ(20px);
 }
 
 .login-3d-mark {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   border-radius: 8px;
   background: linear-gradient(135deg, #2563eb, #7c3aed);
   flex-shrink: 0;
@@ -2703,15 +2703,15 @@ label:focus-within .login-field-icon {
 
 .login-3d-brand-name {
   color: #f8fafc;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 500;
 }
 
 .login-3d-title {
   color: #f8fafc;
-  font-size: 19px;
+  font-size: 24px;
   font-weight: 500;
-  margin: 0 0 22px;
+  margin: 0 0 26px;
   transform: translateZ(16px);
 }
 
@@ -2737,7 +2737,7 @@ label:focus-within .login-field-icon {
 
 .login-3d-field {
   display: block;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 
 .login-3d-field-email {
@@ -2745,15 +2745,15 @@ label:focus-within .login-field-icon {
 }
 
 .login-3d-field-password {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
   transform: translateZ(8px);
 }
 
 .login-3d-label {
   display: block;
   color: #94a3b8;
-  font-size: 11px;
-  margin-bottom: 5px;
+  font-size: 12px;
+  margin-bottom: 6px;
 }
 
 .login-3d-input {
@@ -2762,9 +2762,10 @@ label:focus-within .login-field-icon {
   background: #0a1220;
   border: 0.5px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
-  padding: 10px 12px;
+  padding: 13px 14px;
+  min-height: 46px;
   color: #f8fafc;
-  font-size: 12px;
+  font-size: 14px;
   outline: none;
   transition:
     border-color 0.15s ease,
@@ -2816,8 +2817,9 @@ label:focus-within .login-field-icon {
   text-align: center;
   border: none;
   border-radius: 8px;
-  padding: 11px;
-  font-size: 13px;
+  padding: 14px 16px;
+  min-height: 48px;
+  font-size: 15px;
   font-weight: 500;
   cursor: pointer;
   transform: translateZ(24px);
@@ -2836,8 +2838,8 @@ label:focus-within .login-field-icon {
 .login-3d-footer {
   text-align: center;
   color: #64748b;
-  font-size: 11px;
-  margin: 16px 0 0;
+  font-size: 13px;
+  margin: 18px 0 0;
   transform: translateZ(4px);
 }
 
@@ -2881,12 +2883,16 @@ label:focus-within .login-field-icon {
 
   .login-3d-stack {
     width: 100%;
-    max-width: 340px;
+    max-width: 430px;
   }
 
   .login-3d-copy {
     text-align: center;
-    max-width: 340px;
+    max-width: 430px;
+  }
+
+  .login-3d-headline {
+    font-size: 32px;
   }
 
   .login-3d-sub {
