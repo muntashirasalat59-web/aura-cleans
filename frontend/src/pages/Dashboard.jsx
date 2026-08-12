@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   TrendingUp,
@@ -45,6 +45,7 @@ import {
   removeWidgetFromLayouts,
   addWidgetToLayouts,
 } from '../config/dashboardLayout';
+import { useDashboardCustomize } from '../context/DashboardCustomizeContext';
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
@@ -302,6 +303,7 @@ function inventoryStatusBadge(status) {
 }
 
 export default function Dashboard() {
+  const { register, unregister } = useDashboardCustomize();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -333,6 +335,10 @@ export default function Dashboard() {
   const [layoutReady, setLayoutReady] = useState(false);
   const [layoutBusy, setLayoutBusy] = useState(false);
   const [layoutMessage, setLayoutMessage] = useState(null);
+  const layoutsRef = useRef(layouts);
+  const hiddenWidgetsRef = useRef(hiddenWidgets);
+  layoutsRef.current = layouts;
+  hiddenWidgetsRef.current = hiddenWidgets;
 
   useEffect(() => {
     loadStats();
@@ -392,7 +398,9 @@ export default function Dashboard() {
     try {
       setLayoutBusy(true);
       setLayoutMessage(null);
-      await settingsAPI.saveDashboardLayout(buildLayoutPayload(layouts, hiddenWidgets));
+      await settingsAPI.saveDashboardLayout(
+        buildLayoutPayload(layoutsRef.current, hiddenWidgetsRef.current)
+      );
       setEditMode(false);
       setLayoutMessage('Layout saved');
     } catch (err) {
@@ -427,6 +435,18 @@ export default function Dashboard() {
     setEditMode(false);
     loadDashboardLayout();
   }
+
+  useEffect(() => {
+    register({
+      editMode,
+      busy: layoutBusy,
+      enterEditMode,
+      save: handleSaveLayout,
+      reset: handleResetLayout,
+      cancel: exitEditModeWithoutSave,
+    });
+    return () => unregister();
+  }, [editMode, layoutBusy, register, unregister]);
 
   const chartData = useMemo(() => {
     if (!stats?.trends) return [];
@@ -571,6 +591,67 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard-shell space-y-3">
+      {/* Sticky toolbar — always visible above alerts */}
+      <div className="sticky top-[calc(theme(spacing.14)+0.5rem)] z-20 -mx-1 flex flex-wrap items-center justify-between gap-2 rounded-[var(--aura-radius-card)] border border-aura-border bg-aura-card/95 px-3 py-2.5 shadow-soft backdrop-blur-md sm:top-[calc(4rem+0.5rem)] lg:static lg:mx-0 lg:bg-transparent lg:px-0 lg:py-0 lg:shadow-none lg:backdrop-blur-none lg:border-0">
+        <div className="min-w-0">
+          {editMode ? (
+            <p className="text-[12px] font-medium text-aura-text-secondary">
+              Edit mode — drag to reorder, resize from corners, eye to hide
+            </p>
+          ) : layoutMessage ? (
+            <p className="text-[12px] text-aura-muted">{layoutMessage}</p>
+          ) : (
+            <p className="text-[12px] font-medium text-aura-text-secondary">
+              Executive Dashboard
+            </p>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {!editMode ? (
+            <button
+              type="button"
+              onClick={enterEditMode}
+              className="btn btn-primary inline-flex items-center gap-2 !py-2 !text-[13px]"
+              data-testid="dashboard-customize-btn"
+            >
+              <LayoutGrid className="h-4 w-4" strokeWidth={2} />
+              Customize
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={handleSaveLayout}
+                disabled={layoutBusy}
+                className="btn btn-primary inline-flex items-center gap-2 !py-2 !text-[13px]"
+                data-testid="dashboard-save-layout-btn"
+              >
+                <Save className="h-4 w-4" strokeWidth={2} />
+                Save Layout
+              </button>
+              <button
+                type="button"
+                onClick={handleResetLayout}
+                disabled={layoutBusy}
+                className="btn btn-secondary inline-flex items-center gap-2 !py-2 !text-[13px]"
+                data-testid="dashboard-reset-layout-btn"
+              >
+                <RotateCcw className="h-4 w-4" strokeWidth={2} />
+                Reset to Default
+              </button>
+              <button
+                type="button"
+                onClick={exitEditModeWithoutSave}
+                disabled={layoutBusy}
+                className="btn btn-secondary inline-flex items-center gap-2 !py-2 !text-[13px]"
+              >
+                Cancel
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
       {/* First in DOM so it shows above the fold on login / dashboard load (no scroll). */}
       {showStockAlert && (
         <div
@@ -658,57 +739,6 @@ export default function Dashboard() {
           onDismiss={dismissPayableAlert}
         />
       )}
-
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0">
-          {editMode ? (
-            <p className="text-[12px] font-medium text-aura-text-secondary">
-              Edit mode — drag to reorder, resize from corners, eye to hide
-            </p>
-          ) : layoutMessage ? (
-            <p className="text-[12px] text-aura-muted">{layoutMessage}</p>
-          ) : (
-            <span className="sr-only">Executive Dashboard</span>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {!editMode ? (
-            <button type="button" onClick={enterEditMode} className="btn btn-secondary !py-1.5 !text-[12px]">
-              <LayoutGrid className="h-3.5 w-3.5" strokeWidth={2} />
-              Customize
-            </button>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={handleSaveLayout}
-                disabled={layoutBusy}
-                className="btn btn-primary !py-1.5 !text-[12px]"
-              >
-                <Save className="h-3.5 w-3.5" strokeWidth={2} />
-                Save Layout
-              </button>
-              <button
-                type="button"
-                onClick={handleResetLayout}
-                disabled={layoutBusy}
-                className="btn btn-secondary !py-1.5 !text-[12px]"
-              >
-                <RotateCcw className="h-3.5 w-3.5" strokeWidth={2} />
-                Reset to Default
-              </button>
-              <button
-                type="button"
-                onClick={exitEditModeWithoutSave}
-                disabled={layoutBusy}
-                className="btn btn-secondary !py-1.5 !text-[12px]"
-              >
-                Cancel
-              </button>
-            </>
-          )}
-        </div>
-      </div>
 
       {editMode && hiddenWidgets.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-[var(--aura-radius-card)] border border-dashed border-aura-border bg-aura-card/60 px-3 py-2">
