@@ -2578,6 +2578,327 @@ label:focus-within .login-field-icon {
   }
 }
 
+/* —— 3D tilted login (aura_clean_login_3d_mockup) —— */
+.login-3d-stage {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 40px;
+  background: #0a1220;
+  perspective: 1400px;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-3d-bg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #0d1526, #0a1220);
+  pointer-events: none;
+}
+
+.login-3d-row {
+  position: relative;
+  width: 100%;
+  max-width: 960px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 60px;
+  transform-style: preserve-3d;
+}
+
+.login-3d-copy {
+  flex: 1;
+  transform: rotateY(14deg) rotateX(2deg);
+  transform-style: preserve-3d;
+}
+
+.login-3d-headline {
+  color: #f8fafc;
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 1.35;
+  margin: 0 0 14px;
+}
+
+.login-3d-sub {
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0 0 24px;
+  max-width: 300px;
+}
+
+.login-3d-badges {
+  display: flex;
+  gap: 10px;
+}
+
+.login-3d-badge {
+  background: rgba(255, 255, 255, 0.06);
+  border: 0.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.login-3d-stack {
+  position: relative;
+  width: 340px;
+  min-height: 400px;
+  flex-shrink: 0;
+  transform-style: preserve-3d;
+  transform: rotateY(-14deg) rotateX(3deg);
+}
+
+.login-3d-layer {
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  pointer-events: none;
+}
+
+.login-3d-layer-back {
+  transform: translateZ(-40px) translateX(18px) translateY(18px);
+  background: linear-gradient(135deg, #7c3aed, #2563eb);
+  opacity: 0.35;
+}
+
+.login-3d-layer-mid {
+  transform: translateZ(-20px) translateX(9px) translateY(9px);
+  background: #111827;
+  border: 0.5px solid rgba(255, 255, 255, 0.1);
+}
+
+.login-3d-card {
+  position: relative;
+  min-height: 400px;
+  transform: translateZ(0px);
+  transform-style: preserve-3d;
+  background: #111827;
+  border: 0.5px solid rgba(255, 255, 255, 0.15);
+  border-radius: 18px;
+  padding: 32px 28px;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
+}
+
+.login-3d-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+  transform: translateZ(20px);
+}
+
+.login-3d-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  flex-shrink: 0;
+}
+
+.login-3d-brand-name {
+  color: #f8fafc;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.login-3d-title {
+  color: #f8fafc;
+  font-size: 19px;
+  font-weight: 500;
+  margin: 0 0 22px;
+  transform: translateZ(16px);
+}
+
+.login-3d-warn {
+  font-size: 11px;
+  line-height: 1.5;
+  color: #fbbf24;
+  background: rgba(120, 53, 15, 0.35);
+  border: 0.5px solid rgba(251, 191, 36, 0.25);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: -8px 0 14px;
+}
+
+.login-3d-warn code {
+  color: #fde68a;
+  font-size: 10px;
+}
+
+.login-3d-form {
+  display: block;
+}
+
+.login-3d-field {
+  display: block;
+  margin-bottom: 14px;
+}
+
+.login-3d-field-email {
+  transform: translateZ(12px);
+}
+
+.login-3d-field-password {
+  margin-bottom: 20px;
+  transform: translateZ(8px);
+}
+
+.login-3d-label {
+  display: block;
+  color: #94a3b8;
+  font-size: 11px;
+  margin-bottom: 5px;
+}
+
+.login-3d-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: #0a1220;
+  border: 0.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #f8fafc;
+  font-size: 12px;
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.login-3d-input::placeholder {
+  color: #64748b;
+  letter-spacing: 0;
+}
+
+.login-3d-field-password .login-3d-input::placeholder {
+  letter-spacing: 2px;
+}
+
+.login-3d-input:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.login-3d-input:focus {
+  border: 1px solid #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.login-3d-input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.login-3d-error {
+  color: #fca5a5;
+  background: rgba(127, 29, 29, 0.35);
+  border: 0.5px solid rgba(248, 113, 113, 0.25);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.45;
+  margin: -6px 0 14px;
+}
+
+.login-3d-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  color: #fff;
+  text-align: center;
+  border: none;
+  border-radius: 8px;
+  padding: 11px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transform: translateZ(24px);
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.3);
+}
+
+.login-3d-submit:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.login-3d-submit:disabled {
+  opacity: 0.88;
+  cursor: wait;
+}
+
+.login-3d-footer {
+  text-align: center;
+  color: #64748b;
+  font-size: 11px;
+  margin: 16px 0 0;
+  transform: translateZ(4px);
+}
+
+.login-3d-footer-link {
+  color: #60a5fa;
+  font-weight: 500;
+}
+
+.login-3d-footer-link:hover {
+  color: #93c5fd;
+}
+
+@media (max-width: 900px), (prefers-reduced-motion: reduce) {
+  .login-3d-stage {
+    perspective: none;
+    padding: 40px 20px;
+  }
+
+  .login-3d-row {
+    flex-direction: column;
+    gap: 32px;
+    transform: none;
+  }
+
+  .login-3d-copy,
+  .login-3d-stack,
+  .login-3d-card,
+  .login-3d-brand,
+  .login-3d-title,
+  .login-3d-field-email,
+  .login-3d-field-password,
+  .login-3d-submit,
+  .login-3d-footer {
+    transform: none !important;
+  }
+
+  .login-3d-layer-back,
+  .login-3d-layer-mid {
+    display: none;
+  }
+
+  .login-3d-stack {
+    width: 100%;
+    max-width: 340px;
+  }
+
+  .login-3d-copy {
+    text-align: center;
+    max-width: 340px;
+  }
+
+  .login-3d-sub {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .login-3d-badges {
+    justify-content: center;
+  }
+}
+
 /* ===== App-wide premium theme (matches login design language) ===== */
 .app-shell {
   position: relative;
