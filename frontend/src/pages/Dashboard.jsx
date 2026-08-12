@@ -45,7 +45,6 @@ import {
   removeWidgetFromLayouts,
   addWidgetToLayouts,
 } from '../config/dashboardLayout';
-import { useDashboardCustomize } from '../context/DashboardCustomizeContext';
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
@@ -303,7 +302,6 @@ function inventoryStatusBadge(status) {
 }
 
 export default function Dashboard() {
-  const { register, unregister } = useDashboardCustomize();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -435,18 +433,6 @@ export default function Dashboard() {
     setEditMode(false);
     loadDashboardLayout();
   }
-
-  useEffect(() => {
-    register({
-      editMode,
-      busy: layoutBusy,
-      enterEditMode,
-      save: handleSaveLayout,
-      reset: handleResetLayout,
-      cancel: exitEditModeWithoutSave,
-    });
-    return () => unregister();
-  }, [editMode, layoutBusy, register, unregister]);
 
   const chartData = useMemo(() => {
     if (!stats?.trends) return [];
