@@ -1,16 +1,9 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Building2, Loader2, Lock, Mail, User, ShieldCheck, RefreshCw, Receipt, Sparkles, Clock, CreditCard, Check } from 'lucide-react';
-import { AURA } from '../config/auraBrand';
-import AuraBrandLogo from '../components/AuraBrandLogo';
+import { Loader2, Clock, CreditCard, Check } from 'lucide-react';
+import LoginParticleNetwork from '../components/LoginParticleNetwork';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
-const TRUST_ITEMS = [
-  { icon: ShieldCheck, label: 'Secure' },
-  { icon: RefreshCw, label: 'Real-time sync' },
-  { icon: Receipt, label: 'GST compliant' },
-];
 
 const PLANS = {
   '1_month': { label: '1 Month', price: 999 },
@@ -27,7 +20,7 @@ export default function Signup() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [planChoice, setPlanChoice] = useState(null); // 'trial' | 'subscribe'
+  const [planChoice, setPlanChoice] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState('1_month');
 
   async function handleSubmit(e) {
@@ -76,118 +69,81 @@ export default function Signup() {
   }
 
   return (
-    <div className="login-screen min-h-screen flex flex-col lg:flex-row bg-slate-950">
-      {/* —— Left: branding —— */}
-      <div className="login-hero relative flex-1 flex flex-col justify-center px-8 py-14 lg:px-16 lg:py-20 text-white overflow-hidden min-h-[320px] lg:min-h-0">
-        <div className="login-hero-mesh absolute inset-0" aria-hidden />
-        <div className="login-hero-blob login-hero-blob-1 absolute rounded-full animate-login-blob" aria-hidden />
-        <div className="login-hero-blob login-hero-blob-2 absolute rounded-full animate-login-blob-slow" aria-hidden />
-        <div className="login-hero-blob login-hero-blob-3 absolute rounded-full animate-login-blob-drift" aria-hidden />
-        <div className="login-hero-grid absolute inset-0" aria-hidden />
-        <div className="login-hero-vignette absolute inset-0" aria-hidden />
+    <div className="login-3d-stage">
+      <div className="login-3d-bg" aria-hidden />
+      <LoginParticleNetwork />
 
-        <div className="relative z-10 max-w-lg animate-fade-in">
-          <div className="login-hero-badge inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-medium text-emerald-100/90 mb-8">
-            <Sparkles className="h-3.5 w-3.5 text-emerald-300" />
-            Premium Cloud ERP
-          </div>
-
-          <div className="login-logo-wrap mb-8">
-            <AuraBrandLogo variant="login-hero" />
-          </div>
-
-          <h1 className="login-headline text-[2rem] sm:text-[2.35rem] lg:text-[2.65rem] font-bold tracking-tight leading-[1.15]">
-            Start running your business{' '}
-            <span className="login-headline-accent">on one platform</span>.
+      <div className="login-3d-row">
+        <div className="login-3d-copy">
+          <h1 className="login-3d-headline">
+            Start running your business
+            <br />
+            on one platform.
           </h1>
-
-          <p className="mt-5 text-slate-300/90 text-sm lg:text-base leading-relaxed max-w-md">{AURA.description}</p>
-
-          <ul className="mt-10 flex flex-wrap gap-x-6 gap-y-3">
-            {TRUST_ITEMS.map(({ icon: Icon, label }) => (
-              <li key={label} className="flex items-center gap-2 text-sm text-slate-300/85">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 ring-1 ring-white/10">
-                  <Icon className="h-4 w-4 text-emerald-300/90" />
-                </span>
-                {label}
-              </li>
-            ))}
-          </ul>
+          <p className="login-3d-sub">
+            One intelligent platform for hygiene manufacturing and distribution.
+          </p>
+          <div className="login-3d-badges">
+            <span className="login-3d-badge">Secure</span>
+            <span className="login-3d-badge">Real-time sync</span>
+            <span className="login-3d-badge">GST compliant</span>
+          </div>
         </div>
-      </div>
 
-      {/* —— Right: sign-up form —— */}
-      <div className="login-form-panel relative flex-1 flex items-center justify-center p-6 sm:p-10 lg:p-12 overflow-hidden">
-        <div className="login-form-panel-glow absolute inset-0 pointer-events-none" aria-hidden />
-        <div className="login-form-panel-blob login-form-panel-blob-1 absolute rounded-full animate-login-blob-slow pointer-events-none" aria-hidden />
-        <div className="login-form-panel-blob login-form-panel-blob-2 absolute rounded-full animate-login-blob-drift pointer-events-none" aria-hidden />
+        <div className="login-3d-stack login-3d-stack-signup">
+          <div className="login-3d-layer login-3d-layer-back" aria-hidden />
+          <div className="login-3d-layer login-3d-layer-mid" aria-hidden />
 
-        <div className="relative w-full max-w-[420px] animate-scale-in">
-          <div className="login-card-premium rounded-2xl p-8 sm:p-10">
-            <div className="flex justify-center mb-7 lg:hidden">
-              <div className="login-logo-wrap login-logo-wrap-sm">
-                <AuraBrandLogo variant="login-hero" />
-              </div>
+          <div className="login-3d-card">
+            <div className="login-3d-brand">
+              <span className="login-3d-mark" aria-hidden />
+              <span className="login-3d-brand-name">Aura Clean</span>
             </div>
 
             {!planChoice ? (
               <>
-                <div className="mb-7">
-                  <h2 className="text-2xl font-bold text-white tracking-tight text-center lg:text-left">Get started</h2>
-                  <p className="text-sm text-slate-400 mt-1.5 text-center lg:text-left leading-relaxed">
-                    Choose how you'd like to begin.
-                  </p>
-                </div>
+                <h2 className="login-3d-title">Get started</h2>
+                <p className="login-3d-lead">Choose how you&apos;d like to begin.</p>
 
-                <div className="space-y-4">
+                <div className="login-3d-plans">
                   <button
                     type="button"
                     onClick={() => setPlanChoice('trial')}
-                    className="w-full text-left rounded-xl border border-white/10 bg-white/[0.03] hover:border-emerald-400/40 hover:bg-emerald-400/[0.06] transition-colors p-5"
+                    className="login-3d-plan"
                   >
-                    <div className="flex items-center gap-3">
-                      <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-400/10 ring-1 ring-emerald-400/20 shrink-0">
-                        <Clock className="h-5 w-5 text-emerald-300" />
-                      </span>
-                      <div>
-                        <p className="text-white font-semibold">Start 10-day free trial</p>
-                        <p className="text-slate-400 text-xs mt-0.5">Full access, no payment required now</p>
-                      </div>
-                    </div>
+                    <span className="login-3d-plan-icon" aria-hidden>
+                      <Clock className="h-4 w-4" />
+                    </span>
+                    <span>
+                      <span className="login-3d-plan-title">Start 10-day free trial</span>
+                      <span className="login-3d-plan-sub">Full access, no payment required now</span>
+                    </span>
                   </button>
 
-                  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-                    <div className="flex items-center gap-3 mb-4">
-                      <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-400/10 ring-1 ring-emerald-400/20 shrink-0">
-                        <CreditCard className="h-5 w-5 text-emerald-300" />
+                  <div className="login-3d-plan login-3d-plan-static">
+                    <div className="login-3d-plan-head">
+                      <span className="login-3d-plan-icon" aria-hidden>
+                        <CreditCard className="h-4 w-4" />
                       </span>
-                      <div>
-                        <p className="text-white font-semibold">Subscribe now</p>
-                        <p className="text-slate-400 text-xs mt-0.5">Pick a plan to get started right away</p>
-                      </div>
+                      <span>
+                        <span className="login-3d-plan-title">Subscribe now</span>
+                        <span className="login-3d-plan-sub">Pick a plan to get started right away</span>
+                      </span>
                     </div>
 
-                    <div className="space-y-2 mb-4">
+                    <div className="login-3d-plan-list">
                       {Object.entries(PLANS).map(([key, p]) => (
                         <label
                           key={key}
-                          className={`flex items-center justify-between rounded-lg border px-3.5 py-2.5 cursor-pointer transition-colors ${
-                            selectedPlan === key
-                              ? 'border-emerald-400/50 bg-emerald-400/[0.08]'
-                              : 'border-white/10 bg-white/[0.02] hover:border-white/20'
-                          }`}
+                          className={`login-3d-plan-option${selectedPlan === key ? ' is-selected' : ''}`}
                         >
-                          <span className="flex items-center gap-2.5">
-                            <span
-                              className={`flex h-4 w-4 items-center justify-center rounded-full border ${
-                                selectedPlan === key ? 'border-emerald-400 bg-emerald-400' : 'border-slate-500'
-                              }`}
-                            >
-                              {selectedPlan === key && <Check className="h-2.5 w-2.5 text-slate-950" />}
+                          <span className="login-3d-plan-option-left">
+                            <span className={`login-3d-radio${selectedPlan === key ? ' is-selected' : ''}`}>
+                              {selectedPlan === key && <Check className="h-2.5 w-2.5" />}
                             </span>
-                            <span className="text-sm text-slate-200">{p.label}</span>
+                            <span>{p.label}</span>
                           </span>
-                          <span className="text-sm font-medium text-slate-300">₹{p.price}</span>
+                          <span className="login-3d-plan-price">₹{p.price}</span>
                           <input
                             type="radio"
                             name="plan"
@@ -202,7 +158,7 @@ export default function Signup() {
                     <button
                       type="button"
                       onClick={() => setPlanChoice('subscribe')}
-                      className="btn btn-primary w-full"
+                      className="login-3d-submit"
                     >
                       Continue with {PLANS[selectedPlan].label}
                     </button>
@@ -211,111 +167,93 @@ export default function Signup() {
               </>
             ) : (
               <>
-                <div className="mb-7">
-                  <h2 className="text-2xl font-bold text-white tracking-tight text-center lg:text-left">Create account</h2>
-                  <p className="text-sm text-slate-400 mt-1.5 text-center lg:text-left leading-relaxed">
-                    {planChoice === 'trial'
-                      ? '10-day free trial · no payment now'
-                      : `${PLANS[selectedPlan].label} plan · ₹${PLANS[selectedPlan].price}`}{' '}
-                    <button
-                      type="button"
-                      onClick={() => setPlanChoice(null)}
-                      className="text-emerald-300 hover:text-emerald-200 font-medium"
-                    >
-                      Change
-                    </button>
-                  </p>
-                </div>
+                <h2 className="login-3d-title">Create account</h2>
+                <p className="login-3d-lead">
+                  {planChoice === 'trial'
+                    ? '10-day free trial · no payment now'
+                    : `${PLANS[selectedPlan].label} plan · ₹${PLANS[selectedPlan].price}`}{' '}
+                  <button
+                    type="button"
+                    onClick={() => setPlanChoice(null)}
+                    className="login-3d-footer-link"
+                  >
+                    Change
+                  </button>
+                </p>
 
-                <form onSubmit={handleSubmit} className="space-y-5">
-                  <label className="block">
-                    <span className="login-field-label">Business name</span>
-                    <div className="login-field-wrap mt-2">
-                      <Building2 className="login-field-icon" aria-hidden />
-                      <input
-                        type="text"
-                        required
-                        disabled={submitting}
-                        className="login-input login-input-with-icon"
-                        value={businessName}
-                        onChange={(e) => setBusinessName(e.target.value)}
-                        placeholder="Your Business Pvt Ltd"
-                      />
-                    </div>
+                <form onSubmit={handleSubmit} className="login-3d-form">
+                  <label className="login-3d-field login-3d-field-email">
+                    <span className="login-3d-label">Business name</span>
+                    <input
+                      type="text"
+                      required
+                      disabled={submitting}
+                      className="login-3d-input"
+                      value={businessName}
+                      onChange={(e) => setBusinessName(e.target.value)}
+                      placeholder="Your Business Pvt Ltd"
+                    />
                   </label>
 
-                  <label className="block">
-                    <span className="login-field-label">Your name</span>
-                    <div className="login-field-wrap mt-2">
-                      <User className="login-field-icon" aria-hidden />
-                      <input
-                        type="text"
-                        required
-                        disabled={submitting}
-                        className="login-input login-input-with-icon"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        placeholder="Full name"
-                      />
-                    </div>
+                  <label className="login-3d-field login-3d-field-email">
+                    <span className="login-3d-label">Your name</span>
+                    <input
+                      type="text"
+                      required
+                      disabled={submitting}
+                      className="login-3d-input"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="Full name"
+                    />
                   </label>
 
-                  <label className="block">
-                    <span className="login-field-label">Email</span>
-                    <div className="login-field-wrap mt-2">
-                      <Mail className="login-field-icon" aria-hidden />
-                      <input
-                        type="email"
-                        autoComplete="email"
-                        required
-                        disabled={submitting}
-                        className="login-input login-input-with-icon"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="you@company.com"
-                      />
-                    </div>
+                  <label className="login-3d-field login-3d-field-email">
+                    <span className="login-3d-label">Email</span>
+                    <input
+                      type="email"
+                      autoComplete="email"
+                      required
+                      disabled={submitting}
+                      className="login-3d-input"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@company.com"
+                    />
                   </label>
 
-                  <label className="block">
-                    <span className="login-field-label">Password</span>
-                    <div className="login-field-wrap mt-2">
-                      <Lock className="login-field-icon" aria-hidden />
-                      <input
-                        type="password"
-                        autoComplete="new-password"
-                        required
-                        minLength={6}
-                        disabled={submitting}
-                        className="login-input login-input-with-icon"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Minimum 6 characters"
-                      />
-                    </div>
+                  <label className="login-3d-field">
+                    <span className="login-3d-label">Password</span>
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      required
+                      minLength={6}
+                      disabled={submitting}
+                      className="login-3d-input"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Minimum 6 characters"
+                    />
                   </label>
 
                   {error && (
-                    <p className="login-error text-sm rounded-xl px-3.5 py-2.5" role="alert">
+                    <p className="login-3d-error" role="alert">
                       {error}
                     </p>
                   )}
-                  {success && (
-                    <p className="text-sm rounded-xl px-3.5 py-2.5 bg-emerald-950/40 border border-emerald-500/20 text-emerald-200">
-                      {success}
-                    </p>
-                  )}
+                  {success && <p className="login-3d-success">{success}</p>}
 
                   <button
                     type="submit"
                     disabled={submitting}
                     aria-busy={submitting}
-                    className="login-submit-btn btn btn-primary w-full btn-lg mt-1"
+                    className="login-3d-submit"
                   >
                     {submitting ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin shrink-0" aria-hidden />
-                        <span>Creating account…</span>
+                        Creating account…
                       </>
                     ) : (
                       'Create account'
@@ -325,15 +263,11 @@ export default function Signup() {
               </>
             )}
 
-            <p className="mt-6 text-center text-sm text-slate-400">
+            <p className="login-3d-footer">
               Already have an account?{' '}
-              <Link to="/login" className="text-emerald-300 hover:text-emerald-200 font-medium">
+              <Link to="/login" className="login-3d-footer-link">
                 Sign in
               </Link>
-            </p>
-
-            <p className="mt-6 text-center text-[11px] text-slate-500 leading-relaxed">
-              Protected workspace · Secure signup
             </p>
           </div>
         </div>

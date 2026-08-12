@@ -2588,7 +2588,8 @@ label:focus-within .login-field-icon {
   background: #0a1220;
   perspective: 1400px;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .login-3d-bg {
@@ -2644,6 +2645,7 @@ label:focus-within .login-field-icon {
 
 .login-3d-badges {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
@@ -2863,6 +2865,170 @@ label:focus-within .login-field-icon {
   color: #93c5fd;
 }
 
+.login-3d-stack-signup {
+  width: 440px;
+}
+
+.login-3d-stack-signup .login-3d-card {
+  min-height: 0;
+}
+
+.login-3d-lead {
+  color: #94a3b8;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: -14px 0 22px;
+  transform: translateZ(14px);
+}
+
+.login-3d-success {
+  color: #6ee7b7;
+  background: rgba(6, 78, 59, 0.35);
+  border: 0.5px solid rgba(16, 185, 129, 0.25);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  margin: -6px 0 14px;
+}
+
+.login-3d-plans {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transform: translateZ(12px);
+}
+
+.login-3d-plan {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  background: #0a1220;
+  border: 0.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 14px;
+  color: inherit;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.login-3d-plan:hover {
+  border-color: rgba(37, 99, 235, 0.55);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.login-3d-plan-static {
+  display: block;
+  cursor: default;
+}
+
+.login-3d-plan-static:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: none;
+}
+
+.login-3d-plan-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.login-3d-plan-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.22), rgba(124, 58, 237, 0.22));
+  color: #93c5fd;
+  flex-shrink: 0;
+}
+
+.login-3d-plan-title {
+  display: block;
+  color: #f8fafc;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.login-3d-plan-sub {
+  display: block;
+  color: #64748b;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.login-3d-plan-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.login-3d-plan-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0.5px solid rgba(255, 255, 255, 0.12);
+  background: #0a1220;
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  color: #e2e8f0;
+  font-size: 13px;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.login-3d-plan-option:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.login-3d-plan-option.is-selected {
+  border: 1px solid #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.login-3d-plan-option-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.login-3d-radio {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 1px solid #64748b;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.login-3d-radio.is-selected {
+  border-color: #2563eb;
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+}
+
+.login-3d-plan-price {
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.login-3d-plan-static .login-3d-submit {
+  transform: none;
+}
+
 @media (max-width: 900px), (prefers-reduced-motion: reduce) {
   .login-3d-stage {
     perspective: none;
@@ -2880,6 +3046,8 @@ label:focus-within .login-field-icon {
   .login-3d-card,
   .login-3d-brand,
   .login-3d-title,
+  .login-3d-lead,
+  .login-3d-plans,
   .login-3d-field-email,
   .login-3d-field-password,
   .login-3d-submit,
@@ -2895,6 +3063,10 @@ label:focus-within .login-field-icon {
   .login-3d-stack {
     width: 100%;
     max-width: 430px;
+  }
+
+  .login-3d-stack-signup {
+    max-width: 440px;
   }
 
   .login-3d-copy {
