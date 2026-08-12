@@ -6,104 +6,113 @@
 
 /** Fixed chrome — sidebar stays dark in both light and dark content themes. */
 export const AURA_SHELL = {
-  sidebarFrom: '#0C4A5F',
-  sidebarTo: '#135F7A',
-  sidebarSection: '#6B98A0',
-  sidebarNav: '#A8C9D3',
-  sidebarNavHover: '#D1EAF2',
-  sidebarBorder: 'rgba(168, 201, 211, 0.16)',
-  sidebarActive: '#38BDF8',
+  sidebarFrom: '#0B1220',
+  sidebarTo: '#111827',
+  sidebarSection: '#64748B',
+  sidebarNav: '#94A3B8',
+  sidebarNavHover: '#F8FAFC',
+  sidebarBorder: 'rgba(255, 255, 255, 0.08)',
+  sidebarActive: '#2563EB',
   sidebarLogoutBg: '#FFFFFF',
-  sidebarLogoutText: '#0C4A5F',
-  /* Match primary CTA — not near-black on light header */
-  quickAdd: '#38BDF8',
-  quickAddHover: '#0EA5E9',
-};
-
-export const AURA_LIGHT = {
-  bg: '#F8FAFC',
-  sidebar: '#FFFFFF',
-  card: '#FFFFFF',
-  elevated: '#F1F5F9',
-  border: '#E5E7EB',
-  primary: '#38BDF8',
-  primaryHover: '#0EA5E9',
-  secondary: '#14B8A6',
-  accent: '#2563EB',
-  success: '#22C55E',
-  warning: '#F59E0B',
-  danger: '#EF4444',
-  text: '#111827',
-  textSecondary: '#6B7280',
-  muted: '#9CA3AF',
+  sidebarLogoutText: '#0B1220',
+  quickAdd: '#2563EB',
+  quickAddHover: '#1D4ED8',
 };
 
 /**
- * Premium dark — forest-ink (not generic slate).
- * Layered surfaces: canvas → card → elevated, soft green hairlines.
+ * Light content theme — brand blues/purples on light surfaces.
+ */
+export const AURA_LIGHT = {
+  bg: '#F8FAFC',
+  sidebar: '#FFFFFF',
+  surface: '#FFFFFF',
+  card: '#FFFFFF',
+  elevated: '#F1F5F9',
+  border: 'rgba(15, 23, 42, 0.08)',
+  primary: '#2563EB',
+  primaryHover: '#1D4ED8',
+  secondary: '#7C3AED',
+  accent: '#7C3AED',
+  success: '#10B981',
+  warning: '#F59E0B',
+  danger: '#EF4444',
+  info: '#06B6D4',
+  text: '#0F172A',
+  textSecondary: '#64748B',
+  muted: '#94A3B8',
+};
+
+/**
+ * Dark content theme — design-system palette.
  */
 export const AURA_DARK = {
-  bg: '#0A1012',
-  sidebar: '#0E2530',
-  card: '#121C1F',
-  elevated: '#182428',
-  border: 'rgba(148, 180, 200, 0.14)',
-  primary: '#38BDF8',
-  primaryHover: '#7DD3FC',
-  secondary: '#2DD4BF',
-  accent: '#7DD3FC',
-  success: '#4ADE80',
-  warning: '#FBBF24',
-  danger: '#F87171',
-  text: '#F1F5F3',
-  textSecondary: '#A8B9BF',
-  muted: '#7A8A8F',
+  bg: '#0B1220',
+  sidebar: '#111827',
+  surface: '#111827',
+  card: '#1A2235',
+  elevated: '#1F2A40',
+  border: 'rgba(255, 255, 255, 0.08)',
+  primary: '#2563EB',
+  primaryHover: '#3B82F6',
+  secondary: '#7C3AED',
+  accent: '#7C3AED',
+  success: '#10B981',
+  warning: '#F59E0B',
+  danger: '#EF4444',
+  info: '#06B6D4',
+  text: '#F8FAFC',
+  textSecondary: '#94A3B8',
+  muted: '#64748B',
 };
 
+/** small 10 · medium 16 · large 20 · extra 28 */
 export const AURA_RADIUS = {
-  button: '12px',
+  small: '10px',
+  medium: '16px',
+  large: '20px',
+  extra: '28px',
+  button: '10px',
   card: '16px',
-  input: '12px',
+  input: '10px',
   table: '16px',
   dialog: '20px',
-  dropdown: '12px',
+  dropdown: '10px',
 };
 
+/** Soft floating shadows — subtle depth, no harsh blobs */
 export const AURA_SHADOW = {
-  soft: '0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04)',
-  medium: '0 4px 12px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05)',
-  floating: '0 12px 32px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.06)',
+  soft: '0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.06)',
+  medium: '0 4px 12px rgba(15, 23, 42, 0.08), 0 12px 28px rgba(37, 99, 235, 0.06)',
+  floating: '0 8px 24px rgba(15, 23, 42, 0.1), 0 20px 48px rgba(37, 99, 235, 0.08)',
 };
 
-/** Dark shadows — depth + faint sky-blue ambient (never heavy black blobs) */
 export const AURA_SHADOW_DARK = {
-  soft: '0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 4px 20px rgba(0, 0, 0, 0.28)',
+  soft: '0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 4px 18px rgba(0, 0, 0, 0.28)',
   medium:
-    '0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 8px 28px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(56, 189, 248, 0.08)',
+    '0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 8px 28px rgba(0, 0, 0, 0.36), 0 0 0 1px rgba(37, 99, 235, 0.12)',
   floating:
-    '0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 20px 48px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(56, 189, 248, 0.12)',
+    '0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 16px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(124, 58, 237, 0.1)',
 };
 
-/** Glass fills — same brand colors, translucent surfaces + blur */
 export const AURA_GLASS_LIGHT = {
-  surface: 'rgba(255, 255, 255, 0.72)',
-  elevated: 'rgba(255, 255, 255, 0.88)',
-  border: 'rgba(255, 255, 255, 0.55)',
+  surface: 'rgba(255, 255, 255, 0.78)',
+  elevated: 'rgba(255, 255, 255, 0.92)',
+  border: 'rgba(255, 255, 255, 0.6)',
   borderEdge: 'rgba(15, 23, 42, 0.08)',
   blur: '14px',
   saturate: '1.2',
 };
 
 export const AURA_GLASS_DARK = {
-  surface: 'rgba(18, 28, 31, 0.62)',
-  elevated: 'rgba(24, 38, 42, 0.72)',
+  surface: 'rgba(26, 34, 53, 0.72)',
+  elevated: 'rgba(31, 42, 64, 0.82)',
   border: 'rgba(255, 255, 255, 0.1)',
-  borderEdge: 'rgba(56, 189, 248, 0.12)',
+  borderEdge: 'rgba(255, 255, 255, 0.08)',
   blur: '16px',
-  saturate: '1.35',
+  saturate: '1.25',
 };
 
-/** ERP-dense scale (Stripe/Linear-like) — readable at 100% zoom without oversized UI */
+/** ERP-dense type scale */
 export const AURA_TYPE = {
   h1: '28px',
   h2: '22px',
@@ -113,6 +122,20 @@ export const AURA_TYPE = {
   bodyLg: '14px',
   body: '13px',
   caption: '11px',
+};
+
+/** 8-point spacing scale (px) */
+export const AURA_SPACE = {
+  1: 4,
+  2: 8,
+  3: 12,
+  4: 16,
+  5: 20,
+  6: 24,
+  8: 32,
+  10: 40,
+  12: 48,
+  16: 64,
 };
 
 /** Fixed shell chrome (never toggles with light/dark content theme). */
@@ -139,6 +162,7 @@ export function tokensToCssVars(palette, { dark = false } = {}) {
   return {
     '--aura-bg': palette.bg,
     '--aura-sidebar': palette.sidebar,
+    '--aura-surface': palette.surface || palette.card,
     '--aura-card': palette.card,
     '--aura-elevated': palette.elevated || palette.card,
     '--aura-border': palette.border,
@@ -149,6 +173,7 @@ export function tokensToCssVars(palette, { dark = false } = {}) {
     '--aura-success': palette.success,
     '--aura-warning': palette.warning,
     '--aura-danger': palette.danger,
+    '--aura-info': palette.info || '#06B6D4',
     '--aura-text': palette.text,
     '--aura-text-secondary': palette.textSecondary,
     '--aura-muted': palette.muted,
@@ -158,6 +183,10 @@ export function tokensToCssVars(palette, { dark = false } = {}) {
     '--aura-glass-border-edge': glass.borderEdge,
     '--aura-glass-blur': glass.blur,
     '--aura-glass-saturate': glass.saturate,
+    '--aura-radius-small': AURA_RADIUS.small,
+    '--aura-radius-medium': AURA_RADIUS.medium,
+    '--aura-radius-large': AURA_RADIUS.large,
+    '--aura-radius-extra': AURA_RADIUS.extra,
     '--aura-radius-button': AURA_RADIUS.button,
     '--aura-radius-card': AURA_RADIUS.card,
     '--aura-radius-input': AURA_RADIUS.input,
