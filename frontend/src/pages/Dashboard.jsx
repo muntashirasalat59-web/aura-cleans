@@ -14,6 +14,10 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Settings,
+  PlusCircle,
+  UserPlus,
+  FileText,
+  Zap,
 } from 'lucide-react';
 import { dashboardAPI } from '../api';
 import LoadingState from '../components/LoadingState';
@@ -32,22 +36,22 @@ function ChangeBadge({ pct }) {
   const n = Number(pct);
   if (n > 0) {
     return (
-      <span className="mt-2 inline-flex items-center gap-1 text-[length:var(--aura-type-caption)] font-semibold text-aura-success">
-        <ArrowUpRight className="h-3.5 w-3.5" strokeWidth={2} />
+      <span className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] font-semibold text-aura-success">
+        <ArrowUpRight className="h-3 w-3" strokeWidth={2} />
         {n.toFixed(1)}%
       </span>
     );
   }
   if (n < 0) {
     return (
-      <span className="mt-2 inline-flex items-center gap-1 text-[length:var(--aura-type-caption)] font-semibold text-aura-danger">
-        <ArrowDownRight className="h-3.5 w-3.5" strokeWidth={2} />
+      <span className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] font-semibold text-aura-danger">
+        <ArrowDownRight className="h-3 w-3" strokeWidth={2} />
         {Math.abs(n).toFixed(1)}%
       </span>
     );
   }
   return (
-    <span className="mt-2 inline-flex items-center gap-1 text-[length:var(--aura-type-caption)] font-semibold text-aura-muted">
+    <span className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] font-semibold text-aura-muted">
       0%
     </span>
   );
@@ -63,14 +67,15 @@ function healthScoreTier(score) {
   return { label: 'Needs attention', colorClass: 'text-aura-danger' };
 }
 
-function ProgressRing({ percent, label, subtitle, color = 'var(--aura-primary)', empty }) {
+function ProgressRing({ percent, label, subtitle, color = 'var(--aura-primary)', empty, size = 'md' }) {
   const circumference = 2 * Math.PI * 42;
   const clamped = Math.min(100, Math.max(0, Number(percent) || 0));
   const offset = empty ? circumference : circumference - (clamped / 100) * circumference;
+  const box = size === 'sm' ? 'h-24 w-24' : 'h-32 w-32';
 
   return (
-    <div className="flex flex-col items-center justify-center py-2">
-      <div className="relative h-40 w-40">
+    <div className="flex flex-col items-center justify-center py-0">
+      <div className={`relative ${box}`}>
         <svg className="h-full w-full -rotate-90" viewBox="0 0 100 100">
           <circle
             cx="50"
@@ -95,17 +100,15 @@ function ProgressRing({ percent, label, subtitle, color = 'var(--aura-primary)',
             />
           )}
         </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center px-3 text-center">
+        <div className="absolute inset-0 flex flex-col items-center justify-center px-2 text-center">
           {empty ? (
-            <span className="text-[length:var(--aura-type-body)] font-semibold leading-snug text-aura-text">
-              —
-            </span>
+            <span className="text-[11px] font-semibold leading-snug text-aura-text">—</span>
           ) : (
             <>
-              <span className="text-[length:var(--aura-type-h2)] font-bold tabular-nums text-aura-text">
+              <span className="text-lg font-bold tabular-nums leading-none text-aura-text">
                 {clamped}%
               </span>
-              <span className="text-[length:var(--aura-type-caption)] font-medium uppercase tracking-wide text-aura-muted">
+              <span className="mt-0.5 text-[9px] font-medium uppercase tracking-wide text-aura-muted">
                 {label}
               </span>
             </>
@@ -113,7 +116,7 @@ function ProgressRing({ percent, label, subtitle, color = 'var(--aura-primary)',
         </div>
       </div>
       {subtitle ? (
-        <p className="mt-3 max-w-[220px] text-center text-[length:var(--aura-type-caption)] text-aura-muted">
+        <p className="mt-1.5 max-w-[160px] text-center text-[10px] leading-snug text-aura-muted">
           {subtitle}
         </p>
       ) : null}
@@ -131,21 +134,21 @@ function StatCard({ title, value, icon: Icon, changePct, to, iconTone = 'primary
   }[iconTone] || 'bg-[color-mix(in_srgb,var(--aura-primary)_16%,transparent)] text-aura-primary';
 
   const content = (
-    <div className="group rounded-[var(--aura-radius-card)] border border-aura-border bg-aura-card p-5 shadow-soft transition-all duration-lift ease-lift hover:-translate-y-0.5 hover:shadow-medium">
-      <div className="relative flex items-start justify-between gap-3">
+    <div className="group rounded-[var(--aura-radius-card)] border border-aura-border bg-aura-card px-3 py-2.5 shadow-soft transition-all duration-lift ease-lift hover:-translate-y-0.5 hover:shadow-medium">
+      <div className="relative flex items-center justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="text-[length:var(--aura-type-caption)] font-semibold uppercase tracking-wider text-aura-muted">
+          <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-aura-muted">
             {title}
           </p>
-          <p className="mt-2 truncate text-[length:var(--aura-type-h4)] font-bold tracking-tight tabular-nums text-aura-text">
+          <p className="mt-0.5 truncate text-[15px] font-bold tracking-tight tabular-nums leading-tight text-aura-text">
             {value}
           </p>
           <ChangeBadge pct={changePct} />
         </div>
         <div
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--aura-radius-button)] shadow-soft transition-transform duration-lift ease-lift group-hover:scale-[1.02] ${iconWrap}`}
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--aura-radius-button)] shadow-soft ${iconWrap}`}
         >
-          <Icon className="h-5 w-5" strokeWidth={2} />
+          <Icon className="h-4 w-4" strokeWidth={2} />
         </div>
       </div>
     </div>
@@ -159,6 +162,27 @@ function StatCard({ title, value, icon: Icon, changePct, to, iconTone = 'primary
     );
   }
   return content;
+}
+
+function QuickAction({ to, label, icon: Icon, tone = 'primary' }) {
+  const toneClass = {
+    primary: 'bg-[color-mix(in_srgb,var(--aura-primary)_14%,transparent)] text-aura-primary',
+    accent: 'bg-[color-mix(in_srgb,var(--aura-accent)_14%,transparent)] text-aura-accent',
+    warning: 'bg-[color-mix(in_srgb,var(--aura-warning)_14%,transparent)] text-aura-warning',
+    secondary: 'bg-[color-mix(in_srgb,var(--aura-secondary)_14%,transparent)] text-aura-secondary',
+  }[tone];
+
+  return (
+    <Link
+      to={to}
+      className="flex items-center gap-2.5 rounded-[var(--aura-radius-button)] border border-aura-border bg-aura-bg/40 px-2.5 py-2 transition-all duration-200 hover:border-aura-primary/30 hover:bg-[color-mix(in_srgb,var(--aura-primary)_8%,transparent)]"
+    >
+      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--aura-radius-button)] ${toneClass}`}>
+        <Icon className="h-4 w-4" strokeWidth={2} />
+      </span>
+      <span className="truncate text-[12px] font-semibold text-aura-text">{label}</span>
+    </Link>
+  );
 }
 
 function paymentStatusBadge(status) {
@@ -351,7 +375,7 @@ export default function Dashboard() {
     : healthCircumference - (healthClamped / 100) * healthCircumference;
 
   return (
-    <div className="dashboard-shell space-y-6">
+    <div className="dashboard-shell space-y-3">
       {/* First in DOM so it shows above the fold on login / dashboard load (no scroll). */}
       {showStockAlert && (
         <div
@@ -440,8 +464,8 @@ export default function Dashboard() {
         />
       )}
 
-      {/* SECTION 1 — Stat cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
+      {/* SECTION 1 — Compact KPI row */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
         <StatCard
           title="Today's Sales"
           value={formatInr(stats.todaysSales)}
@@ -485,58 +509,53 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* SECTION 2 — Trend chart */}
-      <TrendChart data={chartData} range={trendRange} onRangeChange={setTrendRange} />
-
-      {/* SECTION 3 — Business Summary */}
-      <section className="rounded-[var(--aura-radius-card)] border border-aura-border bg-aura-card p-6 shadow-soft">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-[var(--aura-radius-button)] bg-[color-mix(in_srgb,var(--aura-secondary)_16%,transparent)] text-aura-secondary shadow-soft">
-            <Gauge className="h-5 w-5" strokeWidth={2} />
-          </div>
-          <div>
-            <h3 className="text-[length:var(--aura-type-h5)] font-semibold tracking-tight text-aura-text">
-              Business Summary
-            </h3>
-            <p className="text-[length:var(--aura-type-body)] text-aura-text-secondary">
-              Sales target, health score & monthly financials
-            </p>
-          </div>
+      {/* Row 1 — Chart | Business Summary | Quick Actions */}
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-12">
+        <div className="min-w-0 xl:col-span-7">
+          <TrendChart
+            data={chartData}
+            range={trendRange}
+            onRangeChange={setTrendRange}
+            compact
+          />
         </div>
 
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:items-center">
-          <div className="flex flex-col items-center">
-            {hasSalesTarget ? (
-              <ProgressRing
-                percent={salesTargetPercent}
-                label="Sales Target"
-                subtitle={`${formatInr(monthRevenue)} / ${formatInr(monthlySalesTarget)}`}
-                color="var(--aura-primary)"
-              />
-            ) : (
-              <div className="flex w-full flex-col items-center gap-4 py-4 text-center">
-                <ProgressRing
-                  percent={0}
-                  label="Sales Target"
-                  empty
-                />
-                <p className="max-w-xs text-[length:var(--aura-type-body)] text-aura-text-secondary">
-                  Set Monthly Sales Target in Business Settings
-                </p>
-                <Link
-                  to="/settings/business"
-                  className="inline-flex items-center gap-1.5 text-[length:var(--aura-type-body)] font-semibold text-aura-primary underline-offset-2 transition-colors duration-200 hover:text-aura-primary-hover hover:underline"
-                >
-                  <Settings className="h-4 w-4" strokeWidth={2} />
-                  Open Business Settings
-                </Link>
-              </div>
-            )}
+        <section className="flex min-w-0 flex-col rounded-[var(--aura-radius-card)] border border-aura-border bg-aura-card p-3 shadow-soft xl:col-span-3">
+          <div className="mb-2 flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-[var(--aura-radius-button)] bg-[color-mix(in_srgb,var(--aura-secondary)_16%,transparent)] text-aura-secondary">
+              <Gauge className="h-4 w-4" strokeWidth={2} />
+            </div>
+            <div className="min-w-0">
+              <h3 className="truncate text-[13px] font-semibold tracking-tight text-aura-text">
+                Business Summary
+              </h3>
+              <p className="truncate text-[10px] text-aura-text-secondary">Target & health</p>
+            </div>
           </div>
 
-          <div className="flex flex-col gap-6">
-            <div className="flex items-center gap-5">
-              <div className="relative h-28 w-28 shrink-0">
+          <div className="flex flex-1 flex-col gap-3">
+            <div className="flex items-center justify-center gap-3">
+              {hasSalesTarget ? (
+                <ProgressRing
+                  size="sm"
+                  percent={salesTargetPercent}
+                  label="Target"
+                  subtitle={`${formatInr(monthRevenue)} / ${formatInr(monthlySalesTarget)}`}
+                  color="var(--aura-primary)"
+                />
+              ) : (
+                <div className="flex flex-col items-center gap-1.5 text-center">
+                  <ProgressRing size="sm" percent={0} label="Target" empty />
+                  <Link
+                    to="/settings/business"
+                    className="inline-flex items-center gap-1 text-[10px] font-semibold text-aura-primary hover:underline"
+                  >
+                    <Settings className="h-3 w-3" strokeWidth={2} />
+                    Set target
+                  </Link>
+                </div>
+              )}
+              <div className="relative h-24 w-24 shrink-0">
                 <svg className="h-full w-full -rotate-90" viewBox="0 0 100 100">
                   <circle
                     cx="50"
@@ -561,43 +580,27 @@ export default function Dashboard() {
                     />
                   )}
                 </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center px-2 text-center">
+                <div className="absolute inset-0 flex flex-col items-center justify-center px-1 text-center">
                   {insufficient ? (
-                    <span className="text-[length:var(--aura-type-caption)] font-semibold text-aura-muted">
-                      N/A
-                    </span>
+                    <span className="text-[10px] font-semibold text-aura-muted">N/A</span>
                   ) : (
                     <>
                       <span
-                        className={`text-[length:var(--aura-type-h4)] font-bold tabular-nums ${healthTier.colorClass}`}
+                        className={`text-base font-bold tabular-nums leading-none ${healthTier.colorClass}`}
                       >
                         {healthScore}
                       </span>
-                      <span className="text-[length:var(--aura-type-caption)] font-medium uppercase tracking-wide text-aura-muted">
-                        Score
+                      <span className="text-[9px] font-medium uppercase tracking-wide text-aura-muted">
+                        Health
                       </span>
                     </>
                   )}
                 </div>
               </div>
-              <div>
-                <p className="text-[length:var(--aura-type-caption)] font-semibold uppercase tracking-wider text-aura-muted">
-                  Health score
-                </p>
-                <p
-                  className={`mt-1 text-[length:var(--aura-type-h5)] font-semibold ${
-                    insufficient ? 'text-aura-text-secondary' : healthTier.colorClass
-                  }`}
-                >
-                  {insufficient
-                    ? health.healthLabel || 'Not enough data yet'
-                    : health.healthLabel || healthTier.label}
-                </p>
-              </div>
             </div>
 
-            <div className="space-y-3 border-t border-aura-border pt-4">
-              <div className="flex justify-between text-[length:var(--aura-type-body)]">
+            <div className="space-y-1.5 border-t border-aura-border pt-2">
+              <div className="flex justify-between text-[11px]">
                 <span className="text-aura-text-secondary">Gross Profit</span>
                 <span
                   className={`font-bold tabular-nums ${
@@ -607,13 +610,13 @@ export default function Dashboard() {
                   {formatInr(grossProfit)}
                 </span>
               </div>
-              <div className="flex justify-between text-[length:var(--aura-type-body)]">
+              <div className="flex justify-between text-[11px]">
                 <span className="text-aura-text-secondary">Expenses</span>
                 <span className="font-bold tabular-nums text-aura-text">
                   {formatInr(expensesThisMonth)}
                 </span>
               </div>
-              <div className="flex justify-between text-[length:var(--aura-type-body)]">
+              <div className="flex justify-between text-[11px]">
                 <span className="text-aura-text-secondary">Net Profit</span>
                 <span
                   className={`font-bold tabular-nums ${
@@ -623,8 +626,8 @@ export default function Dashboard() {
                   {formatInr(netProfit)}
                 </span>
               </div>
-              <div className="flex justify-between text-[length:var(--aura-type-body)]">
-                <span className="text-aura-text-secondary">Collection rate</span>
+              <div className="flex justify-between text-[11px]">
+                <span className="text-aura-text-secondary">Collection</span>
                 <span
                   className={`font-bold tabular-nums ${
                     collectionRate == null
@@ -639,57 +642,119 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* SECTION 4 + 5 — Recent Orders | Top Selling */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="overflow-hidden rounded-[var(--aura-radius-card)] border border-aura-border bg-aura-card shadow-soft">
-          <div className="flex items-center justify-between gap-3 border-b border-aura-border px-5 py-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-[var(--aura-radius-button)] bg-[color-mix(in_srgb,var(--aura-primary)_16%,transparent)] text-aura-primary shadow-soft">
-                <Receipt className="h-5 w-5" strokeWidth={2} />
-              </div>
-              <div>
-                <h3 className="text-[length:var(--aura-type-h5)] font-semibold tracking-tight text-aura-text">
-                  Recent Orders
-                </h3>
-                <p className="text-[length:var(--aura-type-body)] text-aura-text-secondary">
-                  Latest invoices
-                </p>
-              </div>
+        <section className="flex min-w-0 flex-col rounded-[var(--aura-radius-card)] border border-aura-border bg-aura-card p-3 shadow-soft xl:col-span-2">
+          <div className="mb-2 flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-[var(--aura-radius-button)] bg-[color-mix(in_srgb,var(--aura-primary)_16%,transparent)] text-aura-primary">
+              <Zap className="h-4 w-4" strokeWidth={2} />
             </div>
-            <Link
-              to="/sales"
-              className="text-[length:var(--aura-type-body)] font-semibold text-aura-primary underline-offset-2 hover:underline"
-            >
+            <div>
+              <h3 className="text-[13px] font-semibold tracking-tight text-aura-text">Quick Actions</h3>
+              <p className="text-[10px] text-aura-text-secondary">Shortcuts</p>
+            </div>
+          </div>
+          <div className="flex flex-1 flex-col gap-1.5">
+            <QuickAction to="/sales" label="New invoice" icon={FileText} tone="primary" />
+            <QuickAction to="/purchases" label="New purchase" icon={ShoppingBag} tone="warning" />
+            <QuickAction to="/products" label="Add product" icon={PlusCircle} tone="accent" />
+            <QuickAction to="/parties" label="Add party" icon={UserPlus} tone="secondary" />
+          </div>
+        </section>
+      </div>
+
+      {/* Row 2 — Inventory | Recent Orders | Top Selling */}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <div className="overflow-hidden rounded-[var(--aura-radius-card)] border border-aura-border bg-aura-card shadow-soft">
+          <div className="flex items-center justify-between gap-2 border-b border-aura-border px-3 py-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--aura-radius-button)] bg-[color-mix(in_srgb,var(--aura-warning)_16%,transparent)] text-aura-warning">
+                <Package className="h-3.5 w-3.5" strokeWidth={2} />
+              </div>
+              <h3 className="truncate text-[12px] font-semibold text-aura-text">Inventory Overview</h3>
+            </div>
+            <Link to="/products" className="shrink-0 text-[11px] font-semibold text-aura-primary hover:underline">
               View all
             </Link>
           </div>
           <div className="overflow-x-auto">
-            <table className="data-table">
+            <table className="dashboard-dense-table">
               <thead>
                 <tr>
-                  <th>Invoice No</th>
-                  <th>Party Name</th>
+                  <th>Product</th>
+                  <th>Stock</th>
+                  <th>Value</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {inventoryOverview.length === 0 ? (
+                  <tr>
+                    <td colSpan="4" className="py-6 text-center text-aura-muted">
+                      No inventory data.
+                    </td>
+                  </tr>
+                ) : (
+                  inventoryOverview.slice(0, 6).map((row) => (
+                    <tr key={row.id}>
+                      <td className="max-w-[7rem] truncate font-medium text-aura-text">
+                        {formatProductNameWithSize(row, 'paren')}
+                      </td>
+                      <td className="tabular-nums text-aura-text">
+                        {Number(row.stock_quantity ?? row.current_stock ?? 0).toLocaleString('en-IN')}
+                      </td>
+                      <td className="tabular-nums text-aura-text">
+                        {formatInr(row.stock_value ?? row.stockValue)}
+                      </td>
+                      <td>
+                        <span className={inventoryStatusBadge(row.status)}>
+                          {row.status_label || row.status || 'Good'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-[var(--aura-radius-card)] border border-aura-border bg-aura-card shadow-soft">
+          <div className="flex items-center justify-between gap-2 border-b border-aura-border px-3 py-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--aura-radius-button)] bg-[color-mix(in_srgb,var(--aura-primary)_16%,transparent)] text-aura-primary">
+                <Receipt className="h-3.5 w-3.5" strokeWidth={2} />
+              </div>
+              <h3 className="truncate text-[12px] font-semibold text-aura-text">Recent Orders</h3>
+            </div>
+            <Link to="/sales" className="shrink-0 text-[11px] font-semibold text-aura-primary hover:underline">
+              View all
+            </Link>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="dashboard-dense-table">
+              <thead>
+                <tr>
+                  <th>Invoice</th>
+                  <th>Party</th>
                   <th>Amount</th>
-                  <th>Payment Status</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
                 {recentOrders.length === 0 ? (
                   <tr>
-                    <td colSpan="4" className="py-10 text-center text-aura-muted">
-                      No recent orders yet.
+                    <td colSpan="4" className="py-6 text-center text-aura-muted">
+                      No recent orders.
                     </td>
                   </tr>
                 ) : (
                   recentOrders.map((order) => (
                     <tr key={order.id}>
-                      <td className="font-semibold tabular-nums text-aura-text">
+                      <td className="font-medium tabular-nums text-aura-text">
                         {order.invoice_number || '—'}
                       </td>
-                      <td className="text-aura-text">{order.party_name || '—'}</td>
+                      <td className="max-w-[6rem] truncate text-aura-text">{order.party_name || '—'}</td>
                       <td className="font-semibold tabular-nums text-aura-text">
                         {formatInr(order.total_amount ?? order.amount)}
                       </td>
@@ -707,39 +772,32 @@ export default function Dashboard() {
         </div>
 
         <div className="overflow-hidden rounded-[var(--aura-radius-card)] border border-aura-border bg-aura-card shadow-soft">
-          <div className="flex items-center gap-3 border-b border-aura-border px-5 py-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-[var(--aura-radius-button)] bg-[color-mix(in_srgb,var(--aura-accent)_16%,transparent)] text-aura-accent shadow-soft">
-              <TrendingUp className="h-5 w-5" strokeWidth={2} />
+          <div className="flex items-center gap-2 border-b border-aura-border px-3 py-2">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--aura-radius-button)] bg-[color-mix(in_srgb,var(--aura-accent)_16%,transparent)] text-aura-accent">
+              <TrendingUp className="h-3.5 w-3.5" strokeWidth={2} />
             </div>
-            <div>
-              <h3 className="text-[length:var(--aura-type-h5)] font-semibold tracking-tight text-aura-text">
-                Top Selling Products
-              </h3>
-              <p className="text-[length:var(--aura-type-body)] text-aura-text-secondary">
-                By quantity sold & revenue
-              </p>
-            </div>
+            <h3 className="truncate text-[12px] font-semibold text-aura-text">Top Selling Products</h3>
           </div>
           <div className="overflow-x-auto">
-            <table className="data-table">
+            <table className="dashboard-dense-table">
               <thead>
                 <tr>
                   <th>Product</th>
-                  <th>Qty Sold</th>
+                  <th>Qty</th>
                   <th>Revenue</th>
                 </tr>
               </thead>
               <tbody>
                 {topProducts.length === 0 ? (
                   <tr>
-                    <td colSpan="3" className="py-10 text-center text-aura-muted">
+                    <td colSpan="3" className="py-6 text-center text-aura-muted">
                       No sales data yet.
                     </td>
                   </tr>
                 ) : (
                   topProducts.map((product) => (
                     <tr key={product.id}>
-                      <td className="font-semibold text-aura-text">
+                      <td className="max-w-[8rem] truncate font-medium text-aura-text">
                         {formatProductNameWithSize(product, 'paren')}
                       </td>
                       <td className="tabular-nums text-aura-text">
@@ -754,71 +812,6 @@ export default function Dashboard() {
               </tbody>
             </table>
           </div>
-        </div>
-      </div>
-
-      {/* SECTION 6 — Inventory Overview */}
-      <div className="overflow-hidden rounded-[var(--aura-radius-card)] border border-aura-border bg-aura-card shadow-soft">
-        <div className="flex items-center justify-between gap-3 border-b border-aura-border px-5 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-[var(--aura-radius-button)] bg-[color-mix(in_srgb,var(--aura-warning)_16%,transparent)] text-aura-warning shadow-soft">
-              <Package className="h-5 w-5" strokeWidth={2} />
-            </div>
-            <div>
-              <h3 className="text-[length:var(--aura-type-h5)] font-semibold tracking-tight text-aura-text">
-                Inventory Overview
-              </h3>
-              <p className="text-[length:var(--aura-type-body)] text-aura-text-secondary">
-                Stock levels and value by product
-              </p>
-            </div>
-          </div>
-          <Link
-            to="/products"
-            className="text-[length:var(--aura-type-body)] font-semibold text-aura-primary underline-offset-2 hover:underline"
-          >
-            View all
-          </Link>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Product</th>
-                <th>Current Stock</th>
-                <th>Stock Value</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {inventoryOverview.length === 0 ? (
-                <tr>
-                  <td colSpan="4" className="py-10 text-center text-aura-muted">
-                    No inventory data available.
-                  </td>
-                </tr>
-              ) : (
-                inventoryOverview.map((row) => (
-                  <tr key={row.id}>
-                    <td className="font-semibold text-aura-text">
-                      {formatProductNameWithSize(row, 'paren')}
-                    </td>
-                    <td className="tabular-nums text-aura-text">
-                      {Number(row.stock_quantity ?? row.current_stock ?? 0).toLocaleString('en-IN')}
-                    </td>
-                    <td className="font-semibold tabular-nums text-aura-text">
-                      {formatInr(row.stock_value ?? row.stockValue)}
-                    </td>
-                    <td>
-                      <span className={inventoryStatusBadge(row.status)}>
-                        {row.status_label || row.status || 'Good'}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
         </div>
       </div>
     </div>
