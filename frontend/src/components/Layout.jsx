@@ -13,9 +13,6 @@ import {
   Package,
   PanelLeftClose,
   PanelLeft,
-  LayoutGrid,
-  RotateCcw,
-  Save,
   Search,
   Settings,
   ShoppingBag,
@@ -37,10 +34,6 @@ import GlobalSearch from './erp/GlobalSearch';
 import HeaderLiveClock from './erp/HeaderLiveClock';
 import { useLiveWeather } from '../hooks/useLiveWeather';
 import { LiveWeatherProvider } from '../context/LiveWeatherContext';
-import {
-  DashboardCustomizeProvider,
-  useDashboardCustomizeOptional,
-} from '../context/DashboardCustomizeContext';
 
 const QUICK_ACTIONS = [
   { label: 'New invoice', path: '/sales' },
@@ -64,66 +57,7 @@ const NAV_ICONS = {
   '/settings/business': Settings,
 };
 
-function DashboardHeaderControls() {
-  const customize = useDashboardCustomizeOptional();
-  const controls = customize?.controls;
-  if (!controls) return null;
-
-  if (controls.editMode) {
-    return (
-      <div className="flex shrink-0 items-center gap-1.5">
-        <button
-          type="button"
-          onClick={controls.save}
-          disabled={controls.busy}
-          className="inline-flex h-11 items-center gap-1.5 rounded-[var(--aura-radius-button)] bg-aura-primary px-3 text-[length:var(--aura-type-body)] font-semibold text-white shadow-soft transition-all duration-200 hover:scale-[1.02] hover:bg-[color:var(--aura-primary-hover)] disabled:opacity-50"
-        >
-          <Save className="h-4 w-4 shrink-0" strokeWidth={2} />
-          <span className="hidden sm:inline">Save Layout</span>
-        </button>
-        <button
-          type="button"
-          onClick={controls.reset}
-          disabled={controls.busy}
-          className="inline-flex h-11 items-center gap-1.5 rounded-[var(--aura-radius-button)] border border-aura-border bg-aura-card px-3 text-[length:var(--aura-type-body)] font-semibold text-aura-text shadow-soft transition-all duration-200 hover:border-aura-primary/40 disabled:opacity-50"
-        >
-          <RotateCcw className="h-4 w-4 shrink-0" strokeWidth={2} />
-          <span className="hidden lg:inline">Reset</span>
-        </button>
-        <button
-          type="button"
-          onClick={controls.cancel}
-          disabled={controls.busy}
-          className="inline-flex h-11 items-center gap-1.5 rounded-[var(--aura-radius-button)] border border-aura-border bg-aura-card px-3 text-[length:var(--aura-type-body)] font-semibold text-aura-muted shadow-soft transition-all duration-200 hover:text-aura-text disabled:opacity-50"
-        >
-          Cancel
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={controls.enterEditMode}
-      className="inline-flex h-11 items-center gap-2 rounded-[var(--aura-radius-button)] bg-aura-primary px-3.5 text-[length:var(--aura-type-body)] font-semibold text-white shadow-soft transition-all duration-200 hover:scale-[1.02] hover:bg-[color:var(--aura-primary-hover)] sm:px-4"
-      aria-label="Customize dashboard layout"
-    >
-      <LayoutGrid className="h-4 w-4 shrink-0" strokeWidth={2} />
-      <span>Customize</span>
-    </button>
-  );
-}
-
 export default function Layout() {
-  return (
-    <DashboardCustomizeProvider>
-      <LayoutShell />
-    </DashboardCustomizeProvider>
-  );
-}
-
-function LayoutShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const { profile, role, signOut } = useAuth();
@@ -436,8 +370,6 @@ function LayoutShell() {
           </div>
 
           <div className="app-header-right ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
-            {location.pathname === '/' && <DashboardHeaderControls />}
-
             <div className="hidden shrink-0 md:block">
               <HeaderLiveClock />
             </div>
