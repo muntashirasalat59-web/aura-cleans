@@ -223,6 +223,14 @@ export const settingsAPI = {
       method: 'POST',
       body: JSON.stringify({ type, data: base64Data }),
     }),
+  getDashboardLayout: () => request('/settings/dashboard-layout'),
+  saveDashboardLayout: (layout) =>
+    request('/settings/dashboard-layout', {
+      method: 'PUT',
+      body: JSON.stringify({ layout }),
+    }),
+  resetDashboardLayout: () =>
+    request('/settings/dashboard-layout', { method: 'DELETE' }),
 };
 
 export const activityLogAPI = {

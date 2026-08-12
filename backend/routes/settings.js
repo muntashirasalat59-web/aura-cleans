@@ -101,4 +101,53 @@ router.post('/business/upload-image', requireAdmin, async (req, res) => {
   }
 });
 
+const {
+  fetchDashboardLayout,
+  upsertDashboardLayout,
+  deleteDashboardLayout,
+} = require('../utils/dashboardPreferences');
+
+/** GET /api/settings/dashboard-layout — current user's saved layout (or null). */
+router.get('/dashboard-layout', async (req, res) => {
+  try {
+    const result = await fetchDashboardLayout(req.accessToken, req.profile?.id || req.authUser?.id);
+    res.json(result);
+  } catch (error) {
+    const status = error.code === 'PREFS_TABLE_MISSING' ? 503 : 500;
+    res.status(status).json({ error: error.message || 'Failed to load dashboard layout' });
+  }
+});
+
+/** PUT /api/settings/dashboard-layout — save layout JSON for current user. */
+router.put('/dashboard-layout', async (req, res) => {
+  try {
+    const layout = req.body?.layout ?? req.body;
+    const result = await upsertDashboardLayout(
+      req.accessToken,
+      req.profile?.id || req.authUser?.id,
+      layout
+    );
+    res.json(result);
+  } catch (error) {
+    const status =
+      error.code === 'PREFS_TABLE_MISSING'
+        ? 503
+        : error.code === 'INVALID_LAYOUT' || error.code === 'NO_USER'
+          ? 400
+          : 500;
+    res.status(status).json({ error: error.message || 'Failed to save dashboard layout' });
+  }
+});
+
+/** DELETE /api/settings/dashboard-layout — reset to default (clear saved layout). */
+router.delete('/dashboard-layout', async (req, res) => {
+  try {
+    const result = await deleteDashboardLayout(req.accessToken, req.profile?.id || req.authUser?.id);
+    res.json(result);
+  } catch (error) {
+    const status = error.code === 'PREFS_TABLE_MISSING' ? 503 : 500;
+    res.status(status).json({ error: error.message || 'Failed to reset dashboard layout' });
+  }
+});
+
 module.exports = router;
