@@ -1543,9 +1543,13 @@
 
   .dashboard-dense-table th {
     @apply whitespace-nowrap text-left text-[9px] font-semibold uppercase tracking-wider text-aura-muted;
+    position: sticky;
+    top: 0;
+    z-index: 10;
     padding: 6px 10px;
     border-bottom: 1px solid var(--list-border);
     background: var(--list-header-bg);
+    box-shadow: 0 1px 0 var(--list-border);
   }
 
   .dashboard-dense-table td {
@@ -1554,6 +1558,14 @@
     border-bottom: 1px solid color-mix(in srgb, var(--aura-border) 70%, transparent);
     font-size: 11px;
     line-height: 1.25;
+  }
+
+  .dashboard-dense-table tbody tr {
+    transition: background-color 0.2s ease;
+  }
+
+  .dashboard-dense-table tbody tr:nth-child(even) td {
+    background: var(--list-zebra);
   }
 
   .dashboard-dense-table tbody tr:last-child td {
@@ -1638,8 +1650,8 @@
   }
 
   .badge {
-    @apply inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide leading-none;
-    border-radius: var(--aura-radius-small);
+    @apply inline-flex items-center px-2.5 py-0.5 text-[10px] font-semibold tracking-wide leading-none;
+    border-radius: 9999px;
   }
 
   .badge-green {
@@ -2609,6 +2621,11 @@ html.dark main .quick-action-tile:hover {
   );
   border-right: 1px solid var(--aura-shell-sidebar-border);
   color: var(--aura-shell-sidebar-nav);
+  overflow: visible;
+}
+
+.app-shell-sidebar nav {
+  overflow-x: visible;
 }
 
 .app-nav-link {

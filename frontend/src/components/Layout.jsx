@@ -11,6 +11,8 @@ import {
   Menu,
   Moon,
   Package,
+  PanelLeftClose,
+  PanelLeft,
   Search,
   Settings,
   ShoppingBag,
@@ -68,6 +70,25 @@ export default function Layout() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [companyId, setCompanyId] = useState(AURA.companies[0].id);
   const [collapsed, setCollapsed] = useState({});
+  const [railCollapsed, setRailCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('aura-sidebar-rail') === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  function toggleRailCollapsed() {
+    setRailCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('aura-sidebar-rail', next ? '1' : '0');
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
 
   const sections = erpNavForRole(role);
   const currentTitle = PAGE_TITLES[location.pathname] || 'AURA CLEAN';
@@ -153,11 +174,11 @@ export default function Layout() {
       )}
 
       <aside
-        className={`app-shell-sidebar no-print fixed inset-y-0 left-0 z-50 flex w-72 flex-col transition-transform duration-200 lg:translate-x-0 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`app-shell-sidebar no-print fixed inset-y-0 left-0 z-50 flex w-72 flex-col transition-[width,transform] duration-200 ease-out lg:translate-x-0 ${
+          railCollapsed ? 'lg:w-[72px]' : 'lg:w-72'
+        } ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
-        <div className="flex h-[72px] items-center justify-between border-b border-[color:var(--aura-shell-sidebar-border)] px-5 lg:hidden">
+        <div className="flex h-[72px] items-center justify-between border-b border-[color:var(--aura-shell-sidebar-border)] px-3 lg:hidden">
           <AuraBrandLogo variant="sidebar" className="min-w-0 flex-1" />
           <button
             type="button"
@@ -168,41 +189,79 @@ export default function Layout() {
           </button>
         </div>
 
-        <div className="hidden border-b border-[color:var(--aura-shell-sidebar-border)] px-5 py-5 lg:block">
-          <AuraBrandLogo variant="sidebar" />
+        <div
+          className={`hidden border-b border-[color:var(--aura-shell-sidebar-border)] lg:flex lg:items-center ${
+            railCollapsed ? 'justify-center px-2 py-4' : 'justify-between gap-2 px-4 py-5'
+          }`}
+        >
+          {!railCollapsed && <AuraBrandLogo variant="sidebar" className="min-w-0 flex-1" />}
+          <button
+            type="button"
+            onClick={toggleRailCollapsed}
+            className="btn-icon shrink-0 text-[color:var(--aura-shell-sidebar-nav)] hover:bg-white/10 hover:text-white"
+            aria-label={railCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={railCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {railCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+          </button>
         </div>
 
-        <nav className="flex-1 space-y-4 overflow-y-auto p-3">
+        <nav className={`flex-1 space-y-4 overflow-y-auto p-3 ${railCollapsed ? 'lg:space-y-2 lg:px-1.5 lg:py-2' : ''}`}>
           {sections.map((section) => {
-            const isOpen = collapsed[section.id] === false || activeSectionId === section.id || collapsed[section.id] === undefined;
+            const isOpen =
+              railCollapsed ||
+              collapsed[section.id] === false ||
+              activeSectionId === section.id ||
+              collapsed[section.id] === undefined;
             return (
               <div key={section.id}>
                 <button
                   type="button"
                   onClick={() => toggleSection(section.id)}
-                  className="app-nav-section-label flex w-full items-center justify-between px-2 py-2 hover:text-[color:var(--aura-shell-sidebar-nav-hover)]"
+                  className={`app-nav-section-label flex w-full items-center justify-between px-2 py-2 hover:text-[color:var(--aura-shell-sidebar-nav-hover)] ${
+                    railCollapsed ? 'lg:hidden' : ''
+                  }`}
                 >
                   {section.label}
                   {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                 </button>
                 {isOpen && (
-                  <ul className="mt-1 space-y-1">
+                  <ul className={`mt-1 space-y-1 ${railCollapsed ? 'lg:mt-0' : ''}`}>
                     {section.items.map((item) => {
                       const active = isActive(item.path);
                       const Icon = NAV_ICONS[item.path] || LayoutDashboard;
                       return (
-                        <li key={item.path}>
+                        <li key={item.path} className="relative">
                           <Link
                             to={item.path}
                             onClick={closeSidebar}
-                            className={`app-nav-link flex items-center gap-2.5 rounded-[var(--aura-radius-button)] px-3 py-2 font-medium transition-all duration-200 ${
+                            title={railCollapsed ? item.label : undefined}
+                            className={`app-nav-link group relative flex items-center gap-2.5 rounded-[var(--aura-radius-button)] px-3 py-2 font-medium transition-all duration-200 ${
+                              railCollapsed ? 'lg:justify-center lg:gap-0 lg:px-2 lg:py-2.5' : ''
+                            } ${
                               active
                                 ? 'bg-[color:var(--aura-shell-sidebar-active)] text-white shadow-soft'
                                 : 'text-[color:var(--aura-shell-sidebar-nav)] hover:bg-white/5 hover:text-[color:var(--aura-shell-sidebar-nav-hover)]'
                             }`}
                           >
+                            <span
+                              className={`absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full transition-opacity duration-200 ${
+                                active
+                                  ? 'bg-white opacity-100'
+                                  : 'bg-[color:var(--aura-shell-sidebar-active)] opacity-0 group-hover:opacity-40'
+                              }`}
+                              aria-hidden
+                            />
                             <Icon className={`h-3.5 w-3.5 shrink-0 ${active ? 'text-white' : ''}`} />
-                            <span className="truncate">{item.label}</span>
+                            <span className={`truncate ${railCollapsed ? 'lg:hidden' : ''}`}>{item.label}</span>
+                            {railCollapsed && (
+                              <span
+                                role="tooltip"
+                                className="pointer-events-none absolute left-full top-1/2 z-[60] ml-2 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[color:var(--aura-shell-sidebar-border)] bg-[color:var(--aura-shell-sidebar-to)] px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-floating transition-opacity duration-150 lg:block lg:group-hover:opacity-100"
+                              >
+                                {item.label}
+                              </span>
+                            )}
                           </Link>
                         </li>
                       );
@@ -214,10 +273,12 @@ export default function Layout() {
           })}
         </nav>
 
-        <div className="space-y-3 border-t border-[color:var(--aura-shell-sidebar-border)] p-4">
+        <div className={`space-y-3 border-t border-[color:var(--aura-shell-sidebar-border)] p-4 ${railCollapsed ? 'lg:p-2' : ''}`}>
           {isOnTrial && (
             <div
               className={`rounded-[var(--aura-radius-button)] px-4 py-3 text-[length:var(--aura-type-body)] font-medium ${
+                railCollapsed ? 'lg:hidden' : ''
+              } ${
                 trialDaysLeft > 0
                   ? 'bg-[color-mix(in_srgb,var(--aura-warning)_18%,transparent)] text-[color:var(--aura-warning)]'
                   : 'bg-[color-mix(in_srgb,var(--aura-danger)_18%,transparent)] text-[color:var(--aura-danger)]'
@@ -232,15 +293,28 @@ export default function Layout() {
             type="button"
             onClick={handleLogout}
             disabled={loggingOut}
-            className="sidebar-logout-btn flex w-full items-center justify-center gap-2 rounded-full bg-[color:var(--aura-shell-logout-bg)] px-4 py-3 text-[length:var(--aura-type-body)] font-semibold text-[color:var(--aura-shell-logout-text)] shadow-soft transition-transform duration-200 hover:scale-[1.02] disabled:opacity-50"
+            title={railCollapsed ? (loggingOut ? 'Signing out…' : 'Sign out') : undefined}
+            className={`sidebar-logout-btn group relative flex w-full items-center justify-center gap-2 rounded-full bg-[color:var(--aura-shell-logout-bg)] px-4 py-3 text-[length:var(--aura-type-body)] font-semibold text-[color:var(--aura-shell-logout-text)] shadow-soft transition-transform duration-200 hover:scale-[1.02] disabled:opacity-50 ${
+              railCollapsed ? 'lg:px-2 lg:py-2.5' : ''
+            }`}
           >
             <LogOut className="h-4 w-4 shrink-0" />
-            {loggingOut ? 'Signing out…' : 'Sign out'}
+            <span className={railCollapsed ? 'lg:hidden' : ''}>
+              {loggingOut ? 'Signing out…' : 'Sign out'}
+            </span>
+            {railCollapsed && (
+              <span
+                role="tooltip"
+                className="pointer-events-none absolute left-full top-1/2 z-[60] ml-2 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[color:var(--aura-shell-sidebar-border)] bg-[color:var(--aura-shell-sidebar-to)] px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-floating transition-opacity duration-150 lg:block lg:group-hover:opacity-100"
+              >
+                {loggingOut ? 'Signing out…' : 'Sign out'}
+              </span>
+            )}
           </button>
         </div>
       </aside>
 
-      <div className="lg:pl-72">
+      <div className={`transition-[padding] duration-200 ease-out ${railCollapsed ? 'lg:pl-[72px]' : 'lg:pl-72'}`}>
         <header className="app-header no-print sticky top-0 z-30 flex h-14 min-h-14 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-aura-border bg-aura-card/90 px-4 shadow-soft backdrop-blur-[12px] sm:px-6 lg:h-[64px] lg:min-h-[64px] lg:flex-nowrap transition-colors duration-200">
           <div className="app-header-left flex max-w-[min(100%,220px)] min-w-0 shrink-0 items-center gap-3 xl:max-w-[280px]">
             <button type="button" className="btn-icon shrink-0 lg:hidden" onClick={() => setSidebarOpen(true)} aria-label="Open menu">

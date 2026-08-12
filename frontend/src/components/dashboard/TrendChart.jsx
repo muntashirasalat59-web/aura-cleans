@@ -25,20 +25,29 @@ function ChartTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
 
   return (
-    <div className="rounded-[var(--aura-radius-dropdown)] border border-aura-border bg-aura-card px-3 py-2 text-[11px] shadow-floating">
-      <p className="mb-1 font-semibold text-aura-text">{label}</p>
-      {payload.map((entry) => (
-        <p
-          key={entry.dataKey}
-          className="flex items-center justify-between gap-4"
-          style={{ color: entry.color }}
-        >
-          <span>{entry.name}</span>
-          <span className="font-semibold tabular-nums">
-            ₹{Number(entry.value).toLocaleString('en-IN')}
-          </span>
-        </p>
-      ))}
+    <div className="min-w-[148px] rounded-[var(--aura-radius-dropdown)] border border-aura-border bg-aura-card px-3.5 py-2.5 shadow-floating">
+      <p className="mb-2 border-b border-aura-border pb-1.5 text-[11px] font-semibold tracking-tight text-aura-text">
+        {label}
+      </p>
+      <div className="space-y-1">
+        {payload.map((entry) => (
+          <div
+            key={entry.dataKey}
+            className="flex items-center justify-between gap-5 text-[11px]"
+          >
+            <span className="inline-flex items-center gap-1.5 text-aura-text-secondary">
+              <span
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: entry.color }}
+              />
+              {entry.name}
+            </span>
+            <span className="font-bold tabular-nums text-aura-text">
+              ₹{Number(entry.value).toLocaleString('en-IN')}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -55,10 +64,11 @@ export default function TrendChart({ data, range, onRangeChange, compact = false
   const totalSales = (data || []).reduce((s, d) => s + (Number(d.sales) || 0), 0);
   const totalPurchases = (data || []).reduce((s, d) => s + (Number(d.purchases) || 0), 0);
   const chartHeight = compact ? 220 : 320;
+  const gridStroke = `color-mix(in srgb, ${tokens.border} 45%, transparent)`;
 
   return (
     <div
-      className={`h-full rounded-[var(--aura-radius-card)] border border-aura-border bg-aura-card shadow-soft transition-all duration-lift ease-lift hover:shadow-medium ${
+      className={`h-full rounded-[var(--aura-radius-card)] border border-aura-border bg-aura-card shadow-soft transition-all duration-200 ease-out hover:shadow-medium ${
         compact ? 'p-3' : 'p-6'
       }`}
     >
@@ -69,7 +79,7 @@ export default function TrendChart({ data, range, onRangeChange, compact = false
       >
         <div className="flex items-center gap-2">
           <div
-            className={`flex shrink-0 items-center justify-center rounded-[var(--aura-radius-button)] bg-[color-mix(in_srgb,var(--aura-primary)_16%,transparent)] text-aura-primary ${
+            className={`flex shrink-0 items-center justify-center rounded-[var(--aura-radius-button)] bg-gradient-to-br from-[color-mix(in_srgb,var(--aura-primary)_28%,transparent)] to-[color-mix(in_srgb,var(--aura-primary)_8%,transparent)] text-aura-primary ${
               compact ? 'h-8 w-8' : 'h-11 w-11'
             }`}
           >
@@ -128,19 +138,25 @@ export default function TrendChart({ data, range, onRangeChange, compact = false
           <AreaChart data={data || []} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="salesArea" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={tokens.primary} stopOpacity={0.35} />
-                <stop offset="100%" stopColor={tokens.primary} stopOpacity={0.02} />
+                <stop offset="0%" stopColor={tokens.primary} stopOpacity={0.38} />
+                <stop offset="55%" stopColor={tokens.primary} stopOpacity={0.12} />
+                <stop offset="100%" stopColor={tokens.primary} stopOpacity={0} />
               </linearGradient>
               <linearGradient id="purchaseArea" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={tokens.warning} stopOpacity={0.22} />
-                <stop offset="100%" stopColor={tokens.warning} stopOpacity={0.02} />
+                <stop offset="0%" stopColor={tokens.warning} stopOpacity={0.24} />
+                <stop offset="100%" stopColor={tokens.warning} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke={tokens.border} vertical={false} />
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke={gridStroke}
+              vertical={false}
+              strokeOpacity={0.55}
+            />
             <XAxis
               dataKey="label"
               tick={{ fill: tokens.textSecondary, fontSize: compact ? 10 : 12 }}
-              axisLine={{ stroke: tokens.border }}
+              axisLine={{ stroke: gridStroke }}
               tickLine={false}
               interval={(data || []).length > 14 ? Math.floor((data || []).length / 7) : 0}
             />
@@ -151,7 +167,10 @@ export default function TrendChart({ data, range, onRangeChange, compact = false
               tickLine={false}
               width={compact ? 40 : 52}
             />
-            <Tooltip content={<ChartTooltip />} />
+            <Tooltip
+              content={<ChartTooltip />}
+              cursor={{ stroke: tokens.primary, strokeOpacity: 0.25, strokeDasharray: '4 4' }}
+            />
             {!compact && (
               <Legend
                 wrapperStyle={{ paddingTop: 12, fontSize: 12 }}
@@ -163,9 +182,12 @@ export default function TrendChart({ data, range, onRangeChange, compact = false
               dataKey="sales"
               name="Sales"
               stroke={tokens.primary}
-              strokeWidth={2}
+              strokeWidth={2.25}
               fill="url(#salesArea)"
-              activeDot={{ r: 3 }}
+              activeDot={{ r: 4, strokeWidth: 0 }}
+              isAnimationActive
+              animationDuration={900}
+              animationEasing="ease-out"
             />
             <Area
               type="monotone"
@@ -174,7 +196,11 @@ export default function TrendChart({ data, range, onRangeChange, compact = false
               stroke={tokens.warning}
               strokeWidth={1.75}
               fill="url(#purchaseArea)"
-              activeDot={{ r: 3 }}
+              activeDot={{ r: 3, strokeWidth: 0 }}
+              isAnimationActive
+              animationDuration={900}
+              animationEasing="ease-out"
+              animationBegin={120}
             />
           </AreaChart>
         </ResponsiveContainer>
