@@ -34,6 +34,8 @@ function formatInr(value) {
 function ChangeBadge({ pct }) {
   if (pct == null || Number.isNaN(Number(pct))) return null;
   const n = Number(pct);
+  // Hide flat/zero — only show when there is a real completed-period delta
+  if (n === 0) return null;
   if (n > 0) {
     return (
       <span className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] font-semibold text-aura-success">
@@ -42,18 +44,45 @@ function ChangeBadge({ pct }) {
       </span>
     );
   }
-  if (n < 0) {
-    return (
-      <span className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] font-semibold text-aura-danger">
-        <ArrowDownRight className="h-3 w-3" strokeWidth={2} />
-        {Math.abs(n).toFixed(1)}%
-      </span>
-    );
-  }
   return (
-    <span className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] font-semibold text-aura-muted">
-      0%
+    <span className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] font-semibold text-aura-danger">
+      <ArrowDownRight className="h-3 w-3" strokeWidth={2} />
+      {Math.abs(n).toFixed(1)}%
     </span>
+  );
+}
+
+/** Tiny SVG sparkline — only renders when real series data exists (no dummies). */
+function MiniSparkline({ values, color = 'var(--aura-primary)' }) {
+  if (!Array.isArray(values) || values.length < 2) return null;
+  const nums = values.map((v) => Number(v) || 0);
+  if (!nums.some((n) => n > 0)) return null;
+
+  const w = 56;
+  const h = 18;
+  const min = Math.min(...nums);
+  const max = Math.max(...nums);
+  const range = max - min || 1;
+  const points = nums
+    .map((v, i) => {
+      const x = (i / (nums.length - 1)) * w;
+      const y = h - ((v - min) / range) * (h - 2) - 1;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+
+  return (
+    <svg width={w} height={h} className="mt-1 block overflow-visible" aria-hidden>
+      <polyline
+        fill="none"
+        stroke={color}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        points={points}
+        opacity={0.85}
+      />
+    </svg>
   );
 }
 
@@ -124,18 +153,40 @@ function ProgressRing({ percent, label, subtitle, color = 'var(--aura-primary)',
   );
 }
 
-function StatCard({ title, value, icon: Icon, changePct, to, iconTone = 'primary' }) {
+function StatCard({
+  title,
+  value,
+  icon: Icon,
+  changePct,
+  to,
+  iconTone = 'primary',
+  sparkline,
+}) {
   const iconWrap = {
-    primary: 'bg-[color-mix(in_srgb,var(--aura-primary)_16%,transparent)] text-aura-primary',
-    accent: 'bg-[color-mix(in_srgb,var(--aura-accent)_16%,transparent)] text-aura-accent',
-    secondary: 'bg-[color-mix(in_srgb,var(--aura-secondary)_16%,transparent)] text-aura-secondary',
-    warning: 'bg-[color-mix(in_srgb,var(--aura-warning)_16%,transparent)] text-aura-warning',
-    danger: 'bg-[color-mix(in_srgb,var(--aura-danger)_14%,transparent)] text-aura-danger',
-  }[iconTone] || 'bg-[color-mix(in_srgb,var(--aura-primary)_16%,transparent)] text-aura-primary';
+    primary:
+      'bg-gradient-to-br from-[color-mix(in_srgb,var(--aura-primary)_28%,transparent)] to-[color-mix(in_srgb,var(--aura-primary)_8%,transparent)] text-aura-primary',
+    accent:
+      'bg-gradient-to-br from-[color-mix(in_srgb,var(--aura-accent)_28%,transparent)] to-[color-mix(in_srgb,var(--aura-accent)_8%,transparent)] text-aura-accent',
+    secondary:
+      'bg-gradient-to-br from-[color-mix(in_srgb,var(--aura-secondary)_28%,transparent)] to-[color-mix(in_srgb,var(--aura-secondary)_8%,transparent)] text-aura-secondary',
+    warning:
+      'bg-gradient-to-br from-[color-mix(in_srgb,var(--aura-warning)_28%,transparent)] to-[color-mix(in_srgb,var(--aura-warning)_8%,transparent)] text-aura-warning',
+    danger:
+      'bg-gradient-to-br from-[color-mix(in_srgb,var(--aura-danger)_24%,transparent)] to-[color-mix(in_srgb,var(--aura-danger)_6%,transparent)] text-aura-danger',
+  }[iconTone] ||
+    'bg-gradient-to-br from-[color-mix(in_srgb,var(--aura-primary)_28%,transparent)] to-[color-mix(in_srgb,var(--aura-primary)_8%,transparent)] text-aura-primary';
+
+  const sparkColor = {
+    primary: 'var(--aura-primary)',
+    accent: 'var(--aura-accent)',
+    secondary: 'var(--aura-secondary)',
+    warning: 'var(--aura-warning)',
+    danger: 'var(--aura-danger)',
+  }[iconTone] || 'var(--aura-primary)';
 
   const content = (
-    <div className="group rounded-[var(--aura-radius-card)] border border-aura-border bg-aura-card px-3 py-2.5 shadow-soft transition-all duration-lift ease-lift hover:-translate-y-0.5 hover:shadow-medium">
-      <div className="relative flex items-center justify-between gap-2">
+    <div className="group rounded-[var(--aura-radius-card)] border border-aura-border bg-aura-card px-3 py-2.5 shadow-soft transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-medium">
+      <div className="relative flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-aura-muted">
             {title}
@@ -144,6 +195,7 @@ function StatCard({ title, value, icon: Icon, changePct, to, iconTone = 'primary
             {value}
           </p>
           <ChangeBadge pct={changePct} />
+          <MiniSparkline values={sparkline} color={sparkColor} />
         </div>
         <div
           className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--aura-radius-button)] shadow-soft ${iconWrap}`}
@@ -251,6 +303,18 @@ export default function Dashboard() {
     if (Array.isArray(ranged) && ranged.length > 0) return ranged;
     return stats.trends.last7Days || [];
   }, [stats, trendRange]);
+
+  const salesSparkline = useMemo(() => {
+    const series = stats?.trends?.daily || stats?.trends?.last7Days || [];
+    if (!Array.isArray(series) || series.length < 2) return null;
+    return series.map((d) => Number(d.sales) || 0);
+  }, [stats?.trends]);
+
+  const revenueSparkline = useMemo(() => {
+    const series = stats?.trends?.monthly || [];
+    if (!Array.isArray(series) || series.length < 2) return null;
+    return series.map((d) => Number(d.sales) || 0);
+  }, [stats?.trends]);
 
   // Must stay above early returns — Rules of Hooks.
   const stockAlertProducts = useMemo(() => {
@@ -472,6 +536,7 @@ export default function Dashboard() {
           icon={IndianRupee}
           changePct={stats.todaysSalesChangePct}
           iconTone="primary"
+          sparkline={salesSparkline}
         />
         <StatCard
           title="Monthly Revenue"
@@ -479,6 +544,7 @@ export default function Dashboard() {
           icon={TrendingUp}
           changePct={stats.monthRevenueChangePct}
           iconTone="accent"
+          sparkline={revenueSparkline}
         />
         <StatCard
           title="Today's Orders"
@@ -677,7 +743,7 @@ export default function Dashboard() {
               View all
             </Link>
           </div>
-          <div className="overflow-x-auto">
+          <div className="max-h-[260px] overflow-auto">
             <table className="dashboard-dense-table">
               <thead>
                 <tr>
@@ -731,7 +797,7 @@ export default function Dashboard() {
               View all
             </Link>
           </div>
-          <div className="overflow-x-auto">
+          <div className="max-h-[260px] overflow-auto">
             <table className="dashboard-dense-table">
               <thead>
                 <tr>
@@ -778,7 +844,7 @@ export default function Dashboard() {
             </div>
             <h3 className="truncate text-[12px] font-semibold text-aura-text">Top Selling Products</h3>
           </div>
-          <div className="overflow-x-auto">
+          <div className="max-h-[260px] overflow-auto">
             <table className="dashboard-dense-table">
               <thead>
                 <tr>
