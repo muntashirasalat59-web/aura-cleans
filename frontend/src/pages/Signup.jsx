@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Loader2, Clock, CreditCard, Check } from 'lucide-react';
 import LoginParticleNetwork from '../components/LoginParticleNetwork';
+import useAuthSceneTilt from '../hooks/useAuthSceneTilt';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -22,6 +23,7 @@ export default function Signup() {
   const [success, setSuccess] = useState('');
   const [planChoice, setPlanChoice] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState('1_month');
+  const { stageRef, stackStyle, copyStyle } = useAuthSceneTilt();
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -69,12 +71,12 @@ export default function Signup() {
   }
 
   return (
-    <div className="login-3d-stage">
+    <div className="login-3d-stage" ref={stageRef}>
       <div className="login-3d-bg" aria-hidden />
       <LoginParticleNetwork />
 
       <div className="login-3d-row">
-        <div className="login-3d-copy">
+        <div className="login-3d-copy" style={copyStyle}>
           <h1 className="login-3d-headline">
             Start running your business
             <br />
@@ -90,7 +92,7 @@ export default function Signup() {
           </div>
         </div>
 
-        <div className="login-3d-stack login-3d-stack-signup">
+        <div className="login-3d-stack login-3d-stack-signup" style={stackStyle}>
           <div className="login-3d-layer login-3d-layer-back" aria-hidden />
           <div className="login-3d-layer login-3d-layer-mid" aria-hidden />
 

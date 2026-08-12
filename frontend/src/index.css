@@ -2586,7 +2586,7 @@ label:focus-within .login-field-icon {
   justify-content: center;
   padding: 48px 32px;
   background: #0a1220;
-  perspective: 1400px;
+  perspective: 1200px;
   position: relative;
   overflow-x: hidden;
   overflow-y: auto;
@@ -2623,8 +2623,9 @@ label:focus-within .login-field-icon {
 
 .login-3d-copy {
   flex: 1;
-  transform: rotateY(14deg) rotateX(2deg);
+  transform: rotateY(calc(18deg + var(--copy-tilt-y, 0deg))) rotateX(calc(2.5deg + var(--copy-tilt-x, 0deg)));
   transform-style: preserve-3d;
+  transition: transform 0.18s ease-out;
 }
 
 .login-3d-headline {
@@ -2633,6 +2634,14 @@ label:focus-within .login-field-icon {
   font-weight: 500;
   line-height: 1.3;
   margin: 0 0 16px;
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.22),
+    0 -1px 0 rgba(0, 0, 0, 0.45),
+    1px 1px 0 rgba(15, 23, 42, 0.55),
+    2px 3px 0 rgba(11, 18, 32, 0.4),
+    3px 6px 2px rgba(0, 0, 0, 0.28),
+    6px 12px 18px rgba(0, 0, 0, 0.4),
+    0 0 28px rgba(37, 99, 235, 0.14);
 }
 
 .login-3d-sub {
@@ -2641,6 +2650,9 @@ label:focus-within .login-field-icon {
   line-height: 1.6;
   margin: 0 0 28px;
   max-width: 420px;
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06),
+    1px 2px 4px rgba(0, 0, 0, 0.35);
 }
 
 .login-3d-badges {
@@ -2664,7 +2676,8 @@ label:focus-within .login-field-icon {
   min-height: 480px;
   flex-shrink: 0;
   transform-style: preserve-3d;
-  transform: rotateY(-14deg) rotateX(3deg);
+  transform: rotateY(calc(-18deg + var(--tilt-y, 0deg))) rotateX(calc(4deg + var(--tilt-x, 0deg)));
+  transition: transform 0.18s ease-out;
 }
 
 .login-3d-layer {
@@ -2675,13 +2688,13 @@ label:focus-within .login-field-icon {
 }
 
 .login-3d-layer-back {
-  transform: translateZ(-40px) translateX(18px) translateY(18px);
+  transform: translateZ(-52px) translateX(24px) translateY(24px);
   background: linear-gradient(135deg, #7c3aed, #2563eb);
-  opacity: 0.35;
+  opacity: 0.4;
 }
 
 .login-3d-layer-mid {
-  transform: translateZ(-20px) translateX(9px) translateY(9px);
+  transform: translateZ(-26px) translateX(12px) translateY(12px);
   background: #111827;
   border: 0.5px solid rgba(255, 255, 255, 0.1);
 }
