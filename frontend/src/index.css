@@ -1700,6 +1700,44 @@
     @apply relative;
   }
 
+  .dashboard-grid .react-grid-item {
+    transition: box-shadow 0.2s ease;
+  }
+
+  .dashboard-grid .react-grid-item > .dashboard-widget {
+    height: 100%;
+  }
+
+  .dashboard-grid .react-grid-item > .dashboard-widget > .dashboard-widget-body {
+    height: 100%;
+  }
+
+  .dashboard-grid--edit .react-grid-item {
+    cursor: grab;
+  }
+
+  .dashboard-grid--edit .react-grid-item.react-draggable-dragging {
+    cursor: grabbing;
+    z-index: 30;
+    box-shadow: var(--aura-shadow-floating, 0 12px 28px rgba(15, 23, 42, 0.18));
+  }
+
+  .dashboard-grid--edit .dashboard-widget--edit {
+    outline: 1px dashed color-mix(in srgb, var(--aura-primary) 45%, transparent);
+    outline-offset: -1px;
+    border-radius: var(--aura-radius-card);
+  }
+
+  .dashboard-grid .react-grid-placeholder {
+    background: color-mix(in srgb, var(--aura-primary) 18%, transparent) !important;
+    border-radius: var(--aura-radius-card);
+    opacity: 0.55;
+  }
+
+  .dashboard-grid .react-resizable-handle::after {
+    border-color: color-mix(in srgb, var(--aura-primary) 55%, transparent) !important;
+  }
+
   /* Floating card lift — 300ms ease (stat/table cards) */
   .aura-card-lift,
   .premium-stat-card,
