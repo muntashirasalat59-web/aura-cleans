@@ -7,6 +7,7 @@ import { mapAuthError } from '../lib/authErrors';
 import { STOCK_ALERT_DISMISS_KEY } from '../config/stock';
 import { PAYMENT_ALERT_DISMISS_KEY } from '../config/payments';
 import LoadingState from '../components/LoadingState';
+import LoginParticleNetwork from '../components/LoginParticleNetwork';
 
 export default function Login() {
   const { signIn, loading } = useAuth();
@@ -57,6 +58,7 @@ export default function Login() {
   return (
     <div className="login-3d-stage">
       <div className="login-3d-bg" aria-hidden />
+      <LoginParticleNetwork />
 
       <div className="login-3d-row">
         <div className="login-3d-copy">
