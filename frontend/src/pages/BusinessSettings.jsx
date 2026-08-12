@@ -19,6 +19,7 @@ const emptyForm = () => ({
   gstin: '',
   phone: '',
   email: '',
+  monthly_sales_target: '',
 });
 
 const MAX_BYTES = 2 * 1024 * 1024; // 2MB
@@ -128,6 +129,10 @@ export default function BusinessSettings() {
       gstin: settings.gstin || '',
       phone: settings.phone || '',
       email: settings.email || '',
+      monthly_sales_target:
+        settings.monthly_sales_target === 0 || settings.monthly_sales_target
+          ? String(settings.monthly_sales_target)
+          : '',
     });
   }, [settings]);
 
@@ -144,7 +149,10 @@ export default function BusinessSettings() {
       setError('');
       setMessage('');
       // Only company letterhead fields — do not overwrite bank_* columns with blanks.
-      await settingsAPI.updateBusiness(form);
+      await settingsAPI.updateBusiness({
+        ...form,
+        monthly_sales_target: parseFloat(form.monthly_sales_target) || 0,
+      });
       await refresh(true);
       notifyDataSync('business_settings');
       setMessage('Business details saved. New invoices and PDFs will use these values.');
@@ -255,6 +263,21 @@ export default function BusinessSettings() {
                 value={form.email}
                 onChange={(e) => updateField('email', e.target.value)}
                 placeholder="accounts@example.com"
+              />
+            </FormField>
+            <FormField
+              label="Monthly sales target (₹)"
+              className="sm:col-span-2"
+              hint="Used on the Executive Dashboard progress ring"
+            >
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                className="input input-premium"
+                value={form.monthly_sales_target}
+                onChange={(e) => updateField('monthly_sales_target', e.target.value)}
+                placeholder="e.g. 500000"
               />
             </FormField>
           </div>

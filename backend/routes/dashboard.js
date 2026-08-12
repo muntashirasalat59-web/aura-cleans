@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { assertNoError } = require('../database/supabase');
+const { fetchBusinessSettings } = require('../utils/businessSettings');
 
 /** Keep in sync with frontend/src/config/stock.js → LOW_STOCK_THRESHOLD */
 const LOW_STOCK_THRESHOLD = 50;
@@ -421,6 +422,120 @@ function buildMonthTrendFromRows(salesRows, purchaseRows) {
   return result;
 }
 
+function pctChange(current, previous) {
+  const cur = Number(current) || 0;
+  const prev = Number(previous) || 0;
+  if (prev <= 0) return null;
+  return Math.round(((cur - prev) / prev) * 1000) / 10;
+}
+
+function getLastMonthRange() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const end = new Date(now.getFullYear(), now.getMonth(), 0);
+  return { start: formatDate(start), end: formatDate(end) };
+}
+
+/** Last N complete weeks (Mon–Sun), ending with current week-to-date. */
+function buildWeeklyTrendFromRows(salesRows, purchaseRows, weeks = 12) {
+  const salesMap = aggregateByDate(salesRows, 'invoice_date');
+  const purchasesMap = aggregateByDate(purchaseRows, 'purchase_date');
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const result = [];
+  for (let w = weeks - 1; w >= 0; w--) {
+    const weekEnd = new Date(today);
+    weekEnd.setDate(today.getDate() - w * 7);
+    const weekStart = new Date(weekEnd);
+    weekStart.setDate(weekEnd.getDate() - 6);
+    let sales = 0;
+    let purchases = 0;
+    for (let d = new Date(weekStart); d <= weekEnd; d.setDate(d.getDate() + 1)) {
+      const key = formatDate(d);
+      sales += salesMap[key] || 0;
+      purchases += purchasesMap[key] || 0;
+    }
+    result.push({
+      date: formatDate(weekStart),
+      label: `${weekStart.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`,
+      sales,
+      purchases,
+    });
+  }
+  return result;
+}
+
+/** Last N calendar months. */
+function buildMonthlyTrendFromRows(salesRows, purchaseRows, months = 12) {
+  const salesMap = {};
+  const purchasesMap = {};
+  for (const row of salesRows || []) {
+    const key = normalizeDateKey(row.invoice_date).slice(0, 7);
+    if (!key) continue;
+    salesMap[key] = (salesMap[key] || 0) + Number(row.total_amount || 0);
+  }
+  for (const row of purchaseRows || []) {
+    const key = normalizeDateKey(row.purchase_date).slice(0, 7);
+    if (!key) continue;
+    purchasesMap[key] = (purchasesMap[key] || 0) + Number(row.total_amount || 0);
+  }
+
+  const result = [];
+  const now = new Date();
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    result.push({
+      date: key,
+      label: d.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' }),
+      sales: salesMap[key] || 0,
+      purchases: purchasesMap[key] || 0,
+    });
+  }
+  return result;
+}
+
+/** Yearly buckets for last N years (calendar year). */
+function buildYearlyTrendFromRows(salesRows, purchaseRows, years = 4) {
+  const salesMap = {};
+  const purchasesMap = {};
+  for (const row of salesRows || []) {
+    const key = normalizeDateKey(row.invoice_date).slice(0, 4);
+    if (!key) continue;
+    salesMap[key] = (salesMap[key] || 0) + Number(row.total_amount || 0);
+  }
+  for (const row of purchaseRows || []) {
+    const key = normalizeDateKey(row.purchase_date).slice(0, 4);
+    if (!key) continue;
+    purchasesMap[key] = (purchasesMap[key] || 0) + Number(row.total_amount || 0);
+  }
+
+  const result = [];
+  const yNow = new Date().getFullYear();
+  for (let i = years - 1; i >= 0; i--) {
+    const y = String(yNow - i);
+    result.push({
+      date: y,
+      label: y,
+      sales: salesMap[y] || 0,
+      purchases: purchasesMap[y] || 0,
+    });
+  }
+  return result;
+}
+
+function inventoryStockStatus(qty, threshold = LOW_STOCK_THRESHOLD) {
+  const n = Number(qty) || 0;
+  if (n <= Math.max(5, Math.floor(threshold / 5))) {
+    return { status: 'critical', status_label: 'Critical' };
+  }
+  if (n <= threshold) {
+    return { status: 'low', status_label: 'Low Stock' };
+  }
+  return { status: 'good', status_label: 'Good' };
+}
+
 function buildProductInsights(products, purchaseItems, saleItems) {
   const purchasedQty = {};
   const soldQty = {};
@@ -469,7 +584,6 @@ router.get('/', async (req, res) => {
 
     const monthStart = getMonthStartDate();
     const yearStart = getYearStartDate();
-    const trendStart = formatDate(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
 
     const expensesPromise = fetchExpensesSafe(db);
 
@@ -495,7 +609,7 @@ router.get('/', async (req, res) => {
         .eq('is_deleted', false)
         .order('created_at', { ascending: false })
         .limit(5),
-      db.from('parties').select('type'),
+      db.from('parties').select('type, is_active'),
       db.from('purchase_items').select('product_id, quantity, amount'),
       db.from('sale_items').select('product_id, quantity, amount, sales!inner(is_deleted)').eq('sales.is_deleted', false),
       db
@@ -528,6 +642,8 @@ router.get('/', async (req, res) => {
     const salesRows = salesRes.data || [];
     const purchaseRows = purchasesRes.data || [];
     const today = formatDate(new Date());
+    const yesterday = formatDate(new Date(Date.now() - 86400000));
+    const lastMonth = getLastMonthRange();
 
     const totalExpenses = sumAmount(expenseRows);
     const expensesThisMonth = sumAmount(expenseRows.filter((r) => r.expense_date >= monthStart));
@@ -536,14 +652,30 @@ router.get('/', async (req, res) => {
     const totalSales = sumAmount(salesRows);
     const totalPurchases = sumAmount(purchaseRows);
     const todaysSales = sumAmount(salesRows.filter((r) => normalizeDateKey(r.invoice_date) === today));
+    const yesterdaySales = sumAmount(
+      salesRows.filter((r) => normalizeDateKey(r.invoice_date) === yesterday)
+    );
     const monthRevenue = sumAmount(salesRows.filter((r) => normalizeDateKey(r.invoice_date) >= monthStart));
+    const lastMonthRevenue = sumAmount(
+      salesRows.filter((r) => {
+        const d = normalizeDateKey(r.invoice_date);
+        return d >= lastMonth.start && d <= lastMonth.end;
+      })
+    );
     const monthPurchases = sumAmount(purchaseRows.filter((r) => normalizeDateKey(r.purchase_date) >= monthStart));
     const monthNetProfit = monthRevenue - monthPurchases - expensesThisMonth;
+    const grossProfit = totalSales - totalPurchases;
+    const monthGrossProfit = monthRevenue - monthPurchases;
     const gstThisMonth = (salesRows || [])
       .filter((r) => normalizeDateKey(r.invoice_date) >= monthStart)
       .reduce((acc, r) => acc + Number(r.gst_amount || 0), 0);
     const invoiceCountToday = salesRows.filter((r) => normalizeDateKey(r.invoice_date) === today).length;
+    const invoiceCountYesterday = salesRows.filter(
+      (r) => normalizeDateKey(r.invoice_date) === yesterday
+    ).length;
     const monthInvoiceCount = salesRows.filter((r) => normalizeDateKey(r.invoice_date) >= monthStart).length;
+
+    const activeCustomers = (partiesRes.data || []).filter((p) => p.is_active !== false).length;
 
     // Invoice-level receivables only (payment_status / amount_paid, or legacy payment_due_date).
     // Do NOT fall back to parties.balance — that ledger stays stale after Mark as paid.
@@ -574,7 +706,21 @@ router.get('/', async (req, res) => {
 
     const recentSales = (recentSalesRes.data || []).map((row) => {
       const { parties, ...rest } = row;
-      return { ...rest, party_name: parties?.name };
+      const total = Number(rest.total_amount) || 0;
+      let paid = Number(rest.amount_paid) || 0;
+      let payment_status = rest.payment_status || null;
+      if (payment_status === 'paid') paid = Math.max(paid, total);
+      else if (!payment_status) {
+        const due = Math.max(0, total - paid);
+        payment_status = due <= 0 ? 'paid' : paid > 0 ? 'partial' : 'pending';
+      }
+      return {
+        ...rest,
+        party_name: parties?.name,
+        amount_paid: paid,
+        payment_status,
+        balance_due: Math.max(0, Math.round((total - paid) * 100) / 100),
+      };
     });
 
     const partyCountMap = {};
@@ -589,8 +735,8 @@ router.get('/', async (req, res) => {
       saleItemsRes.data
     );
 
-  const salesForTrend = salesRows.filter((r) => normalizeDateKey(r.invoice_date) >= trendStart);
-  const purchasesForTrend = purchaseRows.filter((r) => normalizeDateKey(r.purchase_date) >= trendStart);
+    const salesForTrend = salesRows;
+    const purchasesForTrend = purchaseRows;
 
     const recentActivity = [
       ...(recentSalesActivityRes.data || []).map((row) => ({
@@ -628,6 +774,30 @@ router.get('/', async (req, res) => {
         revenue: p.sales_value,
       }));
 
+    const inventoryOverview = [...products]
+      .filter((p) => p.is_active !== false)
+      .map((p) => {
+        const qty = Number(p.stock_quantity) || 0;
+        const price = Number(p.price) || 0;
+        const stock = inventoryStockStatus(qty, LOW_STOCK_THRESHOLD);
+        return {
+          id: p.id,
+          name: p.name,
+          unit_size: p.unit_size,
+          unit_type: p.unit_type,
+          stock_quantity: qty,
+          stock_value: Math.round(qty * price * 100) / 100,
+          ...stock,
+        };
+      })
+      .sort((a, b) => {
+        const rank = { critical: 0, low: 1, good: 2 };
+        const diff = rank[a.status] - rank[b.status];
+        if (diff !== 0) return diff;
+        return a.stock_quantity - b.stock_quantity;
+      })
+      .slice(0, 8);
+
     const netProfit = totalSales - totalPurchases - totalExpenses;
     const profitMarginPercent =
       totalSales > 0 ? Math.round(((netProfit / totalSales) * 100 + Number.EPSILON) * 10) / 10 : 0;
@@ -645,16 +815,38 @@ router.get('/', async (req, res) => {
       salesTrend7: trend7Days,
     });
 
+    let monthlySalesTarget = 0;
+    try {
+      const settings = await fetchBusinessSettings(req.accessToken, req.profile?.business_id);
+      monthlySalesTarget = Number(settings?.monthly_sales_target) || 0;
+    } catch (err) {
+      console.warn('[dashboard] business settings for sales target:', err.message);
+    }
+
+    const salesTargetPercent =
+      monthlySalesTarget > 0
+        ? Math.min(100, Math.round((monthRevenue / monthlySalesTarget) * 1000) / 10)
+        : null;
+
     res.json({
       totalSales,
       totalPurchases,
       todaysSales,
+      yesterdaySales,
+      todaysSalesChangePct: pctChange(todaysSales, yesterdaySales),
       monthRevenue,
+      lastMonthRevenue,
+      monthRevenueChangePct: pctChange(monthRevenue, lastMonthRevenue),
       monthPurchases,
       monthNetProfit,
+      monthGrossProfit,
+      grossProfit,
       gstThisMonth,
       invoiceCountToday,
+      invoiceCountYesterday,
+      invoiceCountTodayChangePct: pctChange(invoiceCountToday, invoiceCountYesterday),
       monthInvoiceCount,
+      activeCustomers,
       outstandingAR,
       pendingPayments,
       pendingPartiesCount,
@@ -676,12 +868,29 @@ router.get('/', async (req, res) => {
       totalStock,
       lowStockProducts,
       recentSales,
+      recentOrders: recentSales,
       partyCounts,
       productInsights,
       recentActivity,
       topSellingProducts,
-      businessHealth,
+      inventoryOverview,
+      businessHealth: {
+        ...businessHealth,
+        monthlySalesTarget,
+        salesTargetPercent,
+        monthRevenue,
+        expensesThisMonth,
+        grossProfit: monthGrossProfit,
+        netProfitMonth: monthNetProfit,
+      },
+      monthlySalesTarget,
+      salesTargetPercent,
       trends: {
+        daily: buildDailyTrendFromRows(salesForTrend, purchasesForTrend, 14),
+        weekly: buildWeeklyTrendFromRows(salesForTrend, purchasesForTrend, 12),
+        monthly: buildMonthlyTrendFromRows(salesForTrend, purchasesForTrend, 12),
+        yearly: buildYearlyTrendFromRows(salesForTrend, purchasesForTrend, 4),
+        // legacy keys for older clients
         last7Days: trend7Days,
         last30Days: buildDailyTrendFromRows(salesForTrend, purchasesForTrend, 30),
         thisMonth: buildMonthTrendFromRows(salesRows, purchaseRows),

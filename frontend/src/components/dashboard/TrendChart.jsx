@@ -1,7 +1,7 @@
 import {
   ResponsiveContainer,
-  ComposedChart,
-  Bar,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -28,7 +28,11 @@ function ChartTooltip({ active, payload, label }) {
     <div className="rounded-[var(--aura-radius-dropdown)] border border-aura-border bg-aura-card px-4 py-3 text-[length:var(--aura-type-body)] shadow-floating">
       <p className="mb-2 font-semibold text-aura-text">{label}</p>
       {payload.map((entry) => (
-        <p key={entry.dataKey} className="flex items-center justify-between gap-6" style={{ color: entry.color }}>
+        <p
+          key={entry.dataKey}
+          className="flex items-center justify-between gap-6"
+          style={{ color: entry.color }}
+        >
           <span>{entry.name}</span>
           <span className="font-semibold tabular-nums">
             ₹{Number(entry.value).toLocaleString('en-IN')}
@@ -42,27 +46,28 @@ function ChartTooltip({ active, payload, label }) {
 export default function TrendChart({ data, range, onRangeChange }) {
   const { tokens } = useTheme();
   const ranges = [
-    { id: '7', label: 'Last 7 days' },
-    { id: '30', label: 'Last 30 days' },
-    { id: 'month', label: 'This month' },
+    { id: 'daily', label: 'Daily' },
+    { id: 'weekly', label: 'Weekly' },
+    { id: 'monthly', label: 'Monthly' },
+    { id: 'yearly', label: 'Yearly' },
   ];
 
-  const totalSales = data.reduce((s, d) => s + d.sales, 0);
-  const totalPurchases = data.reduce((s, d) => s + d.purchases, 0);
+  const totalSales = (data || []).reduce((s, d) => s + (Number(d.sales) || 0), 0);
+  const totalPurchases = (data || []).reduce((s, d) => s + (Number(d.purchases) || 0), 0);
 
   return (
-    <div className="rounded-[var(--aura-radius-card)] border border-aura-border bg-aura-card p-6 shadow-soft">
+    <div className="rounded-[var(--aura-radius-card)] border border-aura-border bg-aura-card p-6 shadow-soft transition-all duration-lift ease-lift hover:shadow-medium">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-[var(--aura-radius-button)] bg-aura-accent text-white shadow-soft">
-            <TrendingUp className="h-5 w-5" />
+          <div className="flex h-11 w-11 items-center justify-center rounded-[var(--aura-radius-button)] bg-[color-mix(in_srgb,var(--aura-primary)_16%,transparent)] text-aura-primary shadow-soft">
+            <TrendingUp className="h-5 w-5" strokeWidth={2} />
           </div>
           <div>
             <h3 className="text-[length:var(--aura-type-h5)] font-semibold tracking-tight text-aura-text">
-              Sales vs purchases trend
+              Revenue Overview
             </h3>
             <p className="mt-1 text-[length:var(--aura-type-body)] text-aura-text-secondary">
-              Date-wise revenue and procurement (₹)
+              Sales revenue trend with purchases for context
             </p>
           </div>
         </div>
@@ -99,15 +104,15 @@ export default function TrendChart({ data, range, onRangeChange }) {
 
       <div className="h-80 w-full min-w-0">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={data || []} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <defs>
-              <linearGradient id="salesBar" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={tokens.primary} stopOpacity={0.95} />
-                <stop offset="100%" stopColor={tokens.primaryHover} stopOpacity={0.55} />
+              <linearGradient id="salesArea" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={tokens.primary} stopOpacity={0.35} />
+                <stop offset="100%" stopColor={tokens.primary} stopOpacity={0.02} />
               </linearGradient>
-              <linearGradient id="purchaseBar" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={tokens.warning} stopOpacity={0.9} />
-                <stop offset="100%" stopColor={tokens.warning} stopOpacity={0.45} />
+              <linearGradient id="purchaseArea" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={tokens.warning} stopOpacity={0.22} />
+                <stop offset="100%" stopColor={tokens.warning} stopOpacity={0.02} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke={tokens.border} vertical={false} />
@@ -116,7 +121,7 @@ export default function TrendChart({ data, range, onRangeChange }) {
               tick={{ fill: tokens.textSecondary, fontSize: 12 }}
               axisLine={{ stroke: tokens.border }}
               tickLine={false}
-              interval={data.length > 14 ? Math.floor(data.length / 7) : 0}
+              interval={(data || []).length > 14 ? Math.floor((data || []).length / 7) : 0}
             />
             <YAxis
               tickFormatter={formatRupee}
@@ -130,9 +135,25 @@ export default function TrendChart({ data, range, onRangeChange }) {
               wrapperStyle={{ paddingTop: 16, fontSize: 13 }}
               formatter={(value) => <span className="text-aura-text-secondary">{value}</span>}
             />
-            <Bar dataKey="sales" name="Sales" fill="url(#salesBar)" radius={[6, 6, 0, 0]} maxBarSize={28} />
-            <Bar dataKey="purchases" name="Purchases" fill="url(#purchaseBar)" radius={[6, 6, 0, 0]} maxBarSize={28} />
-          </ComposedChart>
+            <Area
+              type="monotone"
+              dataKey="sales"
+              name="Sales"
+              stroke={tokens.primary}
+              strokeWidth={2.5}
+              fill="url(#salesArea)"
+              activeDot={{ r: 4 }}
+            />
+            <Area
+              type="monotone"
+              dataKey="purchases"
+              name="Purchases"
+              stroke={tokens.warning}
+              strokeWidth={2}
+              fill="url(#purchaseArea)"
+              activeDot={{ r: 3 }}
+            />
+          </AreaChart>
         </ResponsiveContainer>
       </div>
     </div>

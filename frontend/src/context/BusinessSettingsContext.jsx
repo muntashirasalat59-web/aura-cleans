@@ -18,6 +18,7 @@ const EMPTY = {
   logo_url: '',
   signature_url: '',
   stamp_url: '',
+  monthly_sales_target: 0,
   configured: false,
   address_display: '',
 };
