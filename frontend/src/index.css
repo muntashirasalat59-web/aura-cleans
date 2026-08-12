@@ -36,16 +36,19 @@
     --aura-text: #0f172a;
     --aura-text-secondary: #64748b;
     --aura-muted: #94a3b8;
-    /* Fixed shell chrome (sidebar never follows content theme) */
-    --aura-shell-sidebar-from: #0b1220;
-    --aura-shell-sidebar-to: #111827;
-    --aura-shell-sidebar-section: #64748b;
-    --aura-shell-sidebar-nav: #94a3b8;
-    --aura-shell-sidebar-nav-hover: #f8fafc;
-    --aura-shell-sidebar-border: rgba(255, 255, 255, 0.08);
+    /* Day-mode shell — light sidebar matching the white dashboard */
+    --aura-shell-sidebar-from: #ffffff;
+    --aura-shell-sidebar-to: #f8fafc;
+    --aura-shell-sidebar-section: #94a3b8;
+    --aura-shell-sidebar-nav: #475569;
+    --aura-shell-sidebar-nav-hover: #0f172a;
+    --aura-shell-sidebar-border: rgba(15, 23, 42, 0.08);
+    --aura-shell-sidebar-hover-bg: rgba(37, 99, 235, 0.08);
     --aura-shell-sidebar-active: #2563eb;
-    --aura-shell-logout-bg: #ffffff;
-    --aura-shell-logout-text: #0b1220;
+    --aura-shell-sidebar-shadow: 4px 0 24px rgba(15, 23, 42, 0.05);
+    --aura-shell-logout-bg: #0b1220;
+    --aura-shell-logout-text: #ffffff;
+    --aura-shell-tooltip-text: #0f172a;
     --aura-shell-quick-add: #2563eb;
     --aura-shell-quick-add-hover: #1d4ed8;
     --aura-radius-small: 10px;
@@ -133,6 +136,19 @@
     --status-info-text: #22d3ee;
     --status-info-border: color-mix(in srgb, var(--aura-info) 32%, transparent);
     --app-inset: var(--aura-elevated);
+    /* Night-mode shell — original dark navy, unchanged */
+    --aura-shell-sidebar-from: #0b1220;
+    --aura-shell-sidebar-to: #111827;
+    --aura-shell-sidebar-section: #64748b;
+    --aura-shell-sidebar-nav: #94a3b8;
+    --aura-shell-sidebar-nav-hover: #f8fafc;
+    --aura-shell-sidebar-border: rgba(255, 255, 255, 0.08);
+    --aura-shell-sidebar-hover-bg: rgba(255, 255, 255, 0.06);
+    --aura-shell-sidebar-active: #2563eb;
+    --aura-shell-sidebar-shadow: none;
+    --aura-shell-logout-bg: #ffffff;
+    --aura-shell-logout-text: #0b1220;
+    --aura-shell-tooltip-text: #f8fafc;
   }
 
   html {
@@ -2658,6 +2674,7 @@ html.dark main .quick-action-tile:hover {
     var(--aura-shell-sidebar-to) 100%
   );
   border-right: 1px solid var(--aura-shell-sidebar-border);
+  box-shadow: var(--aura-shell-sidebar-shadow);
   color: var(--aura-shell-sidebar-nav);
   overflow: visible;
 }
@@ -2680,7 +2697,7 @@ html.dark main .quick-action-tile:hover {
   color: var(--aura-shell-sidebar-section);
 }
 
-/* Sidebar stays sky blue in both themes — do not restyle via html.dark */
+/* Sidebar chrome follows day/night tokens — night stays the original dark navy */
 
 /* —— Header —— */
 .app-header {

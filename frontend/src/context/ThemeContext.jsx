@@ -1,5 +1,5 @@
 import { createContext, useContext, useLayoutEffect, useMemo, useState } from 'react';
-import { AURA_DARK, AURA_LIGHT, AURA_SHELL, tokensToCssVars } from '../config/designTokens';
+import { AURA_DARK, AURA_LIGHT, AURA_SHELL_DARK, AURA_SHELL_LIGHT, tokensToCssVars } from '../config/designTokens';
 
 const ThemeContext = createContext(null);
 const STORAGE_KEY = 'aura-theme';
@@ -36,7 +36,7 @@ export function ThemeProvider({ children }) {
       theme,
       isDark: theme === 'dark',
       tokens: theme === 'dark' ? AURA_DARK : AURA_LIGHT,
-      shell: AURA_SHELL,
+      shell: theme === 'dark' ? AURA_SHELL_DARK : AURA_SHELL_LIGHT,
       toggleTheme: () => setTheme((t) => (t === 'dark' ? 'light' : 'dark')),
       setTheme,
     }),
