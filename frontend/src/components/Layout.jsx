@@ -202,7 +202,7 @@ export default function Layout() {
           <AuraBrandLogo variant="sidebar" className="min-w-0 flex-1" />
           <button
             type="button"
-            className="btn-icon text-[color:var(--aura-shell-sidebar-nav)] hover:bg-white/10 hover:text-white"
+            className="btn-icon text-[color:var(--aura-shell-sidebar-nav)] hover:bg-[color:var(--aura-shell-sidebar-hover-bg)] hover:text-[color:var(--aura-shell-sidebar-nav-hover)]"
             onClick={closeSidebar}
           >
             <X className="h-5 w-5" />
@@ -218,7 +218,7 @@ export default function Layout() {
           <button
             type="button"
             onClick={toggleRailCollapsed}
-            className="btn-icon shrink-0 text-[color:var(--aura-shell-sidebar-nav)] hover:bg-white/10 hover:text-white"
+            className="btn-icon shrink-0 text-[color:var(--aura-shell-sidebar-nav)] hover:bg-[color:var(--aura-shell-sidebar-hover-bg)] hover:text-[color:var(--aura-shell-sidebar-nav-hover)]"
             aria-label={railCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             title={railCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
@@ -268,7 +268,7 @@ export default function Layout() {
                             } ${
                               active
                                 ? 'bg-[color:var(--aura-shell-sidebar-active)] text-white shadow-soft'
-                                : 'text-[color:var(--aura-shell-sidebar-nav)] hover:bg-white/5 hover:text-[color:var(--aura-shell-sidebar-nav-hover)]'
+                                : 'text-[color:var(--aura-shell-sidebar-nav)] hover:bg-[color:var(--aura-shell-sidebar-hover-bg)] hover:text-[color:var(--aura-shell-sidebar-nav-hover)]'
                             }`}
                           >
                             <span
@@ -332,7 +332,7 @@ export default function Layout() {
       {railCollapsed && railTip && (
         <div
           role="tooltip"
-          className="pointer-events-none fixed z-[100] hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[color:var(--aura-shell-sidebar-border)] bg-[color:var(--aura-shell-sidebar-to)] px-2.5 py-1.5 text-[11px] font-medium text-white shadow-floating lg:block"
+          className="pointer-events-none fixed z-[100] hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[color:var(--aura-shell-sidebar-border)] bg-[color:var(--aura-shell-sidebar-to)] px-2.5 py-1.5 text-[11px] font-medium text-[color:var(--aura-shell-tooltip-text)] shadow-floating lg:block"
           style={{ top: railTip.top, left: railTip.left }}
         >
           {railTip.label}

@@ -4,20 +4,44 @@
  * Prefer var(--aura-*) / Tailwind `aura.*` — do not hardcode hex in components.
  */
 
-/** Fixed chrome — sidebar stays dark in both light and dark content themes. */
-export const AURA_SHELL = {
+/** Night-mode chrome — keep these values unchanged. */
+export const AURA_SHELL_DARK = {
   sidebarFrom: '#0B1220',
   sidebarTo: '#111827',
   sidebarSection: '#64748B',
   sidebarNav: '#94A3B8',
   sidebarNavHover: '#F8FAFC',
   sidebarBorder: 'rgba(255, 255, 255, 0.08)',
+  sidebarHoverBg: 'rgba(255, 255, 255, 0.06)',
   sidebarActive: '#2563EB',
   sidebarLogoutBg: '#FFFFFF',
   sidebarLogoutText: '#0B1220',
+  tooltipText: '#F8FAFC',
+  sidebarShadow: 'none',
   quickAdd: '#2563EB',
   quickAddHover: '#1D4ED8',
 };
+
+/** Day-mode chrome — white/slate sidebar that matches the light dashboard. */
+export const AURA_SHELL_LIGHT = {
+  sidebarFrom: '#FFFFFF',
+  sidebarTo: '#F8FAFC',
+  sidebarSection: '#94A3B8',
+  sidebarNav: '#475569',
+  sidebarNavHover: '#0F172A',
+  sidebarBorder: 'rgba(15, 23, 42, 0.08)',
+  sidebarHoverBg: 'rgba(37, 99, 235, 0.08)',
+  sidebarActive: '#2563EB',
+  sidebarLogoutBg: '#0B1220',
+  sidebarLogoutText: '#FFFFFF',
+  tooltipText: '#0F172A',
+  sidebarShadow: '4px 0 24px rgba(15, 23, 42, 0.05)',
+  quickAdd: '#2563EB',
+  quickAddHover: '#1D4ED8',
+};
+
+/** @deprecated Use AURA_SHELL_DARK / AURA_SHELL_LIGHT — alias kept for night-mode values. */
+export const AURA_SHELL = AURA_SHELL_DARK;
 
 /**
  * Light content theme — brand blues/purples on light surfaces.
@@ -138,20 +162,24 @@ export const AURA_SPACE = {
   16: 64,
 };
 
-/** Fixed shell chrome (never toggles with light/dark content theme). */
-export function shellToCssVars() {
+/** Shell chrome follows day/night — night values stay the original dark navy. */
+export function shellToCssVars(dark = false) {
+  const shell = dark ? AURA_SHELL_DARK : AURA_SHELL_LIGHT;
   return {
-    '--aura-shell-sidebar-from': AURA_SHELL.sidebarFrom,
-    '--aura-shell-sidebar-to': AURA_SHELL.sidebarTo,
-    '--aura-shell-sidebar-section': AURA_SHELL.sidebarSection,
-    '--aura-shell-sidebar-nav': AURA_SHELL.sidebarNav,
-    '--aura-shell-sidebar-nav-hover': AURA_SHELL.sidebarNavHover,
-    '--aura-shell-sidebar-border': AURA_SHELL.sidebarBorder,
-    '--aura-shell-sidebar-active': AURA_SHELL.sidebarActive,
-    '--aura-shell-logout-bg': AURA_SHELL.sidebarLogoutBg,
-    '--aura-shell-logout-text': AURA_SHELL.sidebarLogoutText,
-    '--aura-shell-quick-add': AURA_SHELL.quickAdd,
-    '--aura-shell-quick-add-hover': AURA_SHELL.quickAddHover,
+    '--aura-shell-sidebar-from': shell.sidebarFrom,
+    '--aura-shell-sidebar-to': shell.sidebarTo,
+    '--aura-shell-sidebar-section': shell.sidebarSection,
+    '--aura-shell-sidebar-nav': shell.sidebarNav,
+    '--aura-shell-sidebar-nav-hover': shell.sidebarNavHover,
+    '--aura-shell-sidebar-border': shell.sidebarBorder,
+    '--aura-shell-sidebar-hover-bg': shell.sidebarHoverBg,
+    '--aura-shell-sidebar-active': shell.sidebarActive,
+    '--aura-shell-sidebar-shadow': shell.sidebarShadow,
+    '--aura-shell-logout-bg': shell.sidebarLogoutBg,
+    '--aura-shell-logout-text': shell.sidebarLogoutText,
+    '--aura-shell-tooltip-text': shell.tooltipText,
+    '--aura-shell-quick-add': shell.quickAdd,
+    '--aura-shell-quick-add-hover': shell.quickAddHover,
   };
 }
 
@@ -204,6 +232,6 @@ export function tokensToCssVars(palette, { dark = false } = {}) {
     '--aura-type-body-lg': AURA_TYPE.bodyLg,
     '--aura-type-body': AURA_TYPE.body,
     '--aura-type-caption': AURA_TYPE.caption,
-    ...shellToCssVars(),
+    ...shellToCssVars(dark),
   };
 }
