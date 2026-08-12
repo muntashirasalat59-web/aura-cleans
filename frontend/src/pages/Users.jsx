@@ -60,7 +60,10 @@ export default function Users() {
   }
 
   async function handleDelete(user) {
-    if (!confirm(`Remove user ${user.full_name} (${user.email})?`)) return;
+    const msg = isPlatformAdmin
+      ? `Delete business "${user.full_name}" (${user.email})?\n\nThis will permanently delete the business and its owner account. All associated data (sales, purchases, products, etc.) will also be deleted.`
+      : `Remove user ${user.full_name} (${user.email})?`;
+    if (!confirm(msg)) return;
     try {
       await usersAPI.delete(user.id);
       setUsers((prev) => removeById(prev, user.id));

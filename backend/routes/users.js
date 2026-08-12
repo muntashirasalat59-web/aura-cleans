@@ -175,33 +175,65 @@ router.patch('/:id/mark-business-paid', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const admin = getSupabaseAdmin();
 
+    // Platform admin: `id` is a business.id — delete the business and its owner auth user
+    if (req.profile?.is_platform_admin) {
+      const { data: business, error: bizError } = await admin
+        .from('businesses')
+        .select('id, business_name, owner_email')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (bizError) return res.status(400).json({ error: bizError.message });
+      if (!business) return res.status(404).json({ error: 'Business not found' });
+
+      // Find auth user by owner_email
+      const { data: authList, error: authListError } = await admin.auth.admin.listUsers({ perPage: 1000 });
+      if (authListError) return res.status(400).json({ error: authListError.message });
+
+      const ownerAuthUser = authList.users.find(
+        (u) => u.email?.toLowerCase() === business.owner_email?.toLowerCase()
+      );
+
+      // Prevent self-delete
+      if (ownerAuthUser && ownerAuthUser.id === req.authUser.id) {
+        return res.status(400).json({ error: 'You cannot delete your own account' });
+      }
+
+      // Delete all user_profiles linked to this business first (removes FK constraint)
+      await admin.from('user_profiles').delete().eq('business_id', id);
+
+      // Delete the business row
+      const { error: delBizError } = await admin.from('businesses').delete().eq('id', id);
+      if (delBizError) return res.status(400).json({ error: delBizError.message });
+
+      // Delete auth user if found
+      if (ownerAuthUser) {
+        await admin.auth.admin.deleteUser(ownerAuthUser.id);
+      }
+
+      return res.json({ message: `Business "${business.business_name}" and its owner deleted successfully` });
+    }
+
+    // Regular admin: `id` is a user_profiles.id (auth user UUID)
     if (id === req.authUser.id) {
       return res.status(400).json({ error: 'You cannot delete your own account' });
     }
 
-    const admin = getSupabaseAdmin();
+    const { data: target, error: targetError } = await admin
+      .from('user_profiles')
+      .select('id, business_id')
+      .eq('id', id)
+      .maybeSingle();
 
-    if (!req.profile?.is_platform_admin) {
-      const { data: target, error: targetError } = await admin
-        .from('user_profiles')
-        .select('id, business_id')
-        .eq('id', id)
-        .maybeSingle();
-
-      if (targetError) {
-        return res.status(400).json({ error: targetError.message });
-      }
-      if (!target || target.business_id !== req.profile?.business_id) {
-        return res.status(403).json({ error: 'You can only remove users from your own business' });
-      }
+    if (targetError) return res.status(400).json({ error: targetError.message });
+    if (!target || target.business_id !== req.profile?.business_id) {
+      return res.status(403).json({ error: 'You can only remove users from your own business' });
     }
 
     const { error } = await admin.auth.admin.deleteUser(id);
-
-    if (error) {
-      return res.status(400).json({ error: error.message });
-    }
+    if (error) return res.status(400).json({ error: error.message });
 
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
