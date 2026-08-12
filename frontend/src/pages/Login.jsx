@@ -8,6 +8,7 @@ import { STOCK_ALERT_DISMISS_KEY } from '../config/stock';
 import { PAYMENT_ALERT_DISMISS_KEY } from '../config/payments';
 import LoadingState from '../components/LoadingState';
 import LoginParticleNetwork from '../components/LoginParticleNetwork';
+import useAuthSceneTilt from '../hooks/useAuthSceneTilt';
 
 export default function Login() {
   const { signIn, loading } = useAuth();
@@ -20,6 +21,7 @@ export default function Login() {
 
   const from = location.state?.from || '/';
   const configured = isSupabaseConfigured();
+  const { stageRef, stackStyle, copyStyle } = useAuthSceneTilt();
 
   if (loading) {
     return (
@@ -56,12 +58,12 @@ export default function Login() {
   }
 
   return (
-    <div className="login-3d-stage">
+    <div className="login-3d-stage" ref={stageRef}>
       <div className="login-3d-bg" aria-hidden />
       <LoginParticleNetwork />
 
       <div className="login-3d-row">
-        <div className="login-3d-copy">
+        <div className="login-3d-copy" style={copyStyle}>
           <h1 className="login-3d-headline">
             Manufacturing, inventory,
             <br />
@@ -78,7 +80,7 @@ export default function Login() {
           </div>
         </div>
 
-        <div className="login-3d-stack">
+        <div className="login-3d-stack" style={stackStyle}>
           <div className="login-3d-layer login-3d-layer-back" aria-hidden />
           <div className="login-3d-layer login-3d-layer-mid" aria-hidden />
 
