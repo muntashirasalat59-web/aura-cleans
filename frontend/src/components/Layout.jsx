@@ -77,6 +77,7 @@ export default function Layout() {
       return false;
     }
   });
+  const [railTip, setRailTip] = useState(null);
 
   function toggleRailCollapsed() {
     setRailCollapsed((prev) => {
@@ -88,6 +89,21 @@ export default function Layout() {
       }
       return next;
     });
+    setRailTip(null);
+  }
+
+  function showRailTip(event, label) {
+    if (!railCollapsed) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    setRailTip({
+      label,
+      top: rect.top + rect.height / 2,
+      left: rect.right + 10,
+    });
+  }
+
+  function hideRailTip() {
+    setRailTip(null);
   }
 
   const sections = erpNavForRole(role);
@@ -125,6 +141,10 @@ export default function Layout() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  useEffect(() => {
+    setRailTip(null);
+  }, [location.pathname, railCollapsed]);
 
   const activeSectionId = useMemo(() => {
     for (const section of sections) {
@@ -234,8 +254,15 @@ export default function Layout() {
                         <li key={item.path} className="relative">
                           <Link
                             to={item.path}
-                            onClick={closeSidebar}
-                            title={railCollapsed ? item.label : undefined}
+                            onClick={() => {
+                              hideRailTip();
+                              closeSidebar();
+                            }}
+                            onMouseEnter={(e) => showRailTip(e, item.label)}
+                            onMouseLeave={hideRailTip}
+                            onFocus={(e) => showRailTip(e, item.label)}
+                            onBlur={hideRailTip}
+                            aria-label={item.label}
                             className={`app-nav-link group relative flex items-center gap-2.5 rounded-[var(--aura-radius-button)] px-3 py-2 font-medium transition-all duration-200 ${
                               railCollapsed ? 'lg:justify-center lg:gap-0 lg:px-2 lg:py-2.5' : ''
                             } ${
@@ -254,14 +281,6 @@ export default function Layout() {
                             />
                             <Icon className={`h-3.5 w-3.5 shrink-0 ${active ? 'text-white' : ''}`} />
                             <span className={`truncate ${railCollapsed ? 'lg:hidden' : ''}`}>{item.label}</span>
-                            {railCollapsed && (
-                              <span
-                                role="tooltip"
-                                className="pointer-events-none absolute left-full top-1/2 z-[60] ml-2 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[color:var(--aura-shell-sidebar-border)] bg-[color:var(--aura-shell-sidebar-to)] px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-floating transition-opacity duration-150 lg:block lg:group-hover:opacity-100"
-                              >
-                                {item.label}
-                              </span>
-                            )}
                           </Link>
                         </li>
                       );
@@ -293,7 +312,11 @@ export default function Layout() {
             type="button"
             onClick={handleLogout}
             disabled={loggingOut}
-            title={railCollapsed ? (loggingOut ? 'Signing out…' : 'Sign out') : undefined}
+            onMouseEnter={(e) => showRailTip(e, loggingOut ? 'Signing out…' : 'Sign out')}
+            onMouseLeave={hideRailTip}
+            onFocus={(e) => showRailTip(e, loggingOut ? 'Signing out…' : 'Sign out')}
+            onBlur={hideRailTip}
+            aria-label={loggingOut ? 'Signing out…' : 'Sign out'}
             className={`sidebar-logout-btn group relative flex w-full items-center justify-center gap-2 rounded-full bg-[color:var(--aura-shell-logout-bg)] px-4 py-3 text-[length:var(--aura-type-body)] font-semibold text-[color:var(--aura-shell-logout-text)] shadow-soft transition-transform duration-200 hover:scale-[1.02] disabled:opacity-50 ${
               railCollapsed ? 'lg:px-2 lg:py-2.5' : ''
             }`}
@@ -302,17 +325,19 @@ export default function Layout() {
             <span className={railCollapsed ? 'lg:hidden' : ''}>
               {loggingOut ? 'Signing out…' : 'Sign out'}
             </span>
-            {railCollapsed && (
-              <span
-                role="tooltip"
-                className="pointer-events-none absolute left-full top-1/2 z-[60] ml-2 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[color:var(--aura-shell-sidebar-border)] bg-[color:var(--aura-shell-sidebar-to)] px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-floating transition-opacity duration-150 lg:block lg:group-hover:opacity-100"
-              >
-                {loggingOut ? 'Signing out…' : 'Sign out'}
-              </span>
-            )}
           </button>
         </div>
       </aside>
+
+      {railCollapsed && railTip && (
+        <div
+          role="tooltip"
+          className="pointer-events-none fixed z-[100] hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[color:var(--aura-shell-sidebar-border)] bg-[color:var(--aura-shell-sidebar-to)] px-2.5 py-1.5 text-[11px] font-medium text-white shadow-floating lg:block"
+          style={{ top: railTip.top, left: railTip.left }}
+        >
+          {railTip.label}
+        </div>
+      )}
 
       <div className={`transition-[padding] duration-200 ease-out ${railCollapsed ? 'lg:pl-[72px]' : 'lg:pl-72'}`}>
         <header className="app-header no-print sticky top-0 z-30 flex h-14 min-h-14 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-aura-border bg-aura-card/90 px-4 shadow-soft backdrop-blur-[12px] sm:px-6 lg:h-[64px] lg:min-h-[64px] lg:flex-nowrap transition-colors duration-200">

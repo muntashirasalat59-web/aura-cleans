@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Plus, Pencil, Trash2, Users } from 'lucide-react';
 import { partiesAPI, purchasesAPI } from '../api';
 import LoadingState from '../components/LoadingState';
@@ -40,12 +41,16 @@ function partyTypeLabel(type) {
 }
 
 export default function Parties() {
+  const [searchParams] = useSearchParams();
   const [parties, setParties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [filter, setFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState(() => {
+    const status = searchParams.get('status');
+    return status === 'active' || status === 'inactive' ? status : 'all';
+  });
   const [listSearch, setListSearch] = useState('');
   const [partyPurchases, setPartyPurchases] = useState([]);
   const [errorModal, setErrorModal] = useState({ open: false, title: '', message: '' });
@@ -97,6 +102,12 @@ export default function Parties() {
   useEffect(() => {
     loadParties();
   }, [filter, statusFilter]);
+
+  useEffect(() => {
+    const status = searchParams.get('status');
+    const next = status === 'active' || status === 'inactive' ? status : 'all';
+    setStatusFilter((prev) => (prev === next ? prev : next));
+  }, [searchParams]);
 
   useDataSync('parties', () => loadParties(true));
 
