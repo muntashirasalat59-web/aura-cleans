@@ -16,6 +16,7 @@ const EMPTY = {
   logo_url: '',
   signature_url: '',
   stamp_url: '',
+  monthly_sales_target: 0,
   updated_at: null,
 };
 
@@ -34,10 +35,17 @@ const EDITABLE = [
   'logo_url',
   'signature_url',
   'stamp_url',
+  'monthly_sales_target',
 ];
 
 function trimStr(value) {
   return value == null ? '' : String(value).trim();
+}
+
+function normalizeMoney(value) {
+  if (value === '' || value == null) return 0;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : 0;
 }
 
 function isConfigured(row) {
@@ -61,7 +69,11 @@ function formatAddress(row) {
 function normalizeRow(row, businessId) {
   const base = { ...EMPTY, ...(row || {}) };
   for (const key of EDITABLE) {
-    base[key] = trimStr(base[key]);
+    if (key === 'monthly_sales_target') {
+      base[key] = normalizeMoney(base[key]);
+    } else {
+      base[key] = trimStr(base[key]);
+    }
   }
   base.business_id = businessId || base.business_id || null;
   base.configured = isConfigured(base);
@@ -73,7 +85,11 @@ function pickPayload(body = {}) {
   const patch = {};
   for (const key of EDITABLE) {
     if (Object.prototype.hasOwnProperty.call(body, key)) {
-      patch[key] = trimStr(body[key]);
+      if (key === 'monthly_sales_target') {
+        patch[key] = normalizeMoney(body[key]);
+      } else {
+        patch[key] = trimStr(body[key]);
+      }
     }
   }
   return patch;
@@ -139,6 +155,19 @@ async function upsertBusinessSettings(body, accessToken, businessId) {
       );
       err.code = 'SETTINGS_TABLE_MISSING';
       throw err;
+    }
+    if (/monthly_sales_target/i.test(error.message || '')) {
+      console.warn(
+        '[business_settings] monthly_sales_target missing — run supabase.migration.monthly_sales_target.sql'
+      );
+      const { monthly_sales_target: _drop, ...withoutTarget } = row;
+      const retry = await db
+        .from('business_settings')
+        .upsert(withoutTarget, { onConflict: 'business_id' })
+        .select('*')
+        .single();
+      assertNoError(retry.error);
+      return normalizeRow(retry.data, businessId);
     }
     assertNoError(error);
   }
