@@ -1503,6 +1503,7 @@
   }
 
   .data-table {
+
     @apply w-full border-separate text-[13px];
     border-spacing: 0;
   }
@@ -1528,6 +1529,39 @@
     border-bottom: 1px solid rgba(226, 232, 240, 0.75);
     font-size: var(--aura-type-body);
     line-height: 1.35;
+  }
+
+  /* Compact tables for Executive Dashboard density */
+  .dashboard-dense-table {
+    @apply w-full border-separate text-[11px];
+    border-spacing: 0;
+  }
+
+  .dashboard-dense-table thead {
+    background: var(--list-header-bg);
+  }
+
+  .dashboard-dense-table th {
+    @apply whitespace-nowrap text-left text-[9px] font-semibold uppercase tracking-wider text-aura-muted;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--list-border);
+    background: var(--list-header-bg);
+  }
+
+  .dashboard-dense-table td {
+    @apply align-middle text-aura-text;
+    padding: 5px 10px;
+    border-bottom: 1px solid color-mix(in srgb, var(--aura-border) 70%, transparent);
+    font-size: 11px;
+    line-height: 1.25;
+  }
+
+  .dashboard-dense-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .dashboard-dense-table tbody tr:hover td {
+    background: var(--list-hover);
   }
 
   html.dark .data-table td {
