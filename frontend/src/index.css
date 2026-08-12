@@ -15,46 +15,52 @@
     /* Aura design tokens (light defaults) — ThemeContext syncs on theme toggle */
     --aura-bg: #f8fafc;
     --aura-sidebar: #ffffff;
+    --aura-surface: #ffffff;
     --aura-card: #ffffff;
     --aura-elevated: #f1f5f9;
-    --aura-border: #e5e7eb;
-    --aura-glass-surface: rgba(255, 255, 255, 0.72);
-    --aura-glass-elevated: rgba(255, 255, 255, 0.88);
-    --aura-glass-border: rgba(255, 255, 255, 0.55);
+    --aura-border: rgba(15, 23, 42, 0.08);
+    --aura-glass-surface: rgba(255, 255, 255, 0.78);
+    --aura-glass-elevated: rgba(255, 255, 255, 0.92);
+    --aura-glass-border: rgba(255, 255, 255, 0.6);
     --aura-glass-border-edge: rgba(15, 23, 42, 0.08);
     --aura-glass-blur: 14px;
     --aura-glass-saturate: 1.2;
-    --aura-primary: #38bdf8;
-    --aura-primary-hover: #0ea5e9;
-    --aura-secondary: #14b8a6;
-    --aura-accent: #2563eb;
-    --aura-success: #22c55e;
+    --aura-primary: #2563eb;
+    --aura-primary-hover: #1d4ed8;
+    --aura-secondary: #7c3aed;
+    --aura-accent: #7c3aed;
+    --aura-success: #10b981;
     --aura-warning: #f59e0b;
     --aura-danger: #ef4444;
-    --aura-text: #111827;
-    --aura-text-secondary: #6b7280;
-    --aura-muted: #9ca3af;
+    --aura-info: #06b6d4;
+    --aura-text: #0f172a;
+    --aura-text-secondary: #64748b;
+    --aura-muted: #94a3b8;
     /* Fixed shell chrome (sidebar never follows content theme) */
-    --aura-shell-sidebar-from: #0c4a5f;
-    --aura-shell-sidebar-to: #135f7a;
-    --aura-shell-sidebar-section: #6b98a0;
-    --aura-shell-sidebar-nav: #a8c9d3;
-    --aura-shell-sidebar-nav-hover: #d1eaf2;
-    --aura-shell-sidebar-border: rgba(168, 201, 211, 0.16);
-    --aura-shell-sidebar-active: #38bdf8;
+    --aura-shell-sidebar-from: #0b1220;
+    --aura-shell-sidebar-to: #111827;
+    --aura-shell-sidebar-section: #64748b;
+    --aura-shell-sidebar-nav: #94a3b8;
+    --aura-shell-sidebar-nav-hover: #f8fafc;
+    --aura-shell-sidebar-border: rgba(255, 255, 255, 0.08);
+    --aura-shell-sidebar-active: #2563eb;
     --aura-shell-logout-bg: #ffffff;
-    --aura-shell-logout-text: #0c4a5f;
-    --aura-shell-quick-add: #38bdf8;
-    --aura-shell-quick-add-hover: #0ea5e9;
-    --aura-radius-button: 12px;
+    --aura-shell-logout-text: #0b1220;
+    --aura-shell-quick-add: #2563eb;
+    --aura-shell-quick-add-hover: #1d4ed8;
+    --aura-radius-small: 10px;
+    --aura-radius-medium: 16px;
+    --aura-radius-large: 20px;
+    --aura-radius-extra: 28px;
+    --aura-radius-button: 10px;
     --aura-radius-card: 16px;
-    --aura-radius-input: 12px;
+    --aura-radius-input: 10px;
     --aura-radius-table: 16px;
     --aura-radius-dialog: 20px;
-    --aura-radius-dropdown: 12px;
-    --aura-shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-    --aura-shadow-medium: 0 4px 12px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
-    --aura-shadow-floating: 0 12px 32px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.06);
+    --aura-radius-dropdown: 10px;
+    --aura-shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.06);
+    --aura-shadow-medium: 0 4px 12px rgba(15, 23, 42, 0.08), 0 12px 28px rgba(37, 99, 235, 0.06);
+    --aura-shadow-floating: 0 8px 24px rgba(15, 23, 42, 0.1), 0 20px 48px rgba(37, 99, 235, 0.08);
     --aura-type-h1: 28px;
     --aura-type-h2: 22px;
     --aura-type-h3: 18px;
@@ -79,27 +85,27 @@
     --app-accent-ring: color-mix(in srgb, var(--aura-primary) 22%, transparent);
     --app-inset: color-mix(in srgb, var(--aura-bg) 70%, var(--aura-border));
     /* Soft status (pastel bg + darker text) */
-    --status-success-bg: #ecfdf5;
+    --status-success-bg: color-mix(in srgb, var(--aura-success) 12%, #ffffff);
     --status-success-text: #047857;
-    --status-success-border: rgba(4, 120, 87, 0.16);
-    --status-warning-bg: #fffbeb;
+    --status-success-border: color-mix(in srgb, var(--aura-success) 22%, transparent);
+    --status-warning-bg: color-mix(in srgb, var(--aura-warning) 14%, #ffffff);
     --status-warning-text: #b45309;
-    --status-warning-border: rgba(180, 83, 9, 0.18);
-    --status-danger-bg: #fef2f2;
+    --status-warning-border: color-mix(in srgb, var(--aura-warning) 24%, transparent);
+    --status-danger-bg: color-mix(in srgb, var(--aura-danger) 12%, #ffffff);
     --status-danger-text: #b91c1c;
-    --status-danger-border: rgba(185, 28, 28, 0.16);
-    --status-info-bg: #eff6ff;
-    --status-info-text: #1e3a5f;
-    --status-info-border: rgba(30, 58, 95, 0.14);
+    --status-danger-border: color-mix(in srgb, var(--aura-danger) 22%, transparent);
+    --status-info-bg: color-mix(in srgb, var(--aura-info) 12%, #ffffff);
+    --status-info-text: #0e7490;
+    --status-info-border: color-mix(in srgb, var(--aura-info) 22%, transparent);
 
     /* Shared list/table design tokens (Products, Parties, Purchases, Sales) */
-    --list-radius: 1rem;
-    --list-radius-sm: 0.625rem;
-    --list-pad-x: 1rem;
-    --list-pad-y: 0.75rem;
-    --list-row-gap: 0.125rem;
+    --list-radius: var(--aura-radius-medium);
+    --list-radius-sm: var(--aura-radius-small);
+    --list-pad-x: 16px;
+    --list-pad-y: 12px;
+    --list-row-gap: 4px;
     --list-shadow: var(--app-shadow);
-    --list-shadow-hover: 0 4px 16px rgba(15, 23, 42, 0.08);
+    --list-shadow-hover: var(--aura-shadow-medium);
     --list-border: var(--app-border);
     --list-header-bg: #f1f3f6;
     --list-zebra: rgba(247, 248, 250, 0.95);
@@ -114,18 +120,18 @@
     --list-header-bg: var(--aura-elevated);
     --list-zebra: color-mix(in srgb, var(--aura-elevated) 55%, transparent);
     --list-hover: color-mix(in srgb, var(--aura-primary) 12%, transparent);
-    --status-success-bg: rgba(52, 211, 153, 0.12);
-    --status-success-text: #6ee7b7;
-    --status-success-border: rgba(52, 211, 153, 0.28);
-    --status-warning-bg: rgba(251, 191, 36, 0.12);
-    --status-warning-text: #fcd34d;
-    --status-warning-border: rgba(251, 191, 36, 0.28);
-    --status-danger-bg: rgba(248, 113, 113, 0.12);
-    --status-danger-text: #fca5a5;
-    --status-danger-border: rgba(248, 113, 113, 0.28);
-    --status-info-bg: rgba(125, 211, 252, 0.12);
-    --status-info-text: #bae6fd;
-    --status-info-border: rgba(125, 211, 252, 0.28);
+    --status-success-bg: color-mix(in srgb, var(--aura-success) 16%, transparent);
+    --status-success-text: #34d399;
+    --status-success-border: color-mix(in srgb, var(--aura-success) 32%, transparent);
+    --status-warning-bg: color-mix(in srgb, var(--aura-warning) 16%, transparent);
+    --status-warning-text: #fbbf24;
+    --status-warning-border: color-mix(in srgb, var(--aura-warning) 32%, transparent);
+    --status-danger-bg: color-mix(in srgb, var(--aura-danger) 16%, transparent);
+    --status-danger-text: #f87171;
+    --status-danger-border: color-mix(in srgb, var(--aura-danger) 32%, transparent);
+    --status-info-bg: color-mix(in srgb, var(--aura-info) 16%, transparent);
+    --status-info-text: #22d3ee;
+    --status-info-border: color-mix(in srgb, var(--aura-info) 32%, transparent);
     --app-inset: var(--aura-elevated);
   }
 
@@ -145,8 +151,8 @@
     color: var(--aura-text-secondary);
     transition: background-color 0.2s ease, color 0.2s ease;
     background-image:
-      radial-gradient(900px 520px at 90% -12%, rgba(56, 189, 248, 0.1), transparent 55%),
-      radial-gradient(700px 420px at -5% 90%, rgba(37, 99, 235, 0.06), transparent 50%),
+      radial-gradient(900px 520px at 90% -12%, rgba(37, 99, 235, 0.1), transparent 55%),
+      radial-gradient(700px 420px at -5% 90%, rgba(124, 58, 237, 0.06), transparent 50%),
       linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
     background-attachment: fixed;
   }
@@ -155,10 +161,10 @@
     color: var(--aura-text-secondary);
     background-color: var(--aura-bg);
     background-image:
-      radial-gradient(1000px 560px at 88% -10%, rgba(56, 189, 248, 0.14), transparent 55%),
-      radial-gradient(760px 420px at -4% 100%, rgba(45, 212, 191, 0.08), transparent 50%),
-      radial-gradient(600px 320px at 50% 50%, rgba(125, 211, 252, 0.04), transparent 60%),
-      linear-gradient(180deg, #0c1613 0%, var(--aura-bg) 42%, #080f0d 100%);
+      radial-gradient(1000px 560px at 88% -10%, rgba(37, 99, 235, 0.16), transparent 55%),
+      radial-gradient(760px 420px at -4% 100%, rgba(124, 58, 237, 0.1), transparent 50%),
+      radial-gradient(600px 320px at 50% 50%, rgba(6, 182, 212, 0.05), transparent 60%),
+      linear-gradient(180deg, #0e1628 0%, var(--aura-bg) 42%, #080d18 100%);
     background-attachment: fixed;
   }
 
@@ -1466,8 +1472,13 @@
 
   .table-wrap {
     @apply overflow-hidden p-0;
-    border-radius: var(--list-radius);
+    border-radius: var(--aura-radius-table);
     /* Glass fill applied by global glass system */
+    transition: box-shadow 300ms ease;
+  }
+
+  .table-wrap:hover {
+    box-shadow: var(--aura-shadow-medium);
   }
 
   .table-wrap-header {
@@ -1594,75 +1605,76 @@
 
   .badge {
     @apply inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide leading-none;
+    border-radius: var(--aura-radius-small);
   }
 
   .badge-green {
-    @apply dark:bg-emerald-950/50 dark:text-emerald-300 dark:ring-emerald-500/25;
     background-color: var(--status-success-bg);
     color: var(--status-success-text);
     box-shadow: inset 0 0 0 1px var(--status-success-border);
   }
 
   .badge-blue {
-    @apply dark:bg-indigo-950/50 dark:text-indigo-300 dark:ring-indigo-500/25;
     background-color: var(--status-info-bg);
     color: var(--status-info-text);
     box-shadow: inset 0 0 0 1px var(--status-info-border);
   }
 
   .badge-orange {
-    @apply dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-500/25;
     background-color: var(--status-warning-bg);
     color: var(--status-warning-text);
     box-shadow: inset 0 0 0 1px var(--status-warning-border);
   }
 
   .badge-red {
-    @apply dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-500/30;
-    background-color: var(--app-inset);
-    color: var(--app-muted);
-    box-shadow: inset 0 0 0 1px var(--app-border);
+    background-color: color-mix(in srgb, var(--aura-muted) 14%, transparent);
+    color: var(--aura-text-secondary);
+    box-shadow: inset 0 0 0 1px var(--aura-border);
   }
 
   .badge-danger {
-    @apply dark:bg-red-950/40 dark:text-red-300 dark:ring-red-500/25;
     background-color: var(--status-danger-bg);
     color: var(--status-danger-text);
     box-shadow: inset 0 0 0 1px var(--status-danger-border);
   }
 
   .badge-gold {
-    @apply dark:bg-amber-950/40 dark:text-amber-200;
     background-color: var(--status-warning-bg);
     color: var(--status-warning-text);
     box-shadow: inset 0 0 0 1px var(--status-warning-border);
   }
 
   .badge-size {
-    @apply dark:bg-sky-950/40 dark:text-sky-200 dark:ring-sky-500/25;
-    background-color: #f0f9ff;
-    color: #0369a1;
-    box-shadow: inset 0 0 0 1px rgba(3, 105, 161, 0.14);
-  }
-
-  html.dark .badge-green,
-  html.dark .badge-blue,
-  html.dark .badge-orange,
-  html.dark .badge-red,
-  html.dark .badge-danger,
-  html.dark .badge-gold,
-  html.dark .badge-size {
-    background-color: unset;
-    box-shadow: unset;
+    background-color: var(--status-info-bg);
+    color: var(--status-info-text);
+    box-shadow: inset 0 0 0 1px var(--status-info-border);
   }
 
   .dashboard-shell {
     @apply relative;
   }
 
+  /* Floating card lift — 300ms ease (stat/table cards) */
+  .aura-card-lift,
+  .premium-stat-card,
+  .app-summary-card,
+  .stat-card,
+  .table-wrap,
+  .form-elevated {
+    transition: transform 300ms ease, box-shadow 300ms ease;
+  }
+
+  .aura-card-lift:hover,
+  .premium-stat-card:hover,
+  .app-summary-card:hover,
+  .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--aura-shadow-medium) !important;
+  }
+
   .premium-glass-card {
-    @apply rounded-[var(--aura-radius-card)] transition-shadow duration-200;
-    /* Glass fill applied by global glass system */
+    @apply rounded-[var(--aura-radius-card)];
+    transition: transform 300ms ease, box-shadow 300ms ease;
   }
 
   html:not(.dark) .premium-glass-card {
@@ -1747,7 +1759,8 @@ html.dark .premium-glass-card .text-slate-600 {
   }
 
   .stat-card {
-    @apply relative overflow-hidden rounded-2xl bg-white p-6 transition-shadow hover:shadow-card-hover dark:border dark:shadow-card;
+    @apply relative overflow-hidden rounded-[var(--aura-radius-card)] bg-white p-6 dark:border dark:shadow-card;
+    transition: transform 300ms ease, box-shadow 300ms ease;
   }
 
   html:not(.dark) .stat-card {
@@ -1984,31 +1997,47 @@ html.dark main .quick-action-tile .quick-action-label {
   color: #f1f5f9;
 }
 
-/* Badges on dark */
+/* Badges on dark — token-driven */
 html.dark .badge-green {
-  background-color: rgb(7 89 133 / 0.5);
-  color: #7dd3fc;
-  box-shadow: 0 0 0 1px rgb(56 189 248 / 0.25);
+  background-color: var(--status-success-bg);
+  color: var(--status-success-text);
+  box-shadow: inset 0 0 0 1px var(--status-success-border);
 }
 
 html.dark .badge-blue {
-  background-color: rgb(30 27 75 / 0.5);
-  color: #a5b4fc;
+  background-color: var(--status-info-bg);
+  color: var(--status-info-text);
+  box-shadow: inset 0 0 0 1px var(--status-info-border);
 }
 
 html.dark .badge-orange {
-  background-color: rgb(69 26 3 / 0.5);
-  color: #fcd34d;
+  background-color: var(--status-warning-bg);
+  color: var(--status-warning-text);
+  box-shadow: inset 0 0 0 1px var(--status-warning-border);
 }
 
 html.dark .badge-red {
-  background-color: rgb(76 5 25 / 0.5);
-  color: #fda4af;
+  background-color: color-mix(in srgb, var(--aura-muted) 18%, transparent);
+  color: var(--aura-text-secondary);
+  box-shadow: inset 0 0 0 1px var(--aura-border);
+}
+
+html.dark .badge-danger {
+  background-color: var(--status-danger-bg);
+  color: var(--status-danger-text);
+  box-shadow: inset 0 0 0 1px var(--status-danger-border);
 }
 
 html.dark .badge-gold {
-  background-color: rgb(69 26 3 / 0.45);
-  color: #fde68a;
+  background-color: var(--status-warning-bg);
+  color: var(--status-warning-text);
+  box-shadow: inset 0 0 0 1px var(--status-warning-border);
+}
+
+html.dark .badge-size {
+  background-color: var(--status-info-bg);
+  color: var(--status-info-text);
+  box-shadow: inset 0 0 0 1px var(--status-info-border);
 }
 
 html.dark .filter-pill-inactive {

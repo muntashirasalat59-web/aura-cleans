@@ -1216,7 +1216,7 @@ function StatCard({ title, value, subtitle, variant, icon: Icon }) {
   const style = statVariants[variant];
 
   return (
-    <div className="group rounded-[var(--aura-radius-card)] border border-aura-border bg-aura-card p-6 shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-medium">
+    <div className="group rounded-[var(--aura-radius-card)] border border-aura-border bg-aura-card p-6 shadow-soft transition-all duration-lift ease-lift hover:-translate-y-0.5 hover:shadow-medium">
       <div className="relative flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <p className="text-[length:var(--aura-type-caption)] font-semibold uppercase tracking-wider text-aura-muted">
@@ -1230,9 +1230,9 @@ function StatCard({ title, value, subtitle, variant, icon: Icon }) {
           )}
         </div>
         <div
-          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--aura-radius-button)] shadow-soft transition-transform duration-200 group-hover:scale-[1.02] ${style.iconWrap}`}
+          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--aura-radius-button)] shadow-soft transition-transform duration-lift ease-lift group-hover:scale-[1.02] ${style.iconWrap}`}
         >
-          <Icon className="h-5 w-5" />
+          <Icon className="h-5 w-5" strokeWidth={2} />
         </div>
       </div>
     </div>

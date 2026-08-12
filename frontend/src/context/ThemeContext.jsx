@@ -10,7 +10,7 @@ function applyCssVars(palette, dark = false) {
   for (const [key, value] of Object.entries(vars)) {
     root.style.setProperty(key, value);
   }
-  /* Quick Add follows theme primary (emerald) — not near-black shell */
+  /* Quick Add follows theme primary — not near-black shell */
   root.style.setProperty('--aura-shell-quick-add', palette.primary);
   root.style.setProperty('--aura-shell-quick-add-hover', palette.primaryHover);
 }
