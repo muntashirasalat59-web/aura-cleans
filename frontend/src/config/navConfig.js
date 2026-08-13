@@ -10,6 +10,12 @@ export const NAV_ITEMS = [
   { path: '/expenses', label: 'Expenses', key: 'expenses', roles: [ROLES.ADMIN] },
   { path: '/employees', label: 'Employees', key: 'employees', roles: [ROLES.ADMIN] },
   { path: '/reports', label: 'Reports', key: 'reports', roles: [ROLES.ADMIN] },
+  {
+    path: '/pricing-calculator',
+    label: 'Pricing & Margin Calculator',
+    key: 'pricing_calculator',
+    roles: [ROLES.ADMIN],
+  },
   { path: '/users', label: 'Users', key: 'users', roles: [ROLES.ADMIN] },
 ];
 
