@@ -339,8 +339,41 @@ export default function Dashboard() {
   hiddenWidgetsRef.current = hiddenWidgets;
 
   useEffect(() => {
-    loadStats();
-    loadDashboardLayout();
+    let cancelled = false;
+
+    async function boot() {
+      const [statsResult, layoutResult] = await Promise.allSettled([
+        dashboardAPI.getStats(),
+        settingsAPI.getDashboardLayout(),
+      ]);
+
+      if (cancelled) return;
+
+      if (statsResult.status === 'fulfilled') {
+        setStats(statsResult.value);
+        setLoadError(null);
+      } else {
+        setLoadError(statsResult.reason?.message || 'Failed to load dashboard');
+        setStats(null);
+      }
+
+      if (layoutResult.status === 'fulfilled') {
+        const parsed = parseSavedLayout(layoutResult.value?.layout);
+        setLayouts(parsed.layouts);
+        setHiddenWidgets(parsed.hidden);
+      } else {
+        setLayouts(cloneDefaultLayouts());
+        setHiddenWidgets([]);
+      }
+
+      setLoading(false);
+      setLayoutReady(true);
+    }
+
+    boot();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function loadStats() {

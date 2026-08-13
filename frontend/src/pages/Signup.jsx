@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Loader2, Clock, CreditCard, Check } from 'lucide-react';
 import LoginParticleNetwork from '../components/LoginParticleNetwork';
@@ -23,7 +23,14 @@ export default function Signup() {
   const [success, setSuccess] = useState('');
   const [planChoice, setPlanChoice] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState('1_month');
-  const { stageRef, stackStyle, copyStyle } = useAuthSceneTilt();
+  const { stageRef, copyRef, stackRef } = useAuthSceneTilt();
+  const redirectTimerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
+    };
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -62,7 +69,7 @@ export default function Signup() {
       }
 
       setSuccess('Account created! Redirecting to sign in…');
-      setTimeout(() => navigate('/login', { replace: true }), 1500);
+      redirectTimerRef.current = setTimeout(() => navigate('/login', { replace: true }), 1500);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -76,7 +83,7 @@ export default function Signup() {
       <LoginParticleNetwork />
 
       <div className="login-3d-row">
-        <div className="login-3d-copy" style={copyStyle}>
+        <div className="login-3d-copy" ref={copyRef}>
           <h1 className="login-3d-headline">
             Start running your business
             <br />
@@ -92,7 +99,7 @@ export default function Signup() {
           </div>
         </div>
 
-        <div className="login-3d-stack login-3d-stack-signup" style={stackStyle}>
+        <div className="login-3d-stack login-3d-stack-signup" ref={stackRef}>
           <div className="login-3d-layer login-3d-layer-back" aria-hidden />
           <div className="login-3d-layer login-3d-layer-mid" aria-hidden />
 
