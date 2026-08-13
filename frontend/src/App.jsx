@@ -28,6 +28,7 @@ import Expenses from './pages/Expenses';
 import Employees from './pages/Employees';
 
 import Reports from './pages/Reports';
+import PricingCalculator from './pages/PricingCalculator';
 
 import Users from './pages/Users';
 import ActivityLog from './pages/ActivityLog';
@@ -84,6 +85,7 @@ function App() {
                 <Route path="sales" element={<Sales />} />
                 <Route path="expenses" element={<Expenses />} />
                 <Route path="reports" element={<Reports />} />
+                <Route path="pricing-calculator" element={<PricingCalculator />} />
                 <Route path="employees" element={<Employees />} />
                 <Route path="users" element={<Users />} />
                 <Route path="activity-log" element={<ActivityLog />} />
