@@ -21,7 +21,7 @@ export default function Login() {
 
   const from = location.state?.from || '/';
   const configured = isSupabaseConfigured();
-  const { stageRef, stackStyle, copyStyle } = useAuthSceneTilt();
+  const { stageRef, copyRef, stackRef } = useAuthSceneTilt();
 
   if (loading) {
     return (
@@ -63,7 +63,7 @@ export default function Login() {
       <LoginParticleNetwork />
 
       <div className="login-3d-row">
-        <div className="login-3d-copy" style={copyStyle}>
+        <div className="login-3d-copy" ref={copyRef}>
           <h1 className="login-3d-headline">
             Manufacturing, inventory,
             <br />
@@ -80,7 +80,7 @@ export default function Login() {
           </div>
         </div>
 
-        <div className="login-3d-stack" style={stackStyle}>
+        <div className="login-3d-stack" ref={stackRef}>
           <div className="login-3d-layer login-3d-layer-back" aria-hidden />
           <div className="login-3d-layer login-3d-layer-mid" aria-hidden />
 

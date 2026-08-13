@@ -1,5 +1,3 @@
-import * as XLSX from 'xlsx';
-
 /** YYYY-MM-DD in local time */
 export function exportDateStamp(date = new Date()) {
   const y = date.getFullYear();
@@ -44,7 +42,8 @@ export function downloadCsv(rows, columns, filenameBase) {
   downloadBlob(blob, `${filenameBase}.csv`);
 }
 
-export function downloadXlsx(rows, columns, filenameBase, sheetName = 'Export') {
+export async function downloadXlsx(rows, columns, filenameBase, sheetName = 'Export') {
+  const XLSX = await import('xlsx');
   const aoa = [
     columns.map((c) => c.header),
     ...rows.map((row) => columns.map((c) => {
@@ -73,7 +72,7 @@ export async function exportTable(format, rows, columns, filePrefix) {
   // Yield so the UI can paint a loading state before heavy work.
   await new Promise((r) => setTimeout(r, 0));
   if (format === 'xlsx') {
-    downloadXlsx(rows, columns, filenameBase, filePrefix);
+    await downloadXlsx(rows, columns, filenameBase, filePrefix);
   } else {
     downloadCsv(rows, columns, filenameBase);
   }

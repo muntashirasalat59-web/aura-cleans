@@ -106,7 +106,9 @@ export function AuthProvider({ children }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      /* Boot path already handled by refreshSession — avoid duplicate /auth/me. */
+      if (event === 'INITIAL_SESSION') return;
       await applySession(newSession);
       setLoading(false);
     });

@@ -69,14 +69,16 @@ function pickBlinkTarget(particles, recent) {
     if (farEnough) candidates.push(i);
   }
 
-  const pool = candidates.length ? candidates : particles.map((_, i) => i).filter((i) => !particles[i].blinkStart);
+  const pool = candidates.length
+    ? candidates
+    : particles.map((_, i) => i).filter((i) => !particles[i].blinkStart);
   if (!pool.length) return -1;
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
 /**
  * Subtle particle-network canvas for the login background.
- * Vanilla 2D canvas + rAF — no external animation library.
+ * Pauses when the tab is hidden; cleans up rAF + listeners on unmount.
  */
 export default function LoginParticleNetwork() {
   const canvasRef = useRef(null);
@@ -126,8 +128,22 @@ export default function LoginParticleNetwork() {
       }
     }
 
+    function stopLoop() {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = 0;
+      }
+    }
+
+    function startLoop() {
+      if (!running || document.hidden || !particles.length || rafId) return;
+      rafId = requestAnimationFrame(tick);
+    }
+
     function tick() {
-      if (!running) return;
+      rafId = 0;
+      if (!running || document.hidden) return;
+
       ctx.clearRect(0, 0, width, height);
 
       const n = particles.length;
@@ -156,7 +172,6 @@ export default function LoginParticleNetwork() {
         }
       }
 
-      /* At most one bright flare at a time; ~3 spaced blinks every ~3s */
       if (activeBlinks === 0 && now >= nextBlinkAt && n > 0) {
         const idx = pickBlinkTarget(particles, recentBlinks);
         if (idx >= 0) {
@@ -198,26 +213,35 @@ export default function LoginParticleNetwork() {
           const t = Math.min((now - p.blinkStart) / p.blinkMs, 1);
           pulse = Math.sin(t * Math.PI) * p.blinkStrength;
         }
-        const radius = p.r * (1 + pulse * 1.45);
-        const glowR = radius * (5.5 + pulse * 2.8);
-        const glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, glowR);
-        glow.addColorStop(0, rgba(p.color, 0.55 + pulse * 0.38));
-        glow.addColorStop(0.4, rgba(p.color, 0.16 + pulse * 0.2));
-        glow.addColorStop(1, rgba(p.color, 0));
-        ctx.fillStyle = glow;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, glowR, 0, Math.PI * 2);
-        ctx.fill();
 
-        ctx.fillStyle = rgba(p.color, 0.95);
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
-        ctx.fill();
-
-        if (pulse > 0.4) {
-          ctx.fillStyle = `rgba(248, 250, 252, ${0.12 + pulse * 0.32})`;
+        if (pulse > 0.05) {
+          const radius = p.r * (1 + pulse * 1.45);
+          const glowR = radius * (5.5 + pulse * 2.8);
+          const glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, glowR);
+          glow.addColorStop(0, rgba(p.color, 0.55 + pulse * 0.38));
+          glow.addColorStop(0.4, rgba(p.color, 0.16 + pulse * 0.2));
+          glow.addColorStop(1, rgba(p.color, 0));
+          ctx.fillStyle = glow;
           ctx.beginPath();
-          ctx.arc(p.x, p.y, radius * 0.42, 0, Math.PI * 2);
+          ctx.arc(p.x, p.y, glowR, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = rgba(p.color, 0.95);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+          ctx.fill();
+
+          if (pulse > 0.4) {
+            ctx.fillStyle = `rgba(248, 250, 252, ${0.12 + pulse * 0.32})`;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, radius * 0.42, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        } else {
+          /* Idle dots: cheap fill — no per-frame radial gradients */
+          ctx.fillStyle = rgba(p.color, 0.72);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
           ctx.fill();
         }
       }
@@ -225,20 +249,32 @@ export default function LoginParticleNetwork() {
       rafId = requestAnimationFrame(tick);
     }
 
-    resize();
-    if (particles.length > 0) {
-      rafId = requestAnimationFrame(tick);
+    function onVisibility() {
+      if (document.hidden) {
+        stopLoop();
+      } else {
+        startLoop();
+      }
     }
 
+    resize();
+    startLoop();
+
     window.addEventListener('resize', resize);
+    document.addEventListener('visibilitychange', onVisibility);
     const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const onMotion = () => resize();
+    const onMotion = () => {
+      resize();
+      stopLoop();
+      startLoop();
+    };
     motion.addEventListener?.('change', onMotion);
 
     return () => {
       running = false;
-      cancelAnimationFrame(rafId);
+      stopLoop();
       window.removeEventListener('resize', resize);
+      document.removeEventListener('visibilitychange', onVisibility);
       motion.removeEventListener?.('change', onMotion);
     };
   }, []);
