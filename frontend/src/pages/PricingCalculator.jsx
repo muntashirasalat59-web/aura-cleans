@@ -5,6 +5,7 @@ import PageHeader from '../components/PageHeader';
 import LoadingState from '../components/LoadingState';
 import SummaryStatCard from '../components/ui/SummaryStatCard';
 import { FormField } from '../components/forms/FormField';
+import { formatPackSize } from '../utils/productDisplay';
 
 function parseMoney(value) {
   if (value === '' || value == null) return null;
@@ -110,12 +111,14 @@ export default function PricingCalculator() {
               onChange={(e) => setProductId(e.target.value)}
             >
               <option value="">Select a product (optional)</option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                  {p.sku ? ` · ${p.sku}` : ''}
-                </option>
-              ))}
+              {products.map((p) => {
+                const pack = formatPackSize(p);
+                return (
+                  <option key={p.id} value={p.id}>
+                    {pack ? `${p.name} — ${pack}` : p.name}
+                  </option>
+                );
+              })}
             </select>
             <p className="mt-1.5 text-[length:var(--aura-type-caption)] text-aura-muted">
               Choosing a product does not fill any rates — enter all values yourself.
