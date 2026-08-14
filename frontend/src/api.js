@@ -62,7 +62,10 @@ async function request(url, options = {}) {
       unauthorizedHandler();
     }
 
-    throw new Error(message);
+    const err = new Error(message);
+    err.status = response.status;
+    err.code = body?.code || null;
+    throw err;
   }
 
   // PDF download returns blob, not JSON
@@ -201,6 +204,12 @@ export const reportsAPI = {
 
 export const authAPI = {
   me: () => request('/auth/me'),
+  signup: (data) => request('/auth/signup', { method: 'POST', body: JSON.stringify(data) }),
+  resendConfirmation: (email) =>
+    request('/auth/resend-confirmation', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
 };
 
 export const usersAPI = {

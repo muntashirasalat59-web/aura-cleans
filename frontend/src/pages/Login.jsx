@@ -131,6 +131,17 @@ export default function Login() {
               {error && (
                 <p className="login-3d-error" role="alert">
                   {error}
+                  {/verify your email/i.test(error) && email.trim() ? (
+                    <>
+                      {' '}
+                      <Link
+                        to={`/check-email?email=${encodeURIComponent(email.trim().toLowerCase())}`}
+                        className="login-3d-footer-link"
+                      >
+                        Resend email
+                      </Link>
+                    </>
+                  ) : null}
                 </p>
               )}
 

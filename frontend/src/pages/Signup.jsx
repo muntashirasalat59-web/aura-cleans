@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Loader2, Clock, CreditCard, Check } from 'lucide-react';
 import LoginParticleNetwork from '../components/LoginParticleNetwork';
 import useAuthSceneTilt from '../hooks/useAuthSceneTilt';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+import { authAPI } from '../api';
+import { emailFormat } from '../utils/formValidation';
 
 const PLANS = {
   '1_month': { label: '1 Month', price: 999 },
@@ -20,41 +20,39 @@ export default function Signup() {
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [duplicateAccount, setDuplicateAccount] = useState(false);
   const [planChoice, setPlanChoice] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState('1_month');
   const { stageRef, copyRef, stackRef } = useAuthSceneTilt();
-  const redirectTimerRef = useRef(null);
 
-  useEffect(() => {
-    return () => {
-      if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
-    };
-  }, []);
+  function validateEmailLive(value) {
+    const next = emailFormat(value);
+    setEmailError(next || '');
+    return next;
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
-    setSuccess('');
+    setDuplicateAccount(false);
+
+    const liveEmailError = validateEmailLive(email);
+    if (liveEmailError) {
+      return;
+    }
+
     setSubmitting(true);
 
     try {
-      const res = await fetch(`${API_BASE}/api/auth/signup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          business_name: businessName,
-          full_name: fullName,
-          email,
-          password,
-          plan_choice: planChoice,
-          selected_plan: planChoice === 'subscribe' ? selectedPlan : null,
-        }),
+      const data = await authAPI.signup({
+        business_name: businessName,
+        full_name: fullName,
+        email: email.trim().toLowerCase(),
+        password,
+        plan_choice: planChoice,
+        selected_plan: planChoice === 'subscribe' ? selectedPlan : null,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Signup failed');
-      }
 
       if (data.payment_pending) {
         navigate('/payment-pending', {
@@ -68,10 +66,21 @@ export default function Signup() {
         return;
       }
 
-      setSuccess('Account created! Redirecting to sign in…');
-      redirectTimerRef.current = setTimeout(() => navigate('/login', { replace: true }), 1500);
+      const confirmedEmail = data.email || email.trim().toLowerCase();
+      if (data.needs_email_confirmation === false) {
+        navigate('/login', { replace: true });
+        return;
+      }
+      navigate(`/check-email?email=${encodeURIComponent(confirmedEmail)}`, { replace: true });
     } catch (err) {
-      setError(err.message);
+      if (err.code === 'EMAIL_EXISTS' || err.status === 409 || /already exists/i.test(err.message || '')) {
+        setDuplicateAccount(true);
+        setError('An account with this email already exists.');
+      } else if (err.code === 'INVALID_EMAIL' || /valid email/i.test(err.message || '')) {
+        setEmailError('Enter a valid email address');
+      } else {
+        setError('Could not create account. Please try again.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -224,11 +233,18 @@ export default function Signup() {
                       autoComplete="email"
                       required
                       disabled={submitting}
-                      className="login-3d-input"
+                      className={`login-3d-input${emailError ? ' login-3d-input-invalid' : ''}`}
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        setEmail(next);
+                        if (emailError || next.trim()) validateEmailLive(next);
+                      }}
+                      onBlur={() => validateEmailLive(email)}
                       placeholder="you@company.com"
+                      aria-invalid={Boolean(emailError)}
                     />
+                    {emailError ? <span className="login-3d-field-error">{emailError}</span> : null}
                   </label>
 
                   <label className="login-3d-field">
@@ -249,13 +265,20 @@ export default function Signup() {
                   {error && (
                     <p className="login-3d-error" role="alert">
                       {error}
+                      {duplicateAccount ? (
+                        <>
+                          {' '}
+                          <Link to="/login" className="login-3d-footer-link">
+                            Sign in instead.
+                          </Link>
+                        </>
+                      ) : null}
                     </p>
                   )}
-                  {success && <p className="login-3d-success">{success}</p>}
 
                   <button
                     type="submit"
-                    disabled={submitting}
+                    disabled={submitting || Boolean(emailError)}
                     aria-busy={submitting}
                     className="login-3d-submit"
                   >

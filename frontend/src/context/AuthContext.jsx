@@ -137,6 +137,12 @@ export function AuthProvider({ children }) {
       throw new Error(mapAuthError(error));
     }
 
+    const confirmedAt = data.user?.email_confirmed_at || data.user?.confirmed_at;
+    if (data.user && !confirmedAt) {
+      await supabase.auth.signOut({ scope: 'local' });
+      throw new Error('Please verify your email first. Check your inbox.');
+    }
+
     if (data.session?.access_token) {
       const p = await loadProfile(data.session.access_token);
       if (!p) {

@@ -12,8 +12,12 @@ export function mapAuthError(error) {
     return 'Invalid email or password';
   }
 
-  if (message.includes('email not confirmed')) {
-    return 'Please confirm your email before signing in.';
+  if (
+    message.includes('email not confirmed') ||
+    message.includes('confirm your email') ||
+    message.includes('verify your email')
+  ) {
+    return 'Please verify your email first. Check your inbox.';
   }
 
   if (message.includes('too many requests') || message.includes('rate limit')) {
