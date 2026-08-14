@@ -73,13 +73,14 @@ export default function Signup() {
       }
       navigate(`/check-email?email=${encodeURIComponent(confirmedEmail)}`, { replace: true });
     } catch (err) {
+      console.error('[signup]', err.status, err.code, err.message, err.detail || '');
       if (err.code === 'EMAIL_EXISTS' || err.status === 409 || /already exists/i.test(err.message || '')) {
         setDuplicateAccount(true);
         setError('An account with this email already exists.');
       } else if (err.code === 'INVALID_EMAIL' || /valid email/i.test(err.message || '')) {
         setEmailError('Enter a valid email address');
       } else {
-        setError('Could not create account. Please try again.');
+        setError(err.message || 'Could not create account. Please try again.');
       }
     } finally {
       setSubmitting(false);

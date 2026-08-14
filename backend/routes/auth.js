@@ -24,22 +24,42 @@ router.get('/me', requireAuth, (req, res) => {
   });
 });
 
-async function sendSignupConfirmation(email, redirectTo) {
-  const { error } = await supabase.auth.resend({
-    type: 'signup',
-    email,
-    options: { emailRedirectTo: redirectTo },
-  });
-  if (error) {
-    console.warn('[auth] confirmation email failed:', error.message);
-  }
-  return error;
-}
-
 function isDuplicateAuthError(message) {
   return /already registered|already exists|already been registered|user already/i.test(
     message || ''
   );
+}
+
+function isRateLimitError(message) {
+  return /rate limit|only request this after|too many/i.test(message || '');
+}
+
+async function sendSignupConfirmation(email, redirectTo) {
+  const options = redirectTo ? { emailRedirectTo: redirectTo } : undefined;
+  const first = await supabase.auth.resend({
+    type: 'signup',
+    email,
+    options,
+  });
+  if (!first.error) return null;
+
+  // Retry without redirect URL — uses Supabase Site URL if redirect is not allowlisted.
+  if (redirectTo && /redirect|whitelist|allow/i.test(first.error.message || '')) {
+    console.warn('[auth] confirmation redirect rejected, retrying with Site URL:', first.error.message);
+    const retry = await supabase.auth.resend({ type: 'signup', email });
+    return retry.error || null;
+  }
+  return first.error;
+}
+
+function signupFail(res, status, err, fallback) {
+  const message = (err && (err.message || err.error)) || fallback || 'Could not create account. Please try again.';
+  console.error('[auth] signup failed:', message, err?.code || '', err?.details || '');
+  return res.status(status).json({
+    error: message,
+    code: err?.code || null,
+    detail: err?.details || err?.hint || null,
+  });
 }
 
 router.post('/signup', async (req, res) => {
@@ -59,46 +79,38 @@ router.post('/signup', async (req, res) => {
     const normalizedEmail = normalizeEmail(email);
     const admin = getSupabaseAdmin();
     const redirectTo = confirmationRedirectTo(req);
+    console.log('[auth] signup start', { email: normalizedEmail, redirectTo });
 
-    const { data: existingProfile } = await admin
+    const { data: existingProfile, error: lookupError } = await admin
       .from('user_profiles')
       .select('id')
       .eq('email', normalizedEmail)
       .maybeSingle();
+    if (lookupError) {
+      return signupFail(res, 500, lookupError, 'Could not check existing account.');
+    }
     if (existingProfile) {
       return res.status(409).json(DUPLICATE_EMAIL);
     }
 
-    const { data: signData, error: signError } = await supabase.auth.signUp({
+    // Admin create does not send mail, so SMTP/rate-limit cannot block account creation.
+    const { data: authData, error: authError } = await admin.auth.admin.createUser({
       email: normalizedEmail,
       password,
-      options: {
-        emailRedirectTo: redirectTo,
-        data: {
-          full_name: full_name.trim(),
-          business_name: business_name.trim(),
-        },
+      email_confirm: false,
+      user_metadata: {
+        full_name: full_name.trim(),
+        business_name: business_name.trim(),
       },
     });
-    if (signError) {
-      if (isDuplicateAuthError(signError.message)) {
+    if (authError) {
+      if (isDuplicateAuthError(authError.message)) {
         return res.status(409).json(DUPLICATE_EMAIL);
       }
-      console.error('[auth] signUp failed:', signError.message);
-      return res.status(400).json({ error: 'Could not create account. Please try again.' });
+      return signupFail(res, 400, authError);
     }
 
-    const user = signData?.user;
-    if (!user?.id) {
-      return res.status(400).json({ error: 'Could not create account. Please try again.' });
-    }
-
-    // Existing email: Supabase may return a user with no identities (no enumeration leak).
-    if (!user.identities || user.identities.length === 0) {
-      return res.status(409).json(DUPLICATE_EMAIL);
-    }
-
-    const userId = user.id;
+    const userId = authData.user.id;
 
     const { data: business, error: bizError } = await admin
       .from('businesses')
@@ -114,7 +126,7 @@ router.post('/signup', async (req, res) => {
 
     if (bizError) {
       await admin.auth.admin.deleteUser(userId);
-      return res.status(500).json({ error: 'Could not create account. Please try again.' });
+      return signupFail(res, 500, bizError);
     }
 
     const { error: profileError } = await admin.from('user_profiles').insert({
@@ -128,22 +140,25 @@ router.post('/signup', async (req, res) => {
     if (profileError) {
       await admin.auth.admin.deleteUser(userId);
       await admin.from('businesses').delete().eq('id', business.id);
-      return res.status(500).json({ error: 'Could not create account. Please try again.' });
+      return signupFail(res, 500, profileError);
     }
 
-    const confirmed =
-      Boolean(signData.session) || Boolean(user.email_confirmed_at || user.confirmed_at);
+    const sendError = await sendSignupConfirmation(normalizedEmail, redirectTo);
+    if (sendError) {
+      console.warn('[auth] confirmation email not sent:', sendError.message);
+    }
 
     res.status(201).json({
-      needs_email_confirmation: !confirmed,
+      needs_email_confirmation: true,
       email: normalizedEmail,
-      message: confirmed
-        ? 'Account created successfully. You can now sign in.'
+      email_send_warning: sendError ? sendError.message : null,
+      message: sendError
+        ? `Account created, but the confirmation email could not be sent yet (${sendError.message}). Use Resend email in a minute.`
         : "We've sent a confirmation link to your email. Please verify to activate your account.",
       business_id: business.id,
     });
   } catch (err) {
-    res.status(500).json({ error: 'Could not create account. Please try again.' });
+    return signupFail(res, 500, err);
   }
 });
 
@@ -164,18 +179,24 @@ router.post('/resend-confirmation', async (req, res) => {
       });
     }
 
-    if (sendError && /only request this after|rate limit|too many/i.test(sendError.message || '')) {
+    if (sendError && isRateLimitError(sendError.message)) {
       return res.status(429).json({
-        error: 'Please wait a moment before requesting another email.',
+        error: `Please wait a moment before requesting another email. (${sendError.message})`,
+        code: 'EMAIL_RATE_LIMIT',
       });
     }
 
-    // Same response whether or not the address exists — avoid account enumeration.
+    if (sendError) {
+      console.warn('[auth] resend failed:', sendError.message);
+      return res.status(400).json({ error: sendError.message });
+    }
+
     res.json({
       message: "If this email still needs verification, we've sent another confirmation link.",
     });
   } catch (err) {
-    res.status(500).json({ error: 'Could not resend confirmation email. Please try again.' });
+    console.error('[auth] resend exception:', err.message);
+    res.status(500).json({ error: err.message || 'Could not resend confirmation email. Please try again.' });
   }
 });
 
