@@ -15,6 +15,96 @@ export function emailFormat(value, { required = true } = {}) {
   return null;
 }
 
+const CANONICAL_EMAIL_DOMAINS = [
+  'gmail.com',
+  'googlemail.com',
+  'yahoo.com',
+  'yahoo.co.in',
+  'outlook.com',
+  'hotmail.com',
+  'live.com',
+  'icloud.com',
+  'rediffmail.com',
+];
+
+const EMAIL_DOMAIN_TYPOS = {
+  'gmial.com': 'gmail.com',
+  'gmai.com': 'gmail.com',
+  'gnail.com': 'gmail.com',
+  'gmal.com': 'gmail.com',
+  'gamil.com': 'gmail.com',
+  'gmaill.com': 'gmail.com',
+  'gmaiil.com': 'gmail.com',
+  'gmaol.com': 'gmail.com',
+  'gmil.com': 'gmail.com',
+  'ggmail.com': 'gmail.com',
+  'gmail.co': 'gmail.com',
+  'gmail.cm': 'gmail.com',
+  'gmail.con': 'gmail.com',
+  'gmail.om': 'gmail.com',
+  'gmail.cpm': 'gmail.com',
+  'gmail.comm': 'gmail.com',
+  'gmail.come': 'gmail.com',
+  'gogglemail.com': 'gmail.com',
+  'yaho.com': 'yahoo.com',
+  'yahooo.com': 'yahoo.com',
+  'yhoo.com': 'yahoo.com',
+  'outlok.com': 'outlook.com',
+  'outloo.com': 'outlook.com',
+  'hotmial.com': 'hotmail.com',
+  'hotmal.com': 'hotmail.com',
+  'redifmail.com': 'rediffmail.com',
+  'rediffmal.com': 'rediffmail.com',
+};
+
+function levenshtein(a, b) {
+  const m = a.length;
+  const n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  const prev = new Array(n + 1);
+  const curr = new Array(n + 1);
+  for (let j = 0; j <= n; j += 1) prev[j] = j;
+  for (let i = 1; i <= m; i += 1) {
+    curr[0] = i;
+    for (let j = 1; j <= n; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    for (let j = 0; j <= n; j += 1) prev[j] = curr[j];
+  }
+  return prev[n];
+}
+
+/**
+ * Suggest a corrected domain for common provider typos (gmial.com → gmail.com).
+ * Does not check whether the mailbox exists — only spelling of known domains.
+ */
+export function suggestEmailDomain(value) {
+  const raw = String(value ?? '').trim().toLowerCase();
+  const at = raw.lastIndexOf('@');
+  if (at < 1) return null;
+  const local = raw.slice(0, at).trim();
+  const domain = raw.slice(at + 1).trim();
+  if (!local || !domain.includes('.')) return null;
+  if (CANONICAL_EMAIL_DOMAINS.includes(domain)) return null;
+
+  let suggested = EMAIL_DOMAIN_TYPOS[domain] || null;
+  if (!suggested) {
+    let bestDist = Infinity;
+    for (const canon of CANONICAL_EMAIL_DOMAINS) {
+      const dist = levenshtein(domain, canon);
+      const max = canon.length <= 9 ? 1 : 2;
+      if (dist > 0 && dist <= max && dist < bestDist) {
+        suggested = canon;
+        bestDist = dist;
+      }
+    }
+  }
+  if (!suggested || suggested === domain) return null;
+  return { domain: suggested, email: `${local}@${suggested}` };
+}
+
 /** Positive money: min 0.01 */
 export function positiveMoney(value, { field = 'Amount', min = 0.01 } = {}) {
   if (value === '' || value == null) return `${field} is required`;

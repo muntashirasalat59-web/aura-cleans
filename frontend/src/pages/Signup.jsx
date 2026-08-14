@@ -4,7 +4,7 @@ import { Loader2, Clock, CreditCard, Check } from 'lucide-react';
 import LoginParticleNetwork from '../components/LoginParticleNetwork';
 import useAuthSceneTilt from '../hooks/useAuthSceneTilt';
 import { authAPI } from '../api';
-import { emailFormat } from '../utils/formValidation';
+import { emailFormat, suggestEmailDomain } from '../utils/formValidation';
 
 const PLANS = {
   '1_month': { label: '1 Month', price: 999 },
@@ -21,6 +21,7 @@ export default function Signup() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [emailError, setEmailError] = useState('');
+  const [emailSuggestion, setEmailSuggestion] = useState(null);
   const [duplicateAccount, setDuplicateAccount] = useState(false);
   const [planChoice, setPlanChoice] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState('1_month');
@@ -29,7 +30,15 @@ export default function Signup() {
   function validateEmailLive(value) {
     const next = emailFormat(value);
     setEmailError(next || '');
+    setEmailSuggestion(next ? null : suggestEmailDomain(value));
     return next;
+  }
+
+  function applyEmailSuggestion() {
+    if (!emailSuggestion?.email) return;
+    setEmail(emailSuggestion.email);
+    setEmailError('');
+    setEmailSuggestion(null);
   }
 
   async function handleSubmit(e) {
@@ -246,6 +255,15 @@ export default function Signup() {
                       aria-invalid={Boolean(emailError)}
                     />
                     {emailError ? <span className="login-3d-field-error">{emailError}</span> : null}
+                    {!emailError && emailSuggestion ? (
+                      <button
+                        type="button"
+                        className="login-3d-field-suggest"
+                        onClick={applyEmailSuggestion}
+                      >
+                        Did you mean @{emailSuggestion.domain}?
+                      </button>
+                    ) : null}
                   </label>
 
                   <label className="login-3d-field">
