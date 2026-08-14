@@ -15,6 +15,7 @@ import { BusinessSettingsProvider } from './context/BusinessSettingsContext';
 /** Auth screens stay eager — small + first paint. Heavy app pages are code-split. */
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import CheckEmail from './pages/CheckEmail';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Products = lazy(() => import('./pages/Products'));
@@ -70,6 +71,14 @@ function App() {
                 element={
                   <GuestRoute>
                     <Signup />
+                  </GuestRoute>
+                }
+              />
+              <Route
+                path="/check-email"
+                element={
+                  <GuestRoute>
+                    <CheckEmail />
                   </GuestRoute>
                 }
               />

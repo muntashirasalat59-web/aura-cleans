@@ -1,7 +1,17 @@
 /** Shared form validation helpers — no Yup/Zod; keep in sync with FormField errors. */
 
+const EMAIL_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
 export function requiredText(value, message = 'This field is required') {
   if (value == null || String(value).trim() === '') return message;
+  return null;
+}
+
+/** Standard email format. Rejects "abc@", missing @, and missing domain. */
+export function emailFormat(value, { required = true } = {}) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return required ? 'Enter a valid email address' : null;
+  if (!EMAIL_RE.test(raw)) return 'Enter a valid email address';
   return null;
 }
 
