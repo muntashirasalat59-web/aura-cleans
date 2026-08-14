@@ -39,7 +39,8 @@ export default function CheckEmail() {
         setError(err.message || 'Please wait a moment before requesting another email.');
       } else {
         setError('Could not resend confirmation email. Please try again.');
-      } finally {
+      }
+    } finally {
       setResending(false);
     }
   }
