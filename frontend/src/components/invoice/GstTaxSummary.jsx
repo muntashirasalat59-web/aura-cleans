@@ -1,7 +1,16 @@
 import { splitGst, formatInr } from '../../utils/gstBreakdown';
+import PaymentSettlementSummary from './PaymentSettlementSummary';
 
-export default function GstTaxSummary({ gstPercent, gstAmount, subtotal, total, className = '' }) {
+export default function GstTaxSummary({
+  gstPercent,
+  gstAmount,
+  subtotal,
+  total,
+  className = '',
+  settlement = null,
+}) {
   const { cgstRate, sgstRate, cgstAmount, sgstAmount } = splitGst(gstPercent, gstAmount);
+  const showSettlement = Boolean(settlement?.isPartial);
 
   return (
     <div className={className}>
@@ -21,10 +30,19 @@ export default function GstTaxSummary({ gstPercent, gstAmount, subtotal, total, 
         <span>Total GST ({gstPercent}%)</span>
         <span className="tabular-nums">{formatInr(gstAmount)}</span>
       </div>
-      <div className="invoice-summary-row invoice-summary-total">
-        <span>Total payable</span>
-        <span className="tabular-nums text-emerald-700">{formatInr(total)}</span>
-      </div>
+      {showSettlement ? (
+        <PaymentSettlementSummary
+          className="mt-2 pt-3 border-t border-slate-200 dark:border-slate-600"
+          totalBilled={settlement.totalBilled}
+          amountReceived={settlement.amountReceived}
+          balanceDue={settlement.balanceDue}
+        />
+      ) : (
+        <div className="invoice-summary-row invoice-summary-total">
+          <span>Total payable</span>
+          <span className="tabular-nums text-emerald-700">{formatInr(total)}</span>
+        </div>
+      )}
     </div>
   );
 }

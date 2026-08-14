@@ -6,6 +6,7 @@ import InvoicePaymentPreview from '../invoice/InvoicePaymentPreview';
 import InvoiceClosingFooter from '../invoice/InvoiceClosingFooter';
 import { useBusinessSettings } from '../../context/BusinessSettingsContext';
 import { businessGstLabel, formatBusinessAddress } from '../../config/business';
+import { paymentBreakdown } from '../../utils/invoicePayment';
 
 export default function InvoiceLetterPreview({
   invoiceNumber = 'INV-DRAFT',
@@ -24,6 +25,7 @@ export default function InvoiceLetterPreview({
   const configured = Boolean(settings?.configured);
   const address = settings?.address_display || formatBusinessAddress(settings);
   const gstLabel = businessGstLabel(settings);
+  const settlement = paymentBreakdown(payment, total);
 
   return (
     <div
@@ -107,6 +109,7 @@ export default function InvoiceLetterPreview({
             gstAmount={gstAmount}
             subtotal={subtotal}
             total={total}
+            settlement={settlement}
           />
         </div>
       </div>

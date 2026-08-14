@@ -15,7 +15,7 @@ import FormActions from '../components/forms/FormActions';
 import PartySelectField from '../components/forms/PartySelectField';
 import InvoiceLetterPreview from '../components/forms/InvoiceLetterPreview';
 import InvoicePaymentFields from '../components/forms/InvoicePaymentFields';
-import InvoicePaymentPreview from '../components/invoice/InvoicePaymentPreview';
+import InvoicePaymentStatusBadge from '../components/invoice/InvoicePaymentStatusBadge';
 import DeleteInvoiceModal from '../components/invoice/DeleteInvoiceModal';
 import MarkPaidModal from '../components/invoice/MarkPaidModal';
 import ErrorModal from '../components/ErrorModal';
@@ -33,7 +33,7 @@ import {
   emptyPaymentDetails,
   paymentFromSale,
   paymentToPayload,
-  formatDisplayDate,
+  paymentBreakdown,
 } from '../utils/invoicePayment';
 import { balanceDue, paymentStatus, enrichPaymentFields } from '../utils/invoiceReceivables';
 
@@ -324,9 +324,18 @@ export default function Sales() {
       }
     }
 
-    if (form.payment.collection === 'pending' && !form.payment.due_date?.trim()) {
-      alert('Select a due date for pending payment.');
-      return;
+    const invoiceTotal = calculateTotal();
+    const settlement = paymentBreakdown(form.payment, invoiceTotal);
+    if (form.payment.collection === 'pending') {
+      const entered = Number(form.payment.amount_paid);
+      if (form.payment.amount_paid !== '' && Number.isFinite(entered) && entered > invoiceTotal + 0.001) {
+        alert('Amount received now cannot exceed the invoice total.');
+        return;
+      }
+      if (settlement.status !== 'paid' && !form.payment.due_date?.trim()) {
+        alert('Select a due date for pending payment.');
+        return;
+      }
     }
 
     try {
@@ -339,7 +348,7 @@ export default function Sales() {
           quantity: parseInt(item.quantity),
           rate: parseFloat(item.rate),
         })),
-        payment: paymentToPayload(form.payment),
+        payment: paymentToPayload(form.payment, invoiceTotal),
       };
 
       if (editingId) {
@@ -693,6 +702,7 @@ export default function Sales() {
               <p className="form-section-label">Payment collection</p>
               <InvoicePaymentFields
                 payment={form.payment}
+                invoiceTotal={calculateTotal()}
                 onChange={(payment) => setForm((prev) => ({ ...prev, payment }))}
               />
 
@@ -902,7 +912,8 @@ export default function Sales() {
                   <th className="col-num">Qty</th>
                   <th className="col-num">Subtotal</th>
                   <th className="col-num">GST</th>
-                  <th className="col-num">Total</th>
+                  <th className="col-num">Total Billed</th>
+                  <th>Status</th>
                   <th className="text-right">Actions</th>
                 </tr>
               </thead>
@@ -911,21 +922,6 @@ export default function Sales() {
                   <tr key={sale.id}>
                     <td>
                       <p className="list-primary whitespace-nowrap">{sale.invoice_number}</p>
-                      {(sale.payment_status === 'pending' ||
-                        sale.payment_status === 'partial' ||
-                        balanceDue(sale) > 0) && (
-                        <p className="list-secondary">
-                          Due ₹
-                          {(sale.balance_due != null
-                            ? Number(sale.balance_due)
-                            : balanceDue(sale)
-                          ).toLocaleString('en-IN')}
-                          {sale.payment_due_date
-                            ? ` · by ${formatDisplayDate(sale.payment_due_date)}`
-                            : ''}
-                          {sale.payment_status === 'partial' ? ' · partial' : ''}
-                        </p>
-                      )}
                     </td>
                     <td className="whitespace-nowrap tabular-nums">{sale.invoice_date}</td>
                     <td>
@@ -937,7 +933,17 @@ export default function Sales() {
                     <td className="col-num">₹{Number(sale.subtotal).toLocaleString('en-IN')}</td>
                     <td className="col-num">₹{Number(sale.gst_amount).toLocaleString('en-IN')}</td>
                     <td className="col-num font-semibold text-emerald-600 dark:text-emerald-400">
-                      ₹{Number(sale.total_amount).toLocaleString('en-IN')}
+                      <p>₹{Number(sale.total_amount).toLocaleString('en-IN')}</p>
+                      {(sale.payment_status === 'partial' ||
+                        (Number(sale.amount_paid) > 0 &&
+                          Number(sale.balance_due != null ? sale.balance_due : 0) > 0)) && (
+                        <p className="list-secondary font-normal">
+                          Recd ₹{Number(sale.amount_paid || 0).toLocaleString('en-IN')}
+                        </p>
+                      )}
+                    </td>
+                    <td>
+                      <InvoicePaymentStatusBadge sale={sale} />
                     </td>
                     <td className="text-right">
                       <div className="list-actions">

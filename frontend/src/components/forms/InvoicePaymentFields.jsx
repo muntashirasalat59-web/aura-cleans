@@ -1,14 +1,19 @@
 import { FormField } from './FormField';
 import SegmentedControl from './SegmentedControl';
-import { defaultDueDate } from '../../utils/invoicePayment';
+import PaymentSettlementSummary from '../invoice/PaymentSettlementSummary';
+import { defaultDueDate, paymentBreakdown, parseAmountReceived } from '../../utils/invoicePayment';
+import { formatInr } from '../../utils/gstBreakdown';
 
 const COLLECTION_OPTIONS = [
   { value: 'paid', label: 'Paid now' },
   { value: 'pending', label: 'Pending' },
 ];
 
-export default function InvoicePaymentFields({ payment, onChange }) {
+export default function InvoicePaymentFields({ payment, onChange, invoiceTotal = 0 }) {
   const collection = payment.collection === 'pending' ? 'pending' : 'paid';
+  const breakdown = paymentBreakdown(payment, invoiceTotal);
+  const receivedNow = parseAmountReceived(payment);
+  const exceedsTotal = receivedNow > breakdown.totalBilled + 0.001;
 
   function set(field, value) {
     onChange({ ...payment, [field]: value });
@@ -20,7 +25,8 @@ export default function InvoicePaymentFields({ payment, onChange }) {
         ...payment,
         collection: 'pending',
         due_date: payment.due_date || defaultDueDate(3),
-        amount_paid: '0',
+        amount_paid:
+          payment.amount_paid === '' || payment.amount_paid == null ? '0' : payment.amount_paid,
       });
       return;
     }
@@ -44,26 +50,68 @@ export default function InvoicePaymentFields({ payment, onChange }) {
         <p className="field-hint mt-2">
           {collection === 'paid'
             ? 'Full amount marked as received — no due date needed.'
-            : 'Party will pay later — set a due date to track collections.'}
+            : 'Party will pay later — set a due date. Enter any amount received now (advance / partial).'}
         </p>
       </div>
 
       {collection === 'pending' && (
-        <div className="form-section-grid mb-5">
-          <FormField
-            label="Due date"
-            required
-            hint="When the party promised to pay (e.g. 3 days from today)."
-          >
-            <input
-              type="date"
-              className="input input-premium"
-              value={payment.due_date || ''}
-              onChange={(e) => set('due_date', e.target.value)}
-              required
+        <>
+          <div className="form-section-grid mb-5">
+            <FormField
+              label="Due date"
+              required={breakdown.status !== 'paid'}
+              hint="When the party promised to settle the balance."
+            >
+              <input
+                type="date"
+                className="input input-premium"
+                value={payment.due_date || ''}
+                onChange={(e) => set('due_date', e.target.value)}
+                required={breakdown.status !== 'paid'}
+              />
+            </FormField>
+            <FormField
+              label="Amount Received Now (₹)"
+              hint="Optional. Leave 0 if nothing has been collected yet."
+              warning={
+                exceedsTotal
+                  ? `Cannot exceed Total Billed (${formatInr(breakdown.totalBilled)}).`
+                  : undefined
+              }
+            >
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                max={invoiceTotal > 0 ? invoiceTotal : undefined}
+                inputMode="decimal"
+                className="input input-premium tabular-nums"
+                placeholder="0"
+                value={payment.amount_paid ?? ''}
+                onChange={(e) => set('amount_paid', e.target.value)}
+              />
+            </FormField>
+          </div>
+
+          <div className="form-summary-card mb-5 max-w-md">
+            <p className="form-summary-label mb-3">Settlement</p>
+            <PaymentSettlementSummary
+              totalBilled={breakdown.totalBilled}
+              amountReceived={breakdown.amountReceived}
+              balanceDue={breakdown.balanceDue}
             />
-          </FormField>
-        </div>
+            {breakdown.isPartial && (
+              <p className="field-hint mt-3">
+                Invoice will be saved as Partial — dashboard outstanding counts only the balance due.
+              </p>
+            )}
+            {breakdown.status === 'paid' && receivedNow > 0 && (
+              <p className="field-hint mt-3">
+                Amount received equals Total Billed — invoice will be marked Paid.
+              </p>
+            )}
+          </div>
+        </>
       )}
 
       <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">

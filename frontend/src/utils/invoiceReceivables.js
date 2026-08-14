@@ -22,13 +22,13 @@ export function enrichPaymentFields(sale) {
     const balance_due = Math.max(0, Math.round((total - paid) * 100) / 100);
     if (balance_due <= 0) status = 'paid';
     else if (status === 'paid') status = paid > 0 ? 'partial' : 'pending';
-    return { amount_paid: paid, balance_due, payment_status: status };
+    return { amount_paid: paid, amount_received: paid, balance_due, payment_status: status };
   }
 
   if (sale?.payment_due_date) {
-    return { amount_paid: 0, balance_due: total, payment_status: 'pending' };
+    return { amount_paid: 0, amount_received: 0, balance_due: total, payment_status: 'pending' };
   }
-  return { amount_paid: total, balance_due: 0, payment_status: 'paid' };
+  return { amount_paid: total, amount_received: total, balance_due: 0, payment_status: 'paid' };
 }
 
 export function balanceDue(sale) {
