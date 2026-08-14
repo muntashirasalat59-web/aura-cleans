@@ -20,6 +20,51 @@ export function emptyPaymentDetails() {
   };
 }
 
+/** Treat empty / null / invalid as 0 so legacy invoices stay fully pending. */
+export function parseAmountReceived(payment) {
+  const raw = payment?.amount_paid ?? payment?.amount_received ?? '';
+  if (raw === '' || raw == null) return 0;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.round(n * 100) / 100;
+}
+
+export function roundMoney(value) {
+  return Math.max(0, Math.round((Number(value) || 0) * 100) / 100);
+}
+
+/**
+ * Total Billed / Amount Received / Balance Due for pending collection.
+ * Paid now → received = billed, balance = 0.
+ */
+export function paymentBreakdown(payment, invoiceTotal) {
+  const totalBilled = roundMoney(invoiceTotal);
+  const collection = payment?.collection === 'pending' ? 'pending' : 'paid';
+  if (collection !== 'pending') {
+    return {
+      totalBilled,
+      amountReceived: totalBilled,
+      balanceDue: 0,
+      status: 'paid',
+      isPartial: false,
+    };
+  }
+  const amountReceived = Math.min(totalBilled, parseAmountReceived(payment));
+  const balanceDue = roundMoney(totalBilled - amountReceived);
+  const status = balanceDue <= 0 ? 'paid' : amountReceived > 0 ? 'partial' : 'pending';
+  return {
+    totalBilled,
+    amountReceived,
+    balanceDue,
+    status,
+    isPartial: status === 'partial',
+  };
+}
+
+export function formatInrCompact(value) {
+  return `₹${Number(value || 0).toLocaleString('en-IN')}`;
+}
+
 /** Default due date = today + N days (YYYY-MM-DD). */
 export function defaultDueDate(daysAhead = 3, fromDate = new Date()) {
   const d = new Date(fromDate);
@@ -57,23 +102,26 @@ export function paymentFromSale(sale) {
   };
 }
 
-export function paymentToPayload(payment) {
+export function paymentToPayload(payment, invoiceTotal) {
   const p = payment || emptyPaymentDetails();
   const collection = p.collection === 'pending' ? 'pending' : 'paid';
+  const breakdown = paymentBreakdown(p, invoiceTotal);
   const payload = {
     collection,
-    payment_status: collection,
+    payment_status: collection === 'paid' ? 'paid' : breakdown.status,
     bank_name: p.bank_name?.trim() || null,
     account_number: p.account_number?.trim() || null,
     upi: p.upi?.trim() || null,
     payment_terms: p.payment_terms?.trim() || null,
-    due_date: collection === 'pending' ? p.due_date?.trim() || null : null,
+    due_date: collection === 'pending' && breakdown.status !== 'paid' ? p.due_date?.trim() || null : null,
   };
   if (collection === 'paid') {
     // Backend sets amount_paid = invoice total.
     payload.amount_paid = undefined;
+  } else if (invoiceTotal == null || invoiceTotal === '') {
+    payload.amount_paid = parseAmountReceived(p);
   } else {
-    payload.amount_paid = 0;
+    payload.amount_paid = Math.min(roundMoney(invoiceTotal), parseAmountReceived(p));
   }
   return payload;
 }

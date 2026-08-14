@@ -3,7 +3,7 @@ const fs = require('fs');
 const { splitGst } = require('../config/business');
 const { formatProductNameWithSize } = require('./productDisplay');
 const { formatInr } = require('./pdfInvoice');
-const { hasPaymentData } = require('./salePayment');
+const { hasPaymentData, enrichPaymentFields } = require('./salePayment');
 const { formatAddress, isConfigured } = require('./businessSettings');
 
 const PAGE_W = 595.28;
@@ -296,12 +296,15 @@ function drawTableRow(doc, item, lineNum, gstRate, y, stripe) {
 
 function drawSummaryCard(doc, sale, startY) {
   const { cgstRate, sgstRate, cgstAmount, sgstAmount } = splitGst(sale.gst_percent, sale.gst_amount);
+  const payment = enrichPaymentFields(sale);
+  const isPartial = payment.payment_status === 'partial';
   const cardW = 228;
   const cardX = RIGHT - cardW;
   const pad = 16;
   const rowH = 18;
   const totalBlockH = 36;
-  const cardH = pad + rowH * 5 + totalBlockH + pad;
+  const extraH = isPartial ? rowH + totalBlockH : 0;
+  const cardH = pad + rowH * 5 + totalBlockH + extraH + pad;
 
   doc.save();
   doc.roundedRect(cardX, startY, cardW, cardH, 8).fill(C.white);
@@ -331,11 +334,37 @@ function drawSummaryCard(doc, sale, startY) {
   doc.roundedRect(cardX + pad, totalY, cardW - pad * 2, totalBlockH - 4, 6).fill();
   doc.restore();
 
-  doc.font('InvoiceBold').fontSize(10).fillColor(C.text).text('Total payable', cardX + pad + 8, totalY + 8);
+  const billedLabel = isPartial ? 'Total Billed' : 'Total payable';
+  doc.font('InvoiceBold').fontSize(10).fillColor(C.text).text(billedLabel, cardX + pad + 8, totalY + 8);
   doc.font('InvoiceBold').fontSize(13).fillColor(C.total).text(formatInr(sale.total_amount), cardX + pad, totalY + 6, {
     width: cardW - pad * 2 - 8,
     align: 'right',
   });
+
+  if (isPartial) {
+    const receivedY = totalY + totalBlockH;
+    doc.font('InvoiceRegular').fontSize(9).fillColor(C.muted);
+    doc.text('Amount Received', cardX + pad, receivedY, { width: cardW / 2, continued: false });
+    doc.text(formatInr(payment.amount_paid), cardX + pad, receivedY, {
+      width: cardW - pad * 2,
+      align: 'right',
+    });
+
+    const dueY = receivedY + rowH + 2;
+    doc.save();
+    setFill(doc, '#fffbeb');
+    doc.roundedRect(cardX + pad, dueY, cardW - pad * 2, totalBlockH - 4, 6).fill();
+    doc.restore();
+    doc.font('InvoiceBold').fontSize(10).fillColor(C.text).text('Balance Due', cardX + pad + 8, dueY + 8);
+    doc
+      .font('InvoiceBold')
+      .fontSize(13)
+      .fillColor('#b45309')
+      .text(formatInr(payment.balance_due), cardX + pad, dueY + 6, {
+        width: cardW - pad * 2 - 8,
+        align: 'right',
+      });
+  }
 
   return startY + cardH;
 }

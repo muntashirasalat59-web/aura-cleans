@@ -13,7 +13,7 @@ function normalizeCollection(value) {
 
 function pickPaymentPayload(body) {
   const p = body?.payment && typeof body.payment === 'object' ? body.payment : body;
-  const rawPaid = p.amount_paid ?? p.amount_received;
+  const rawPaid = p.amount_paid ?? p.amount_received ?? p.amount_received_now;
   const amountPaid =
     rawPaid === undefined || rawPaid === null || rawPaid === ''
       ? undefined
@@ -43,12 +43,12 @@ function pickPaymentPayload(body) {
     // Marker so resolveAmountPaid fills invoice total.
     payload.amount_paid = undefined;
     payload._collection = 'paid';
-  } else if (collection === 'pending') {
+  } else if (collection === 'pending' || collection === 'partial') {
     payload.amount_paid = 0;
   }
 
   if (collection === 'paid') payload._collection = 'paid';
-  if (collection === 'pending') payload._collection = 'pending';
+  if (collection === 'pending' || collection === 'partial') payload._collection = 'pending';
 
   return payload;
 }
@@ -139,14 +139,14 @@ function enrichPaymentFields(sale) {
     const balance_due = Math.max(0, Math.round((total - paid) * 100) / 100);
     if (balance_due <= 0) status = 'paid';
     else if (status === 'paid') status = paid > 0 ? 'partial' : 'pending';
-    return { amount_paid: paid, balance_due, payment_status: status };
+    return { amount_paid: paid, amount_received: paid, balance_due, payment_status: status };
   }
 
   // Legacy: unpaid credit invoice = has a due date
   if (sale?.payment_due_date) {
-    return { amount_paid: 0, balance_due: total, payment_status: 'pending' };
+    return { amount_paid: 0, amount_received: 0, balance_due: total, payment_status: 'pending' };
   }
-  return { amount_paid: total, balance_due: 0, payment_status: 'paid' };
+  return { amount_paid: total, amount_received: total, balance_due: 0, payment_status: 'paid' };
 }
 
 function balanceDue(sale) {
