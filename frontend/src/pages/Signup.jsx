@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import LoginParticleNetwork from '../components/LoginParticleNetwork';
 import useAuthSceneTilt from '../hooks/useAuthSceneTilt';
+import { AuthDetailsLink } from '../components/AuthDetailsModal';
 import { authAPI } from '../api';
 import { digitsOnly, indianMobileStrict, normalizeIndianMobile } from '../utils/formValidation';
 
@@ -91,6 +92,7 @@ export default function Signup() {
             <div className="login-3d-brand">
               <span className="login-3d-mark" aria-hidden />
               <span className="login-3d-brand-name">Aura Clean</span>
+              <AuthDetailsLink />
             </div>
 
             <h2 className="login-3d-title">Create account</h2>

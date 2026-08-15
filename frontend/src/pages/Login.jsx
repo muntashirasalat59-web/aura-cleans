@@ -9,6 +9,7 @@ import { PAYMENT_ALERT_DISMISS_KEY } from '../config/payments';
 import LoadingState from '../components/LoadingState';
 import LoginParticleNetwork from '../components/LoginParticleNetwork';
 import useAuthSceneTilt from '../hooks/useAuthSceneTilt';
+import { AuthDetailsLink } from '../components/AuthDetailsModal';
 
 export default function Login() {
   const { signIn, loading } = useAuth();
@@ -89,6 +90,7 @@ export default function Login() {
             <div className="login-3d-brand">
               <span className="login-3d-mark" aria-hidden />
               <span className="login-3d-brand-name">Aura Clean</span>
+              <AuthDetailsLink />
             </div>
 
             <h2 className="login-3d-title">Sign in</h2>
