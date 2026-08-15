@@ -7,6 +7,7 @@ import { ToastProvider } from './context/ToastContext';
 
 import ProtectedRoute from './components/ProtectedRoute';
 import GuestRoute from './components/GuestRoute';
+import AccessGate from './components/AccessGate';
 import Layout from './components/Layout';
 import DataSyncProvider from './components/DataSyncProvider';
 import LoadingState from './components/LoadingState';
@@ -27,6 +28,7 @@ const Employees = lazy(() => import('./pages/Employees'));
 const Reports = lazy(() => import('./pages/Reports'));
 const PricingCalculator = lazy(() => import('./pages/PricingCalculator'));
 const Users = lazy(() => import('./pages/Users'));
+const SupportInbox = lazy(() => import('./pages/SupportInbox'));
 const ActivityLog = lazy(() => import('./pages/ActivityLog'));
 const BusinessSettings = lazy(() => import('./pages/BusinessSettings'));
 
@@ -87,7 +89,9 @@ function App() {
                 path="/"
                 element={
                   <ProtectedRoute>
-                    <Layout />
+                    <AccessGate>
+                      <Layout />
+                    </AccessGate>
                   </ProtectedRoute>
                 }
               >
@@ -102,6 +106,7 @@ function App() {
                   <Route path="pricing-calculator" element={<PricingCalculator />} />
                   <Route path="employees" element={<Employees />} />
                   <Route path="users" element={<Users />} />
+                  <Route path="support" element={<SupportInbox />} />
                   <Route path="activity-log" element={<ActivityLog />} />
                   <Route path="settings/business" element={<BusinessSettings />} />
                   <Route path="*" element={<Navigate to="/" replace />} />

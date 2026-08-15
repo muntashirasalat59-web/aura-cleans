@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { isSupabaseConfigured } from '../lib/supabaseConfig';
 import { mapAuthError } from '../lib/authErrors';
 import { authAPI, setAccessToken, setUnauthorizedHandler } from '../api';
+import { isPhoneAuthEmail, loginIdentifierToEmail } from '../utils/formValidation';
 
 const AuthContext = createContext(null);
 
@@ -123,13 +124,14 @@ export function AuthProvider({ children }) {
     return () => setUnauthorizedHandler(null);
   }, [signOut]);
 
-  async function signIn(email, password) {
+  async function signIn(identifier, password) {
     if (!isSupabaseConfigured()) {
       throw new Error('Authentication is not configured.');
     }
 
+    const email = loginIdentifierToEmail(identifier);
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
+      email,
       password,
     });
 
@@ -138,7 +140,7 @@ export function AuthProvider({ children }) {
     }
 
     const confirmedAt = data.user?.email_confirmed_at || data.user?.confirmed_at;
-    if (data.user && !confirmedAt) {
+    if (data.user && !confirmedAt && !isPhoneAuthEmail(email)) {
       await supabase.auth.signOut({ scope: 'local' });
       throw new Error('Please verify your email first. Check your inbox.');
     }
@@ -155,6 +157,13 @@ export function AuthProvider({ children }) {
     return data;
   }
 
+  const refreshProfile = useCallback(async () => {
+    if (session?.access_token) {
+      return loadProfile(session.access_token);
+    }
+    return null;
+  }, [loadProfile, session?.access_token]);
+
   const value = {
     session,
     profile,
@@ -162,6 +171,7 @@ export function AuthProvider({ children }) {
     loading,
     signIn,
     signOut,
+    refreshProfile,
     isAuthenticated: Boolean(session?.access_token && profile),
     isConfigured: isSupabaseConfigured(),
   };

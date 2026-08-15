@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Command, Search, X } from 'lucide-react';
 import { buildSearchIndex } from '../../config/erpNav';
+import { useAuth } from '../../context/AuthContext';
 
 const EXTRA = [
   { type: 'action', title: 'New invoice', path: '/sales', subtitle: 'Quick create' },
@@ -11,8 +12,12 @@ const EXTRA = [
 
 export default function GlobalSearch({ open, onClose }) {
   const navigate = useNavigate();
+  const { role, profile } = useAuth();
   const [query, setQuery] = useState('');
-  const index = useMemo(() => [...buildSearchIndex(), ...EXTRA], []);
+  const index = useMemo(
+    () => [...buildSearchIndex({ role, isPlatformAdmin: Boolean(profile?.is_platform_admin) }), ...EXTRA],
+    [role, profile?.is_platform_admin]
+  );
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();

@@ -22,6 +22,7 @@ import {
   UserCircle,
   Users,
   Wallet,
+  MessageSquare,
   X,
   Zap,
 } from 'lucide-react';
@@ -55,6 +56,7 @@ const NAV_ICONS = {
   '/pricing-calculator': Calculator,
   '/employees': Users,
   '/users': UserCircle,
+  '/support': MessageSquare,
   '/activity-log': Activity,
   '/settings/business': Settings,
 };
@@ -108,7 +110,7 @@ export default function Layout() {
     setRailTip(null);
   }
 
-  const sections = erpNavForRole(role);
+  const sections = erpNavForRole(role, { isPlatformAdmin: Boolean(profile?.is_platform_admin) });
   const currentTitle = PAGE_TITLES[location.pathname] || 'AURA CLEAN';
   const company = AURA.companies.find((c) => c.id === companyId) || AURA.companies[0];
   const {

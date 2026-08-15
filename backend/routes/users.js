@@ -166,7 +166,18 @@ router.patch('/:id/mark-business-paid', async (req, res) => {
       return res.status(404).json({ error: 'Business not found' });
     }
 
-    res.json({ ...data, message: `${data.business_name} marked as paid`, payment_date: paymentDate });
+    const subscriptionEndsAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    await admin
+      .from('user_profiles')
+      .update({ subscription_ends_at: subscriptionEndsAt })
+      .eq('business_id', req.params.id);
+
+    res.json({
+      ...data,
+      message: `${data.business_name} marked as paid`,
+      payment_date: paymentDate,
+      subscription_ends_at: subscriptionEndsAt,
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
