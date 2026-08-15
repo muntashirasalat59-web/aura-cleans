@@ -3434,6 +3434,21 @@ html.dark main .quick-action-tile:hover {
   line-height: 1.45;
 }
 
+.app-nav-unread {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .app-nav-section-label {
   font-size: var(--type-sidebar-section);
   font-weight: 700;

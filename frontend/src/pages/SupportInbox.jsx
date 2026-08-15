@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { MessageSquare } from 'lucide-react';
 import { supportAPI } from '../api';
@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import LoadingState from '../components/LoadingState';
 import PageHeader from '../components/PageHeader';
 import TrialSupportChat from '../components/TrialSupportChat';
+import { notifyDataSync } from '../lib/dataSync';
 
 function formatTime(value) {
   if (!value) return '';
@@ -24,12 +25,18 @@ export default function SupportInbox() {
   const [selectedId, setSelectedId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const selectedIdRef = useRef(null);
+  selectedIdRef.current = selectedId;
 
   const loadThreads = useCallback(async (silent = false) => {
     try {
       if (!silent) setLoading(true);
       const data = await supportAPI.threads();
-      setThreads(Array.isArray(data) ? data : []);
+      const next = Array.isArray(data) ? data : [];
+      const openId = selectedIdRef.current;
+      setThreads(
+        next.map((thread) => (openId && thread.user_id === openId ? { ...thread, unread: 0 } : thread))
+      );
       setError('');
     } catch (err) {
       if (!silent) setError(err.message || 'Could not load inbox.');
@@ -41,9 +48,33 @@ export default function SupportInbox() {
   useEffect(() => {
     if (!isPlatformAdmin) return undefined;
     loadThreads();
-    const timer = setInterval(() => loadThreads(true), 15000);
+    const timer = setInterval(async () => {
+      if (selectedIdRef.current) {
+        try {
+          await supportAPI.markRead(selectedIdRef.current);
+        } catch {
+          /* list() also marks read */
+        }
+      }
+      await loadThreads(true);
+      notifyDataSync('support_messages');
+    }, 15000);
     return () => clearInterval(timer);
   }, [isPlatformAdmin, loadThreads]);
+
+  async function openThread(userId) {
+    setSelectedId(userId);
+    setThreads((prev) => prev.map((thread) => (
+      thread.user_id === userId ? { ...thread, unread: 0 } : thread
+    )));
+    try {
+      await supportAPI.markRead(userId);
+    } catch {
+      /* GET thread also marks customer messages read */
+    }
+    notifyDataSync('support_messages');
+    loadThreads(true);
+  }
 
   if (!isPlatformAdmin) {
     return <Navigate to="/" replace />;
@@ -71,27 +102,42 @@ export default function SupportInbox() {
               <ul className="divide-y divide-slate-200 dark:divide-white/10">
                 {threads.map((thread) => {
                   const active = thread.user_id === selectedId;
+                  const unread = thread.unread > 0;
                   return (
                     <li key={thread.user_id}>
                       <button
                         type="button"
-                        onClick={() => setSelectedId(thread.user_id)}
+                        onClick={() => openThread(thread.user_id)}
                         className={`w-full px-4 py-3 text-left ${
                           active ? 'bg-emerald-500/10' : 'hover:bg-slate-50 dark:hover:bg-white/5'
                         }`}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <p className="truncate font-medium text-slate-900 dark:text-slate-100">
+                          <p
+                            className={`truncate ${
+                              unread
+                                ? 'font-semibold text-slate-900 dark:text-white'
+                                : 'font-medium text-slate-700 dark:text-slate-200'
+                            }`}
+                          >
                             {thread.full_name}
                           </p>
-                          {thread.unread > 0 ? (
-                            <span className="badge badge-red">{thread.unread}</span>
+                          {unread ? (
+                            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-semibold text-white">
+                              {thread.unread}
+                            </span>
                           ) : null}
                         </div>
                         <p className="mt-0.5 truncate text-xs text-slate-500">
                           {thread.phone || thread.email}
                         </p>
-                        <p className="mt-1 truncate text-sm text-slate-600 dark:text-slate-300">
+                        <p
+                          className={`mt-1 truncate text-sm ${
+                            unread
+                              ? 'font-medium text-slate-800 dark:text-slate-100'
+                              : 'text-slate-600 dark:text-slate-300'
+                          }`}
+                        >
                           {thread.last_message}
                         </p>
                         <p className="mt-1 text-[11px] text-slate-400">{formatTime(thread.last_at)}</p>

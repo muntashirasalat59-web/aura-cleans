@@ -215,6 +215,12 @@ export const authAPI = {
 
 export const supportAPI = {
   threads: () => request('/support-messages/threads'),
+  unreadCount: () => request('/support-messages/unread-count'),
+  markRead: (userId) =>
+    request('/support-messages/read', {
+      method: 'PATCH',
+      body: JSON.stringify({ user_id: userId }),
+    }),
   list: (opts = {}) => {
     const params = new URLSearchParams();
     if (opts.user_id) params.set('user_id', opts.user_id);

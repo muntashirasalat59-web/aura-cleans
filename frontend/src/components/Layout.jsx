@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   Activity,
@@ -37,6 +37,8 @@ import GlobalSearch from './erp/GlobalSearch';
 import HeaderLiveClock from './erp/HeaderLiveClock';
 import { useLiveWeather } from '../hooks/useLiveWeather';
 import { LiveWeatherProvider } from '../context/LiveWeatherContext';
+import { supportAPI } from '../api';
+import { useDataSync } from '../hooks/useDataSync';
 
 const QUICK_ACTIONS = [
   { label: 'New invoice', path: '/sales' },
@@ -132,6 +134,30 @@ export default function Layout() {
   );
 
   const trialState = getTrialSidebarState(profile);
+  const isPlatformAdmin = Boolean(profile?.is_platform_admin);
+  const [supportUnread, setSupportUnread] = useState(0);
+
+  const loadSupportUnread = useCallback(async () => {
+    if (!isPlatformAdmin) {
+      setSupportUnread(0);
+      return;
+    }
+    try {
+      const data = await supportAPI.unreadCount();
+      setSupportUnread(Number(data?.unread) || 0);
+    } catch {
+      /* ignore — badge is non-blocking */
+    }
+  }, [isPlatformAdmin]);
+
+  useEffect(() => {
+    if (!isPlatformAdmin) return undefined;
+    loadSupportUnread();
+    const timer = setInterval(loadSupportUnread, 15000);
+    return () => clearInterval(timer);
+  }, [isPlatformAdmin, loadSupportUnread]);
+
+  useDataSync('support_messages', () => loadSupportUnread());
 
   useEffect(() => {
     refreshProfile?.();
@@ -287,6 +313,13 @@ export default function Layout() {
                             />
                             <Icon className={`h-3.5 w-3.5 shrink-0 ${active ? 'text-white' : ''}`} />
                             <span className={`truncate ${railCollapsed ? 'lg:hidden' : ''}`}>{item.label}</span>
+                            {item.path === '/support' && supportUnread > 0 ? (
+                              <span
+                                className={`app-nav-unread ${railCollapsed ? 'lg:absolute lg:right-1 lg:top-1' : 'ml-auto'}`}
+                              >
+                                {supportUnread > 99 ? '99+' : supportUnread}
+                              </span>
+                            ) : null}
                           </Link>
                         </li>
                       );
