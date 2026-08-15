@@ -15,8 +15,8 @@ const VARIANTS = {
   header: { height: 32, maxWidth: 140 },
   login: { height: 48, maxWidth: 180 },
   'login-hero': { height: 64, maxWidth: 200, smHeight: 72 },
-  /** Invoice letterhead — ~56px keeps logo sharp vs 612×408 source */
-  invoice: { height: 56, maxWidth: 280 },
+  /** Invoice letterhead — contained in a 160×64 slot */
+  invoice: { height: 64, maxWidth: 160 },
 };
 
 function displayWidth(heightPx) {

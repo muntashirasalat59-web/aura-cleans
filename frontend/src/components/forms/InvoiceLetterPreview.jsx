@@ -30,7 +30,7 @@ function InvoiceSettingsLogo({ url, version }) {
 
   if (!src || failed) {
     if (url && failed) return null;
-    return <AuraBrandLogo variant="invoice" />;
+    return <AuraBrandLogo variant="invoice" className="h-full w-full max-w-full" />;
   }
 
   return (
@@ -107,13 +107,8 @@ export default function InvoiceLetterPreview({
                   <p className="invoice-legal-name">{settings.company_name}</p>
                 )}
                 {address && <p className="invoice-meta-line">{address}</p>}
-                {(phone || gstin) && (
-                  <p className="invoice-meta-line">
-                    {phone ? `Phone: ${phone}` : ''}
-                    {phone && gstin ? '    ' : ''}
-                    {gstin ? `GSTIN: ${gstin}` : ''}
-                  </p>
-                )}
+                {phone && <p className="invoice-meta-line">Phone: {phone}</p>}
+                {gstin && <p className="invoice-meta-line">GSTIN: {gstin}</p>}
                 {issuerState && <p className="invoice-meta-line">State: {issuerState}</p>}
               </>
             ) : (
