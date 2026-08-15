@@ -14,10 +14,11 @@ export default function Login() {
   const { signIn, loading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState(location.state?.phone || '');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const signedUp = Boolean(location.state?.signedUp);
 
   const from = location.state?.from || '/';
   const configured = isSupabaseConfigured();
@@ -42,7 +43,7 @@ export default function Login() {
 
     setSubmitting(true);
     try {
-      await signIn(email, password);
+      await signIn(identifier, password);
       try {
         sessionStorage.removeItem(STOCK_ALERT_DISMISS_KEY);
         sessionStorage.removeItem(PAYMENT_ALERT_DISMISS_KEY);
@@ -91,6 +92,9 @@ export default function Login() {
             </div>
 
             <h2 className="login-3d-title">Sign in</h2>
+            {signedUp ? (
+              <p className="login-3d-lead">Account created. Sign in with your phone number.</p>
+            ) : null}
 
             {!configured && (
               <p className="login-3d-warn">
@@ -101,16 +105,16 @@ export default function Login() {
 
             <form onSubmit={handleSubmit} className="login-3d-form">
               <label className="login-3d-field login-3d-field-email">
-                <span className="login-3d-label">Email</span>
+                <span className="login-3d-label">Phone or email</span>
                 <input
-                  type="email"
-                  autoComplete="email"
+                  type="text"
+                  autoComplete="username"
                   required
                   disabled={!configured || submitting}
                   className="login-3d-input"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@company.com"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="10-digit mobile or email"
                 />
               </label>
 
@@ -131,11 +135,11 @@ export default function Login() {
               {error && (
                 <p className="login-3d-error" role="alert">
                   {error}
-                  {/verify your email/i.test(error) && email.trim() ? (
+                  {/verify your email/i.test(error) && identifier.includes('@') ? (
                     <>
                       {' '}
                       <Link
-                        to={`/check-email?email=${encodeURIComponent(email.trim().toLowerCase())}`}
+                        to={`/check-email?email=${encodeURIComponent(identifier.trim().toLowerCase())}`}
                         className="login-3d-footer-link"
                       >
                         Resend email

@@ -32,7 +32,9 @@ const reportsRouter = require('./routes/reports');
 const authRouter = require('./routes/auth');
 const usersRouter = require('./routes/users');
 const activityLogRouter = require('./routes/activityLog');
+const supportMessagesRouter = require('./routes/supportMessages');
 const { requireAuth, requireAdmin } = require('./middleware/auth');
+const { checkAccess } = require('./middleware/checkAccess');
 
 // Public
 app.get('/api/health', async (req, res) => {
@@ -47,21 +49,22 @@ app.get('/api/health', async (req, res) => {
 });
 
 app.use('/api/auth', authRouter);
+app.use('/api/support-messages', requireAuth, supportMessagesRouter);
 
 // Authenticated (admin + staff)
-app.use('/api/dashboard', requireAuth, dashboardRouter);
-app.use('/api/products', requireAuth, productsRouter);
-app.use('/api/parties', requireAuth, partiesRouter);
-app.use('/api/sales', requireAuth, salesRouter);
+app.use('/api/dashboard', requireAuth, checkAccess, dashboardRouter);
+app.use('/api/products', requireAuth, checkAccess, productsRouter);
+app.use('/api/parties', requireAuth, checkAccess, partiesRouter);
+app.use('/api/sales', requireAuth, checkAccess, salesRouter);
 
 // Admin only
-app.use('/api/purchases', requireAuth, requireAdmin, purchasesRouter);
-app.use('/api/expenses', requireAuth, requireAdmin, expensesRouter);
-app.use('/api/employees', requireAuth, requireAdmin, employeesRouter);
-app.use('/api/reports', requireAuth, requireAdmin, reportsRouter);
-app.use('/api/users', requireAuth, requireAdmin, usersRouter);
-app.use('/api/activity-log', requireAuth, requireAdmin, activityLogRouter);
-app.use('/api/settings', requireAuth, require('./routes/settings'));
+app.use('/api/purchases', requireAuth, requireAdmin, checkAccess, purchasesRouter);
+app.use('/api/expenses', requireAuth, requireAdmin, checkAccess, expensesRouter);
+app.use('/api/employees', requireAuth, requireAdmin, checkAccess, employeesRouter);
+app.use('/api/reports', requireAuth, requireAdmin, checkAccess, reportsRouter);
+app.use('/api/users', requireAuth, requireAdmin, checkAccess, usersRouter);
+app.use('/api/activity-log', requireAuth, requireAdmin, checkAccess, activityLogRouter);
+app.use('/api/settings', requireAuth, checkAccess, require('./routes/settings'));
 
 // Start server
 app.listen(PORT, () => {

@@ -9,7 +9,7 @@ export function mapAuthError(error) {
     message.includes('wrong password') ||
     message.includes('user not found')
   ) {
-    return 'Invalid email or password';
+    return 'Invalid phone, email, or password';
   }
 
   if (
@@ -32,5 +32,5 @@ export function mapAuthError(error) {
     return 'Account not provisioned. Contact your administrator.';
   }
 
-  return 'Invalid email or password';
+  return 'Invalid phone, email, or password';
 }

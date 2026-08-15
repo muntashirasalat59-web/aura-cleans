@@ -142,6 +142,41 @@ export function indianPhone10(value, { required = false } = {}) {
   return null;
 }
 
+const PHONE_AUTH_DOMAIN = 'phone.auraclean.internal';
+
+export function normalizeIndianMobile(value) {
+  let raw = String(value ?? '').replace(/\D/g, '');
+  if (raw.startsWith('91') && raw.length === 12) raw = raw.slice(2);
+  return raw;
+}
+
+/** Signup/login: 10 digits, starts 6–9, reject 0000000000 / 9999999999. */
+export function indianMobileStrict(value) {
+  const raw = normalizeIndianMobile(value);
+  if (!raw) return 'Enter a 10-digit mobile number';
+  if (raw.length !== 10) return 'Mobile number must be exactly 10 digits';
+  if (!/^[6-9]/.test(raw)) return 'Indian mobile numbers start with 6, 7, 8, or 9';
+  if (/^(\d)\1{9}$/.test(raw)) return 'Enter a real mobile number — repeated digits are not valid';
+  return null;
+}
+
+export function phoneToAuthEmail(phone) {
+  return `${normalizeIndianMobile(phone)}@${PHONE_AUTH_DOMAIN}`;
+}
+
+export function looksLikeIndianMobile(value) {
+  return indianMobileStrict(value) == null;
+}
+
+export function loginIdentifierToEmail(value) {
+  const raw = String(value ?? '').trim();
+  return looksLikeIndianMobile(raw) ? phoneToAuthEmail(raw) : raw.toLowerCase();
+}
+
+export function isPhoneAuthEmail(email) {
+  return String(email || '').toLowerCase().endsWith(`@${PHONE_AUTH_DOMAIN}`);
+}
+
 /**
  * GSTIN: 2 state + 10 PAN + entity + Z + check (15 chars).
  * Empty allowed unless required.

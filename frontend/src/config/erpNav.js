@@ -37,6 +37,13 @@ export const ERP_NAV_SECTIONS = [
     items: [
       { path: '/employees', label: 'Employees', key: 'employees', roles: [ROLES.ADMIN] },
       { path: '/users', label: 'Users', key: 'users', roles: [ROLES.ADMIN] },
+      {
+        path: '/support',
+        label: 'Support inbox',
+        key: 'support_inbox',
+        roles: [ROLES.ADMIN],
+        platformOnly: true,
+      },
       { path: '/activity-log', label: 'Activity Log', key: 'activity_log', roles: [ROLES.ADMIN] },
       {
         path: '/settings/business',
@@ -47,12 +54,15 @@ export const ERP_NAV_SECTIONS = [
     ],
   },
 ];
-export function erpNavForRole(role) {
+export function erpNavForRole(role, { isPlatformAdmin = false } = {}) {
   if (!role) return [];
   const effectiveRole = role === ROLES.SUPER_ADMIN ? ROLES.ADMIN : role;
   return ERP_NAV_SECTIONS.map((section) => ({
     ...section,
-    items: section.items.filter((item) => item.roles.includes(effectiveRole)),
+    items: section.items.filter((item) => {
+      if (item.platformOnly && !isPlatformAdmin) return false;
+      return item.roles.includes(effectiveRole);
+    }),
   })).filter((section) => section.items.length > 0);
 }
 
@@ -63,8 +73,11 @@ export function flattenNavItems(sections = ERP_NAV_SECTIONS) {
 export const PAGE_TITLES = Object.fromEntries(flattenNavItems().map((item) => [item.path, item.label]));
 
 /** Global search index */
-export function buildSearchIndex() {
-  return flattenNavItems().map((item) => ({
+export function buildSearchIndex({ role, isPlatformAdmin = false } = {}) {
+  const items = role
+    ? flattenNavItems(erpNavForRole(role, { isPlatformAdmin }))
+    : flattenNavItems().filter((item) => !item.platformOnly);
+  return items.map((item) => ({
     type: 'module',
     title: item.label,
     path: item.path,

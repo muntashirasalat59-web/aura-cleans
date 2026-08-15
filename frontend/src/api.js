@@ -65,6 +65,7 @@ async function request(url, options = {}) {
     const err = new Error(message);
     err.status = response.status;
     err.code = body?.code || null;
+    err.detail = body?.detail || null;
     throw err;
   }
 
@@ -210,6 +211,17 @@ export const authAPI = {
       method: 'POST',
       body: JSON.stringify({ email }),
     }),
+};
+
+export const supportAPI = {
+  threads: () => request('/support-messages/threads'),
+  list: (opts = {}) => {
+    const params = new URLSearchParams();
+    if (opts.user_id) params.set('user_id', opts.user_id);
+    const qs = params.toString();
+    return request(`/support-messages${qs ? `?${qs}` : ''}`);
+  },
+  send: (data) => request('/support-messages', { method: 'POST', body: JSON.stringify(data) }),
 };
 
 export const usersAPI = {
