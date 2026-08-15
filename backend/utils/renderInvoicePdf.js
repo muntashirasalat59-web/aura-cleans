@@ -46,7 +46,10 @@ const COL_W = {
 };
 
 const LOGO_PATH = path.join(__dirname, '../assets/logo.png');
-const LOGO_MAX_HEIGHT = 56;
+const LOGO_BOX_W = 160;
+const LOGO_BOX_H = 64;
+const CONTINUATION_LOGO_W = 96;
+const CONTINUATION_LOGO_H = 32;
 const SIGNATURE_PATH = path.join(__dirname, '../assets/signature.png');
 const STAMP_PATH = path.join(__dirname, '../assets/stamp.png');
 /** Signature asset is wide (733×340) — size by height so it is not crushed in a square fit */
@@ -56,7 +59,6 @@ const SIGNATORY_BLOCK_H = Math.max(SIGNATURE_HEIGHT, COMPANY_STAMP_SIZE) + 18;
 const FOOTER_NOTE = 'Thank you for your business.';
 const SETUP_HINT = 'Set up your business details in Settings';
 const PDF_PAGE = { size: 'A4', margin: 0 };
-const CONTINUATION_LOGO_H = 28;
 const CLOSING_BLOCK_H = SIGNATORY_BLOCK_H + 40;
 
 function formatDisplayDate(iso) {
@@ -122,13 +124,15 @@ function openLogoImage(doc, business, remoteBuffer) {
 function drawBrandLogo(doc, x, y, business, remoteBuffer) {
   const img = openLogoImage(doc, business, remoteBuffer);
   if (img) {
-    const height = LOGO_MAX_HEIGHT;
-    const width = img.height ? (img.width / img.height) * height : height * 1.5;
-    doc.image(img, x, y, { height });
-    return { height, width, stacked: true };
+    doc.image(img, x, y, {
+      fit: [LOGO_BOX_W, LOGO_BOX_H],
+      align: 'left',
+      valign: 'center',
+    });
+    return { height: LOGO_BOX_H, width: LOGO_BOX_W, stacked: true };
   }
   drawLogoPlaceholder(doc, x, y, business);
-  return { height: 52, width: 52, stacked: false };
+  return { height: LOGO_BOX_H, width: 52, stacked: false };
 }
 
 function drawLogoPlaceholder(doc, x, y, business) {
@@ -177,12 +181,13 @@ function drawCompanyMeta(doc, x, startY, maxWidth, business) {
   }
 
   const phone = String(business.phone || '').trim();
+  if (phone) {
+    y = drawDetailMetaLine(doc, `Phone: ${phone}`, x, y, maxWidth);
+  }
+
   const gstin = String(business.gstin || '').trim();
-  const contactParts = [];
-  if (phone) contactParts.push(`Phone: ${phone}`);
-  if (gstin) contactParts.push(`GSTIN: ${gstin}`);
-  if (contactParts.length) {
-    y = drawDetailMetaLine(doc, contactParts.join('    '), x, y, maxWidth);
+  if (gstin) {
+    y = drawDetailMetaLine(doc, `GSTIN: ${gstin}`, x, y, maxWidth);
   }
 
   const state =
@@ -549,10 +554,12 @@ function drawContinuationHeader(doc, business, logoBuffer) {
   const img = openLogoImage(doc, business, logoBuffer);
   let x = M;
   if (img) {
-    const height = CONTINUATION_LOGO_H;
-    const width = img.height ? (img.width / img.height) * height : height * 1.5;
-    doc.image(img, x, topY, { height });
-    x += width + 8;
+    doc.image(img, x, topY, {
+      fit: [CONTINUATION_LOGO_W, CONTINUATION_LOGO_H],
+      align: 'left',
+      valign: 'center',
+    });
+    x += CONTINUATION_LOGO_W + 8;
   } else {
     drawLogoPlaceholder(doc, x, topY, business);
     x += 54;
