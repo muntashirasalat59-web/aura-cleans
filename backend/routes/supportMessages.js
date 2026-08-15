@@ -15,6 +15,50 @@ function denyIfTrialActive(req, res) {
   return false;
 }
 
+router.get('/unread-count', async (req, res) => {
+  try {
+    if (!req.profile?.is_platform_admin) {
+      return res.status(403).json({ error: 'Platform admin access required' });
+    }
+
+    const admin = getSupabaseAdmin();
+    const { count, error } = await admin
+      .from('support_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('sender', 'customer')
+      .eq('is_read', false);
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ unread: count || 0 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch('/read', async (req, res) => {
+  try {
+    if (!req.profile?.is_platform_admin) {
+      return res.status(403).json({ error: 'Platform admin access required' });
+    }
+
+    const userId = String(req.body?.user_id || req.query.user_id || '').trim();
+    if (!userId) return res.status(400).json({ error: 'user_id is required' });
+
+    const admin = getSupabaseAdmin();
+    const { error } = await admin
+      .from('support_messages')
+      .update({ is_read: true })
+      .eq('user_id', userId)
+      .eq('sender', 'customer')
+      .eq('is_read', false);
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true, user_id: userId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/threads', async (req, res) => {
   try {
     if (!req.profile?.is_platform_admin) {
