@@ -41,6 +41,7 @@ function InvoiceSettingsLogo({ url, version }) {
       className="invoice-brand-logo brand-logo--invoice"
       onError={() => setFailed(true)}
       decoding="async"
+      fetchPriority="high"
     />
   );
 }

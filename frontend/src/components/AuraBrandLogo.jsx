@@ -15,8 +15,8 @@ const VARIANTS = {
   header: { height: 32, maxWidth: 140 },
   login: { height: 48, maxWidth: 180 },
   'login-hero': { height: 64, maxWidth: 200, smHeight: 72 },
-  /** Invoice letterhead — contained in a 160×64 slot */
-  invoice: { height: 64, maxWidth: 160 },
+  /** Invoice letterhead — contained in a 200×100 slot; CSS scales the original file down */
+  invoice: { height: 100, maxWidth: 200 },
 };
 
 function displayWidth(heightPx) {
@@ -29,21 +29,31 @@ function displayWidth(heightPx) {
  */
 export default function AuraBrandLogo({ variant = 'sidebar', className = '' }) {
   const cfg = VARIANTS[variant] || VARIANTS.sidebar;
+  const invoice = variant === 'invoice';
 
-  const style = {
-    height: `${cfg.height}px`,
-    maxHeight: `${cfg.height}px`,
-    width: 'auto',
-    maxWidth: `${cfg.maxWidth}px`,
-  };
+  const style = invoice
+    ? {
+        width: 'auto',
+        height: 'auto',
+        maxWidth: `${cfg.maxWidth}px`,
+        maxHeight: `${cfg.height}px`,
+        objectFit: 'contain',
+        objectPosition: 'left center',
+      }
+    : {
+        height: `${cfg.height}px`,
+        maxHeight: `${cfg.height}px`,
+        width: 'auto',
+        maxWidth: `${cfg.maxWidth}px`,
+      };
 
   return (
     <div className={`flex items-center gap-2.5 min-w-0 ${className}`}>
       <img
         src={LOGO_SRC}
         alt={AURA.name}
-        width={displayWidth(cfg.height)}
-        height={cfg.height}
+        width={invoice ? LOGO_NATURAL.width : displayWidth(cfg.height)}
+        height={invoice ? LOGO_NATURAL.height : cfg.height}
         className={`brand-logo brand-logo--${variant}`}
         style={style}
         decoding="async"

@@ -6,7 +6,7 @@ const { formatInr } = require('./pdfInvoice');
 const { hasPaymentData, enrichPaymentFields } = require('./salePayment');
 const { formatAddress, formatStreetAddress, isConfigured } = require('./businessSettings');
 const { invoicePlaceOfSupply, shippingIsSameAsBilling, derivePlaceOfSupply } = require('./placeOfSupply');
-const { fetchImageBuffer } = require('./imageFetch');
+const { fetchImageAsset } = require('./imageFetch');
 
 const PAGE_W = 595.28;
 const M = 48;
@@ -46,10 +46,10 @@ const COL_W = {
 };
 
 const LOGO_PATH = path.join(__dirname, '../assets/logo.png');
-const LOGO_BOX_W = 160;
-const LOGO_BOX_H = 64;
-const CONTINUATION_LOGO_W = 96;
-const CONTINUATION_LOGO_H = 32;
+const LOGO_BOX_W = 200;
+const LOGO_BOX_H = 100;
+const CONTINUATION_LOGO_W = 120;
+const CONTINUATION_LOGO_H = 52;
 const SIGNATURE_PATH = path.join(__dirname, '../assets/signature.png');
 const STAMP_PATH = path.join(__dirname, '../assets/stamp.png');
 /** Signature asset is wide (733×340) — size by height so it is not crushed in a square fit */
@@ -99,10 +99,11 @@ function drawAccentBar(doc) {
   doc.restore();
 }
 
-function openLogoImage(doc, business, remoteBuffer) {
-  if (remoteBuffer) {
+function openLogoImage(doc, business, asset) {
+  const buffer = asset && asset.kind !== 'svg' ? asset.buffer : null;
+  if (buffer) {
     try {
-      return doc.openImage(remoteBuffer);
+      return doc.openImage(buffer);
     } catch (err) {
       console.warn('[invoice-pdf] could not open Business Settings logo', err.message);
     }
@@ -121,14 +122,44 @@ function openLogoImage(doc, business, remoteBuffer) {
   return null;
 }
 
-function drawBrandLogo(doc, x, y, business, remoteBuffer) {
-  const img = openLogoImage(doc, business, remoteBuffer);
-  if (img) {
-    doc.image(img, x, y, {
-      fit: [LOGO_BOX_W, LOGO_BOX_H],
-      align: 'left',
-      valign: 'center',
+function tryDrawSvgLogo(doc, x, y, boxW, boxH, svgBuffer) {
+  let SVGtoPDF;
+  try {
+    SVGtoPDF = require('svg-to-pdfkit');
+  } catch {
+    return false;
+  }
+  try {
+    const svg = svgBuffer.toString('utf8');
+    SVGtoPDF(doc, svg, x, y, {
+      width: boxW,
+      height: boxH,
+      preserveAspectRatio: 'xMinYMid meet',
+      assumePt: true,
     });
+    return true;
+  } catch (err) {
+    console.warn('[invoice-pdf] could not draw SVG logo', err.message);
+    return false;
+  }
+}
+
+function drawContainedRaster(doc, img, x, y, boxW, boxH) {
+  doc.image(img, x, y, {
+    fit: [boxW, boxH],
+    align: 'left',
+    valign: 'center',
+  });
+}
+
+function drawBrandLogo(doc, x, y, business, asset) {
+  if (asset?.kind === 'svg' && tryDrawSvgLogo(doc, x, y, LOGO_BOX_W, LOGO_BOX_H, asset.buffer)) {
+    return { height: LOGO_BOX_H, width: LOGO_BOX_W, stacked: true };
+  }
+
+  const img = openLogoImage(doc, business, asset);
+  if (img) {
+    drawContainedRaster(doc, img, x, y, LOGO_BOX_W, LOGO_BOX_H);
     return { height: LOGO_BOX_H, width: LOGO_BOX_W, stacked: true };
   }
   drawLogoPlaceholder(doc, x, y, business);
@@ -152,7 +183,7 @@ function drawLogoPlaceholder(doc, x, y, business) {
 const META_DETAIL_SIZE = 8;
 const META_DETAIL_LINE = 11;
 const META_DETAIL_GAP = 6;
-const HEADER_DIVIDER_GAP = 22;
+const HEADER_DIVIDER_GAP = 16;
 
 function drawDetailMetaLine(doc, text, x, y, maxWidth) {
   doc.font('InvoiceRegular').fontSize(META_DETAIL_SIZE).fillColor(C.muted);
@@ -200,15 +231,15 @@ function drawCompanyMeta(doc, x, startY, maxWidth, business) {
   return y;
 }
 
-function drawHeader(doc, sale, business, logoBuffer) {
+function drawHeader(doc, sale, business, logoAsset) {
   drawAccentBar(doc);
 
   const topY = M + 8;
-  const logo = drawBrandLogo(doc, M, topY, business, logoBuffer);
+  const logo = drawBrandLogo(doc, M, topY, business, logoAsset);
   const metaW = 220;
   const metaX = RIGHT - metaW;
   const detailsX = logo.stacked ? M : M + logo.width + 10;
-  const detailsY = logo.stacked ? topY + logo.height + 10 : topY + 2;
+  const detailsY = logo.stacked ? topY + logo.height + 14 : topY + 2;
   const metaWidth = Math.max(180, metaX - detailsX - 12);
 
   const leftBottom = drawCompanyMeta(doc, detailsX, detailsY, metaWidth, business);
@@ -241,7 +272,7 @@ function drawHeader(doc, sale, business, logoBuffer) {
   const dividerY = contentBottom + HEADER_DIVIDER_GAP;
   hLine(doc, dividerY, C.text, 0.75);
 
-  return dividerY + 28;
+  return dividerY + 20;
 }
 
 function drawSectionLabel(doc, label, x, y) {
@@ -304,7 +335,7 @@ function drawBillToCard(doc, sale, startY) {
     startY,
     cardW
   );
-  return startY + Math.max(billH, shipH) + 20;
+  return startY + Math.max(billH, shipH) + 16;
 }
 
 function drawTableHeader(doc, y) {
@@ -548,27 +579,32 @@ function drawClosingAfterContent(doc, startY) {
   return drawThankYouNote(doc, y + 6);
 }
 
-function drawContinuationHeader(doc, business, logoBuffer) {
+function drawContinuationHeader(doc, business, logoAsset) {
   drawAccentBar(doc);
   const topY = M;
-  const img = openLogoImage(doc, business, logoBuffer);
-  let x = M;
-  if (img) {
-    doc.image(img, x, topY, {
-      fit: [CONTINUATION_LOGO_W, CONTINUATION_LOGO_H],
-      align: 'left',
-      valign: 'center',
-    });
-    x += CONTINUATION_LOGO_W + 8;
+  if (logoAsset?.kind === 'svg' && tryDrawSvgLogo(doc, M, topY, CONTINUATION_LOGO_W, CONTINUATION_LOGO_H, logoAsset.buffer)) {
+    const name = String(business?.company_name || '').trim();
+    if (name) {
+      doc.font('InvoiceBold').fontSize(9).fillColor(C.text).text(name.toUpperCase(), M + CONTINUATION_LOGO_W + 8, topY + 16, {
+        width: CONTENT_W - CONTINUATION_LOGO_W - 8,
+      });
+    }
   } else {
-    drawLogoPlaceholder(doc, x, topY, business);
-    x += 54;
-  }
-  const name = String(business?.company_name || '').trim();
-  if (name) {
-    doc.font('InvoiceBold').fontSize(9).fillColor(C.text).text(name.toUpperCase(), x, topY + 8, {
-      width: CONTENT_W - (x - M),
-    });
+    const img = openLogoImage(doc, business, logoAsset);
+    let x = M;
+    if (img) {
+      drawContainedRaster(doc, img, x, topY, CONTINUATION_LOGO_W, CONTINUATION_LOGO_H);
+      x += CONTINUATION_LOGO_W + 8;
+    } else {
+      drawLogoPlaceholder(doc, x, topY, business);
+      x += 54;
+    }
+    const name = String(business?.company_name || '').trim();
+    if (name) {
+      doc.font('InvoiceBold').fontSize(9).fillColor(C.text).text(name.toUpperCase(), x, topY + 16, {
+        width: CONTENT_W - (x - M),
+      });
+    }
   }
   const bottom = topY + CONTINUATION_LOGO_H + 10;
   hLine(doc, bottom, C.text, 0.5);
@@ -583,7 +619,7 @@ function ensureLineItemSpace(doc, y, needed, ctx) {
   if (y + needed <= pageBottom(doc)) return y;
   doc.addPage();
   doc.font('InvoiceRegular');
-  const nextY = drawContinuationHeader(doc, ctx.business, ctx.logoBuffer);
+  const nextY = drawContinuationHeader(doc, ctx.business, ctx.logoAsset);
   return drawTableHeader(doc, nextY);
 }
 
@@ -591,17 +627,17 @@ function ensureBlockSpace(doc, y, needed, ctx) {
   if (y + needed <= pageBottom(doc)) return y;
   doc.addPage();
   doc.font('InvoiceRegular');
-  return drawContinuationHeader(doc, ctx.business, ctx.logoBuffer);
+  return drawContinuationHeader(doc, ctx.business, ctx.logoAsset);
 }
 
 /** Render a premium tax invoice PDF into an open PDFKit document. */
 async function renderPremiumInvoicePdf(doc, sale, business = null) {
-  const logoBuffer = await fetchImageBuffer(business?.logo_url);
-  const ctx = { sale, business, logoBuffer };
+  const logoAsset = await fetchImageAsset(business?.logo_url);
+  const ctx = { sale, business, logoAsset };
 
   doc.font('InvoiceRegular');
 
-  let y = drawHeader(doc, sale, business, logoBuffer);
+  let y = drawHeader(doc, sale, business, logoAsset);
   y = drawBillToCard(doc, sale, y);
 
   drawSectionLabel(doc, 'Line Items', M, y - 4);
@@ -623,7 +659,7 @@ async function renderPremiumInvoicePdf(doc, sale, business = null) {
     M,
     y
   );
-  y = doc.y + 16;
+  y = doc.y + 12;
 
   const payment = enrichPaymentFields(sale);
   const approxSummaryH = payment.payment_status === 'partial' ? 220 : 170;

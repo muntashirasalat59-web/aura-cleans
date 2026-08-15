@@ -65,12 +65,15 @@ router.post('/business/upload-image', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'data must be a base64 image data URL' });
     }
 
-    const match = data.match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/);
+    const match = data.match(
+      /^data:image\/(png|jpeg|jpg|webp|svg\+xml)(?:;charset=[^;,]+)?;base64,(.+)$/i
+    );
     if (!match) {
-      return res.status(400).json({ error: 'Only PNG, JPEG, or WEBP images are supported' });
+      return res.status(400).json({ error: 'Only PNG, JPEG, WEBP, or SVG images are supported' });
     }
 
-    const ext = match[1] === 'jpg' ? 'jpeg' : match[1];
+    const rawExt = match[1].toLowerCase();
+    const ext = rawExt === 'jpg' ? 'jpeg' : rawExt === 'svg+xml' ? 'svg' : rawExt;
     const base64Data = match[2];
     const buffer = Buffer.from(base64Data, 'base64');
 
@@ -80,11 +83,12 @@ router.post('/business/upload-image', requireAdmin, async (req, res) => {
 
     const admin = getSupabaseAdmin();
     const filePath = `${businessId}/${type}.${ext}`;
+    const contentType = ext === 'svg' ? 'image/svg+xml' : `image/${ext}`;
 
     const { error: uploadError } = await admin.storage
       .from(BUCKET)
       .upload(filePath, buffer, {
-        contentType: `image/${ext}`,
+        contentType,
         upsert: true,
       });
 

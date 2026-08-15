@@ -1299,17 +1299,17 @@
     }
 
     .invoice-logo-slot {
-      width: 160px !important;
-      height: 64px !important;
-      max-width: 160px !important;
-      max-height: 64px !important;
+      width: 200px !important;
+      height: 100px !important;
+      max-width: 200px !important;
+      max-height: 100px !important;
     }
 
     .invoice-logo-slot img,
     .invoice-letter .invoice-brand-logo,
     .brand-logo--invoice {
-      max-width: 160px !important;
-      max-height: 64px !important;
+      max-width: 200px !important;
+      max-height: 100px !important;
       width: auto !important;
       height: auto !important;
       object-fit: contain !important;
@@ -1351,13 +1351,13 @@
   }
 
   .invoice-letter-company {
-    @apply flex min-w-0 flex-1 flex-col gap-2 sm:pr-4;
+    @apply flex min-w-0 flex-1 flex-col gap-3 sm:pr-4;
   }
 
   .invoice-logo-slot {
     @apply flex shrink-0 items-center justify-start overflow-hidden;
-    width: 160px;
-    height: 64px;
+    width: 200px;
+    height: 100px;
   }
 
   .invoice-company-meta {
@@ -1367,8 +1367,8 @@
   .invoice-logo-slot img,
   .invoice-letter .invoice-brand-logo,
   .brand-logo--invoice {
-    max-width: 160px !important;
-    max-height: 64px !important;
+    max-width: 200px !important;
+    max-height: 100px !important;
     width: auto !important;
     height: auto !important;
     object-fit: contain !important;
