@@ -55,11 +55,20 @@ const COMPANY_STAMP_SIZE = 90;
 const SIGNATORY_BLOCK_H = Math.max(SIGNATURE_HEIGHT, COMPANY_STAMP_SIZE) + 18;
 const FOOTER_NOTE = 'Thank you for your business.';
 const SETUP_HINT = 'Set up your business details in Settings';
+const PDF_PAGE = { size: 'A4', margin: 0 };
+const CONTINUATION_LOGO_H = 28;
+const CLOSING_BLOCK_H = SIGNATORY_BLOCK_H + 40;
 
 function formatDisplayDate(iso) {
   if (!iso) return '—';
-  const d = new Date(`${iso}T12:00:00`);
-  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const raw = String(iso).trim();
+  const isoDay = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoDay) return `${isoDay[3]}/${isoDay[2]}/${isoDay[1]}`;
+  const d = new Date(raw.includes('T') ? raw : `${raw}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return raw;
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}/${d.getFullYear()}`;
 }
 
 function companyInitials(name) {
@@ -206,7 +215,7 @@ function drawHeader(doc, sale, business, logoBuffer) {
   const metaRows = [
     ['Invoice No.:', sale.invoice_number || '—'],
     ['Date:', formatDisplayDate(sale.invoice_date)],
-    ['Place of Supply:', invoicePlaceOfSupply(sale)],
+    ['Place of Supply:', invoicePlaceOfSupply(sale, business)],
   ];
   let metaY = topY + 30;
   for (const [label, value] of metaRows) {
@@ -480,14 +489,11 @@ function drawPaymentDetailsCard(doc, sale, startY, business) {
   return startY + cardH;
 }
 
-function drawAuthorizedStamp(doc, lineY) {
+function drawSignatoryBlock(doc, startY) {
   const hasSignature = fs.existsSync(SIGNATURE_PATH);
   const hasStamp = fs.existsSync(STAMP_PATH);
-  if (!hasSignature && !hasStamp) return;
-
-  const labelGap = 4;
   const blockH = SIGNATORY_BLOCK_H;
-  const blockY = lineY - 8 - blockH;
+  const blockY = startY;
   const blockW = 200;
   const blockX = RIGHT - blockW;
 
@@ -506,9 +512,8 @@ function drawAuthorizedStamp(doc, lineY) {
     const sigH = SIGNATURE_HEIGHT;
     const sigW = sigImg.height ? (sigImg.width / sigImg.height) * sigH : sigH * 2.15;
     const sigX = RIGHT - sigW - (hasStamp ? COMPANY_STAMP_SIZE * 0.35 : 0);
-    const sigY = blockY + Math.max(0, (Math.max(SIGNATURE_HEIGHT, hasStamp ? COMPANY_STAMP_SIZE : 0) - sigH));
+    const sigY = blockY + Math.max(0, Math.max(SIGNATURE_HEIGHT, hasStamp ? COMPANY_STAMP_SIZE : 0) - sigH);
     doc.image(sigImg, sigX, sigY, { height: sigH });
-    // Slight double-draw for low-contrast ink
     doc.image(sigImg, sigX - 0.35, sigY, { height: sigH });
   }
 
@@ -520,47 +525,72 @@ function drawAuthorizedStamp(doc, lineY) {
       width: blockW,
       align: 'right',
     });
+
+  return startY + blockH;
 }
 
-function drawMinimalFooter(doc, sale) {
-  const footerY = doc.page.height - M - 36;
-  hLine(doc, footerY, C.border, 0.5);
-
-  doc.font('InvoiceBold').fontSize(9).fillColor(C.text).text(FOOTER_NOTE, M, footerY + 10, {
+function drawThankYouNote(doc, startY) {
+  hLine(doc, startY, C.border, 0.5);
+  doc.font('InvoiceBold').fontSize(9).fillColor(C.text).text(FOOTER_NOTE, M, startY + 10, {
     width: CONTENT_W,
     align: 'center',
   });
+  return startY + 28;
+}
 
-  if (sale?.payment_terms && !hasPaymentData(sale)) {
-    doc.font('InvoiceRegular').fontSize(7.5).fillColor(C.muted).text(sale.payment_terms, M, footerY + 26, {
-      width: CONTENT_W,
-      align: 'center',
-      lineGap: 1,
+function drawClosingAfterContent(doc, startY) {
+  const y = drawSignatoryBlock(doc, startY);
+  return drawThankYouNote(doc, y + 6);
+}
+
+function drawContinuationHeader(doc, business, logoBuffer) {
+  drawAccentBar(doc);
+  const topY = M;
+  const img = openLogoImage(doc, business, logoBuffer);
+  let x = M;
+  if (img) {
+    const height = CONTINUATION_LOGO_H;
+    const width = img.height ? (img.width / img.height) * height : height * 1.5;
+    doc.image(img, x, topY, { height });
+    x += width + 8;
+  } else {
+    drawLogoPlaceholder(doc, x, topY, business);
+    x += 54;
+  }
+  const name = String(business?.company_name || '').trim();
+  if (name) {
+    doc.font('InvoiceBold').fontSize(9).fillColor(C.text).text(name.toUpperCase(), x, topY + 8, {
+      width: CONTENT_W - (x - M),
     });
   }
+  const bottom = topY + CONTINUATION_LOGO_H + 10;
+  hLine(doc, bottom, C.text, 0.5);
+  return bottom + 14;
 }
 
-function drawClosingFooter(doc, sale) {
-  const footerY = doc.page.height - M - 36;
-  drawAuthorizedStamp(doc, footerY);
-  drawMinimalFooter(doc, sale);
+function pageBottom(doc) {
+  return doc.page.height - 36;
 }
 
-function ensureSpace(doc, y, needed, sale) {
-  const footerReserve = 155;
-  if (y + needed > doc.page.height - footerReserve) {
-    drawMinimalFooter(doc, sale);
-    doc.addPage();
-    drawAccentBar(doc);
-    doc.font('InvoiceRegular');
-    return drawTableHeader(doc, M + 12);
-  }
-  return y;
+function ensureLineItemSpace(doc, y, needed, ctx) {
+  if (y + needed <= pageBottom(doc)) return y;
+  doc.addPage();
+  doc.font('InvoiceRegular');
+  const nextY = drawContinuationHeader(doc, ctx.business, ctx.logoBuffer);
+  return drawTableHeader(doc, nextY);
+}
+
+function ensureBlockSpace(doc, y, needed, ctx) {
+  if (y + needed <= pageBottom(doc)) return y;
+  doc.addPage();
+  doc.font('InvoiceRegular');
+  return drawContinuationHeader(doc, ctx.business, ctx.logoBuffer);
 }
 
 /** Render a premium tax invoice PDF into an open PDFKit document. */
 async function renderPremiumInvoicePdf(doc, sale, business = null) {
   const logoBuffer = await fetchImageBuffer(business?.logo_url);
+  const ctx = { sale, business, logoBuffer };
 
   doc.font('InvoiceRegular');
 
@@ -573,13 +603,14 @@ async function renderPremiumInvoicePdf(doc, sale, business = null) {
 
   const gstRate = Number(sale.gst_percent) || 0;
   let lineNum = 1;
-  for (const item of sale.items) {
-    y = ensureSpace(doc, y, 24, sale);
+  for (const item of sale.items || []) {
+    y = ensureLineItemSpace(doc, y, 24, ctx);
     y = drawTableRow(doc, item, lineNum, gstRate, y, lineNum % 2 === 0);
     lineNum += 1;
   }
 
   y += 10;
+  y = ensureBlockSpace(doc, y, 24, ctx);
   doc.font('InvoiceRegular').fontSize(7).fillColor(C.muted).text(
     'Amounts exclude GST; invoice total includes CGST/SGST in the summary.',
     M,
@@ -587,21 +618,17 @@ async function renderPremiumInvoicePdf(doc, sale, business = null) {
   );
   y = doc.y + 16;
 
+  const payment = enrichPaymentFields(sale);
+  const approxSummaryH = payment.payment_status === 'partial' ? 220 : 170;
+  y = ensureBlockSpace(doc, y, approxSummaryH, ctx);
+
   const summaryTop = y;
   y = drawSummaryCard(doc, sale, summaryTop);
   const paymentEnd = drawPaymentDetailsCard(doc, sale, summaryTop, business);
-  y = Math.max(y, paymentEnd) + 20;
+  y = Math.max(y, paymentEnd) + 12;
 
-  const closingLineY = doc.page.height - M - 36;
-  const stampZoneTop = closingLineY - SIGNATORY_BLOCK_H - 28;
-  if (y > stampZoneTop) {
-    drawMinimalFooter(doc, sale);
-    doc.addPage();
-    drawAccentBar(doc);
-    doc.font('InvoiceRegular');
-  }
-
-  drawClosingFooter(doc, sale);
+  y = ensureBlockSpace(doc, y, CLOSING_BLOCK_H, ctx);
+  drawClosingAfterContent(doc, y);
 }
 
-module.exports = { renderPremiumInvoicePdf, C, M, PAGE_W };
+module.exports = { renderPremiumInvoicePdf, C, M, PAGE_W, PDF_PAGE };

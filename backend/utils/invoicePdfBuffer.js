@@ -4,12 +4,12 @@
 
 const PDFDocument = require('pdfkit');
 const { registerInvoiceFonts } = require('./pdfInvoice');
-const { renderPremiumInvoicePdf } = require('./renderInvoicePdf');
+const { renderPremiumInvoicePdf, PDF_PAGE } = require('./renderInvoicePdf');
 
 function buildInvoicePdfBuffer(sale, business) {
   return new Promise((resolve, reject) => {
     try {
-      const doc = new PDFDocument({ margin: 50 });
+      const doc = new PDFDocument(PDF_PAGE);
       registerInvoiceFonts(doc);
       doc.font('InvoiceRegular');
 

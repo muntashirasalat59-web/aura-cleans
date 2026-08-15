@@ -10,9 +10,15 @@ import {
   brandAssetSrc,
   formatBusinessAddress,
   formatBusinessStreetAddress,
+  formatDisplayDate,
 } from '../../config/business';
 import { paymentBreakdown } from '../../utils/invoicePayment';
-import { derivePlaceOfSupply, shippingIsSameAsBilling, stateFromGstin } from '../../utils/placeOfSupply';
+import {
+  derivePlaceOfSupply,
+  resolveInvoicePlaceOfSupply,
+  shippingIsSameAsBilling,
+  stateFromGstin,
+} from '../../utils/placeOfSupply';
 
 function InvoiceSettingsLogo({ url, version }) {
   const [failed, setFailed] = useState(false);
@@ -69,11 +75,17 @@ export default function InvoiceLetterPreview({
     String(settings?.state || '').trim() ||
     stateFromGstin(gstin) ||
     derivePlaceOfSupply({ gst_number: gstin, address: formatBusinessAddress(settings) });
-  const settlement = paymentBreakdown(payment, total);
-  const resolvedPlace =
-    String(placeOfSupply || '').trim() || derivePlaceOfSupply(party || {}) || '—';
   const sameShipping =
     shipSameAsBilling || shippingIsSameAsBilling(shippingAddress, party?.address);
+  const settlement = paymentBreakdown(payment, total);
+  const resolvedPlace =
+    resolveInvoicePlaceOfSupply({
+      placeOfSupply,
+      party,
+      shippingAddress: sameShipping ? party?.address : shippingAddress,
+      business: settings,
+    }) || '—';
+  const displayDate = formatDisplayDate(invoiceDate);
 
   return (
     <div
@@ -123,7 +135,7 @@ export default function InvoiceLetterPreview({
               <span>Invoice No.:</span> {invoiceNumber}
             </p>
             <p>
-              <span>Date:</span> {invoiceDate || '—'}
+              <span>Date:</span> {displayDate}
             </p>
             <p>
               <span>Place of Supply:</span> {resolvedPlace}

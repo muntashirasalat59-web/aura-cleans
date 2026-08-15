@@ -3,7 +3,7 @@ const router = express.Router();
 const PDFDocument = require('pdfkit');
 const { assertNoError } = require('../database/supabase');
 const { registerInvoiceFonts } = require('../utils/pdfInvoice');
-const { renderPremiumInvoicePdf } = require('../utils/renderInvoicePdf');
+const { renderPremiumInvoicePdf, PDF_PAGE } = require('../utils/renderInvoicePdf');
 const { fetchBusinessSettings } = require('../utils/businessSettings');
 const {
   pickPaymentPayload,
@@ -299,7 +299,7 @@ router.get('/:id/pdf', async (req, res) => {
     const sale = await fetchSaleWithItems(req.db, req.params.id);
     const business = await fetchBusinessSettings(req.accessToken, req.profile?.business_id);
 
-    const doc = new PDFDocument({ margin: 50 });
+    const doc = new PDFDocument(PDF_PAGE);
     registerInvoiceFonts(doc);
     doc.font('InvoiceRegular');
 

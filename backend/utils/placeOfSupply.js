@@ -65,16 +65,36 @@ function shippingIsSameAsBilling(shippingAddress, billingAddress) {
   return ship.toLowerCase() === String(billingAddress || '').trim().toLowerCase();
 }
 
-function invoicePlaceOfSupply(sale) {
+function businessIssuerState(business = {}) {
   return (
-    String(sale?.place_of_supply || '').trim() ||
-    derivePlaceOfSupply({ gst_number: sale?.gst_number, address: sale?.address }) ||
-    '—'
+    String(business.state || '').trim() ||
+    stateFromGstin(business.gstin) ||
+    stateFromAddress(
+      [business.address_line1, business.address_line2, business.city, business.state, business.address_display]
+        .filter(Boolean)
+        .join(', ')
+    ) ||
+    ''
   );
+}
+
+function customerPlaceOfSupply(sale = {}) {
+  return (
+    derivePlaceOfSupply({ gst_number: sale.gst_number, address: sale.address }) ||
+    stateFromAddress(sale.shipping_address) ||
+    ''
+  );
+}
+
+function invoicePlaceOfSupply(sale, business) {
+  const saved = String(sale?.place_of_supply || '').trim();
+  if (saved && saved !== '—') return saved;
+  return customerPlaceOfSupply(sale) || businessIssuerState(business) || '—';
 }
 
 module.exports = {
   derivePlaceOfSupply,
   shippingIsSameAsBilling,
+  businessIssuerState,
   invoicePlaceOfSupply,
 };

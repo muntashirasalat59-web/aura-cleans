@@ -17,8 +17,14 @@ export function isRealBusinessValue(value) {
 
 export function formatDisplayDate(iso) {
   if (!iso) return '—';
-  const d = new Date(`${iso}T12:00:00`);
-  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const raw = String(iso).trim();
+  const isoDay = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoDay) return `${isoDay[3]}/${isoDay[2]}/${isoDay[1]}`;
+  const d = new Date(raw.includes('T') ? raw : `${raw}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return raw;
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}/${d.getFullYear()}`;
 }
 
 export function computeDueDate(invoiceDate, days = DEFAULT_PAYMENT_DUE_DAYS) {
@@ -26,7 +32,10 @@ export function computeDueDate(invoiceDate, days = DEFAULT_PAYMENT_DUE_DAYS) {
   const d = new Date(`${invoiceDate}T12:00:00`);
   if (Number.isNaN(d.getTime())) return null;
   d.setDate(d.getDate() + (Number(days) || 0));
-  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return formatDisplayDate(`${yyyy}-${mm}-${dd}`);
 }
 
 export function formatBusinessAddress(settings) {
