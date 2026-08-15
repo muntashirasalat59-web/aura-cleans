@@ -6,6 +6,7 @@ const { formatInr } = require('./pdfInvoice');
 const { hasPaymentData, enrichPaymentFields } = require('./salePayment');
 const { formatAddress, formatStreetAddress, isConfigured } = require('./businessSettings');
 const { invoicePlaceOfSupply, shippingIsSameAsBilling, derivePlaceOfSupply } = require('./placeOfSupply');
+const { fetchImageBuffer } = require('./imageFetch');
 
 const PAGE_W = 595.28;
 const M = 48;
@@ -87,9 +88,31 @@ function drawAccentBar(doc) {
   doc.restore();
 }
 
-function drawBrandLogo(doc, x, y, business) {
+function openLogoImage(doc, business, remoteBuffer) {
+  if (remoteBuffer) {
+    try {
+      return doc.openImage(remoteBuffer);
+    } catch (err) {
+      console.warn('[invoice-pdf] could not open Business Settings logo', err.message);
+    }
+  }
+
+  const hasRemoteLogo = Boolean(String(business?.logo_url || '').trim());
+  if (hasRemoteLogo) return null;
+
   if (fs.existsSync(LOGO_PATH)) {
-    const img = doc.openImage(LOGO_PATH);
+    try {
+      return doc.openImage(LOGO_PATH);
+    } catch (err) {
+      console.warn('[invoice-pdf] could not open bundled logo', err.message);
+    }
+  }
+  return null;
+}
+
+function drawBrandLogo(doc, x, y, business, remoteBuffer) {
+  const img = openLogoImage(doc, business, remoteBuffer);
+  if (img) {
     const height = LOGO_MAX_HEIGHT;
     const width = img.height ? (img.width / img.height) * height : height * 1.5;
     doc.image(img, x, y, { height });
@@ -163,11 +186,11 @@ function drawCompanyMeta(doc, x, startY, maxWidth, business) {
   return y;
 }
 
-function drawHeader(doc, sale, business) {
+function drawHeader(doc, sale, business, logoBuffer) {
   drawAccentBar(doc);
 
   const topY = M + 8;
-  const logo = drawBrandLogo(doc, M, topY, business);
+  const logo = drawBrandLogo(doc, M, topY, business, logoBuffer);
   const metaW = 220;
   const metaX = RIGHT - metaW;
   const detailsX = logo.stacked ? M : M + logo.width + 10;
@@ -536,10 +559,12 @@ function ensureSpace(doc, y, needed, sale) {
 }
 
 /** Render a premium tax invoice PDF into an open PDFKit document. */
-function renderPremiumInvoicePdf(doc, sale, business = null) {
+async function renderPremiumInvoicePdf(doc, sale, business = null) {
+  const logoBuffer = await fetchImageBuffer(business?.logo_url);
+
   doc.font('InvoiceRegular');
 
-  let y = drawHeader(doc, sale, business);
+  let y = drawHeader(doc, sale, business, logoBuffer);
   y = drawBillToCard(doc, sale, y);
 
   drawSectionLabel(doc, 'Line Items', M, y - 4);

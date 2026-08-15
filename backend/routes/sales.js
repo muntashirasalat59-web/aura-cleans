@@ -308,7 +308,7 @@ router.get('/:id/pdf', async (req, res) => {
 
     doc.pipe(res);
 
-    renderPremiumInvoicePdf(doc, sale, business);
+    await renderPremiumInvoicePdf(doc, sale, business);
 
     doc.end();
   } catch (error) {

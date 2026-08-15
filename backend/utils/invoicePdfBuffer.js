@@ -18,8 +18,9 @@ function buildInvoicePdfBuffer(sale, business) {
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      renderPremiumInvoicePdf(doc, sale, business);
-      doc.end();
+      renderPremiumInvoicePdf(doc, sale, business)
+        .then(() => doc.end())
+        .catch(reject);
     } catch (err) {
       reject(err);
     }
