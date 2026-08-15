@@ -5,9 +5,9 @@ import InvoiceLineItemsTable from '../invoice/InvoiceLineItemsTable';
 import InvoicePaymentPreview from '../invoice/InvoicePaymentPreview';
 import InvoiceClosingFooter from '../invoice/InvoiceClosingFooter';
 import { useBusinessSettings } from '../../context/BusinessSettingsContext';
-import { businessGstLabel, formatBusinessAddress } from '../../config/business';
+import { formatBusinessAddress, formatBusinessStreetAddress } from '../../config/business';
 import { paymentBreakdown } from '../../utils/invoicePayment';
-import { derivePlaceOfSupply, shippingIsSameAsBilling } from '../../utils/placeOfSupply';
+import { derivePlaceOfSupply, shippingIsSameAsBilling, stateFromGstin } from '../../utils/placeOfSupply';
 
 export default function InvoiceLetterPreview({
   invoiceNumber = 'INV-DRAFT',
@@ -27,8 +27,13 @@ export default function InvoiceLetterPreview({
 }) {
   const { settings, loading } = useBusinessSettings();
   const configured = Boolean(settings?.configured);
-  const address = settings?.address_display || formatBusinessAddress(settings);
-  const gstLabel = businessGstLabel(settings);
+  const address = formatBusinessStreetAddress(settings) || settings?.address_display || formatBusinessAddress(settings);
+  const phone = settings?.phone?.trim() || '';
+  const gstin = settings?.gstin?.trim() || '';
+  const issuerState =
+    String(settings?.state || '').trim() ||
+    stateFromGstin(gstin) ||
+    derivePlaceOfSupply({ gst_number: gstin, address: formatBusinessAddress(settings) });
   const settlement = paymentBreakdown(payment, total);
   const resolvedPlace =
     String(placeOfSupply || '').trim() || derivePlaceOfSupply(party || {}) || '—';
@@ -52,18 +57,17 @@ export default function InvoiceLetterPreview({
             ) : configured ? (
               <>
                 {settings.company_name && (
-                  <p className="invoice-brand-sub font-semibold text-slate-800 dark:text-slate-100">
-                    {settings.company_name}
-                  </p>
+                  <p className="invoice-legal-name">{settings.company_name}</p>
                 )}
                 {address && <p className="invoice-meta-line">{address}</p>}
-                {gstLabel && <p className="invoice-meta-line">{gstLabel}</p>}
-                {settings.phone?.trim() && (
-                  <p className="invoice-meta-line">Phone: {settings.phone.trim()}</p>
+                {(phone || gstin) && (
+                  <p className="invoice-meta-line">
+                    {phone ? `Phone: ${phone}` : ''}
+                    {phone && gstin ? '    ' : ''}
+                    {gstin ? `GSTIN: ${gstin}` : ''}
+                  </p>
                 )}
-                {settings.email?.trim() && (
-                  <p className="invoice-meta-line">{settings.email.trim()}</p>
-                )}
+                {issuerState && <p className="invoice-meta-line">State: {issuerState}</p>}
               </>
             ) : (
               <p className="invoice-meta-line">

@@ -38,6 +38,16 @@ export function formatBusinessAddress(settings) {
     .join(', ');
 }
 
+/** Street/city only — state is shown on its own invoice line. */
+export function formatBusinessStreetAddress(settings) {
+  if (!settings) return '';
+  const street = [settings.address_line1, settings.address_line2, settings.city]
+    .map((s) => String(s || '').trim())
+    .filter(Boolean)
+    .join(', ');
+  return street || formatBusinessAddress(settings);
+}
+
 export function businessGstLabel(settings) {
   const gstin = String(settings?.gstin || '').trim();
   return gstin ? `GSTIN: ${gstin}` : '';
