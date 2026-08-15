@@ -156,7 +156,7 @@ router.patch('/:id/mark-business-paid', async (req, res) => {
       .from('businesses')
       .update({ payment_status: 'paid', payment_due_date: null })
       .eq('id', req.params.id)
-      .select('id, business_name, payment_status')
+      .select('id, business_name, owner_email, payment_status')
       .maybeSingle();
 
     if (error) {
@@ -167,10 +167,18 @@ router.patch('/:id/mark-business-paid', async (req, res) => {
     }
 
     const subscriptionEndsAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
-    await admin
+    const { data: updatedByBiz } = await admin
       .from('user_profiles')
       .update({ subscription_ends_at: subscriptionEndsAt })
-      .eq('business_id', req.params.id);
+      .eq('business_id', req.params.id)
+      .select('id');
+
+    if (!updatedByBiz?.length && data.owner_email) {
+      await admin
+        .from('user_profiles')
+        .update({ subscription_ends_at: subscriptionEndsAt })
+        .eq('email', data.owner_email);
+    }
 
     res.json({
       ...data,

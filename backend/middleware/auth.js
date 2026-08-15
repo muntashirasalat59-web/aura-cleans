@@ -1,6 +1,26 @@
   const { supabase, createClientWithToken, assertNoError, getDbClient } = require('../database/supabase');
 const { getSupabaseAdmin } = require('../database/supabaseAdmin');
 
+async function attachBusinessAccess(profile) {
+  if (!profile?.business_id) return profile;
+  try {
+    const admin = getSupabaseAdmin();
+    const { data: biz, error } = await admin
+      .from('businesses')
+      .select('payment_status, business_name')
+      .eq('id', profile.business_id)
+      .maybeSingle();
+    if (error || !biz) return profile;
+    return {
+      ...profile,
+      payment_status: biz.payment_status || profile.payment_status || null,
+      business_name: biz.business_name || profile.business_name || null,
+    };
+  } catch {
+    return profile;
+  }
+}
+
 async function fetchUserProfile(userId, accessToken) {
   try {
     const admin = getSupabaseAdmin();
@@ -10,7 +30,7 @@ async function fetchUserProfile(userId, accessToken) {
       .eq('id', userId)
       .maybeSingle();
     assertNoError(error);
-    if (data) return data;
+    if (data) return attachBusinessAccess(data);
   } catch (err) {
     if (!String(err.message).includes('SUPABASE_SERVICE_ROLE_KEY')) {
       throw err;
@@ -25,7 +45,7 @@ async function fetchUserProfile(userId, accessToken) {
     .maybeSingle();
 
   assertNoError(profileError);
-  return profile;
+  return attachBusinessAccess(profile);
 }
 
 async function requireAuth(req, res, next) {

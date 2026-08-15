@@ -29,6 +29,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { erpNavForRole, PAGE_TITLES } from '../config/erpNav';
+import { getTrialSidebarState } from '../lib/access';
 import { roleLabel } from '../config/permissions';
 import { AURA } from '../config/auraBrand';
 import AuraBrandLogo from './AuraBrandLogo';
@@ -64,7 +65,7 @@ const NAV_ICONS = {
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { profile, role, signOut } = useAuth();
+  const { profile, role, signOut, refreshProfile } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -130,10 +131,11 @@ export default function Layout() {
     [liveWeather, weatherLoading, weatherError, company.city, company.lat, company.lon]
   );
 
-  const trialDaysLeft = profile?.trial_ends_at
-    ? Math.ceil((new Date(profile.trial_ends_at) - new Date()) / (1000 * 60 * 60 * 24))
-    : null;
-  const isOnTrial = profile?.payment_status !== 'paid' && trialDaysLeft !== null;
+  const trialState = getTrialSidebarState(profile);
+
+  useEffect(() => {
+    refreshProfile?.();
+  }, [refreshProfile]);
 
   useEffect(() => {
     function onKey(e) {
@@ -297,18 +299,18 @@ export default function Layout() {
         </nav>
 
         <div className={`space-y-3 border-t border-[color:var(--aura-shell-sidebar-border)] p-4 ${railCollapsed ? 'lg:p-2' : ''}`}>
-          {isOnTrial && (
+          {trialState && (
             <div
               className={`rounded-[var(--aura-radius-button)] px-4 py-3 text-[length:var(--aura-type-body)] font-medium ${
                 railCollapsed ? 'lg:hidden' : ''
               } ${
-                trialDaysLeft > 0
+                trialState.kind === 'active'
                   ? 'bg-[color-mix(in_srgb,var(--aura-warning)_18%,transparent)] text-[color:var(--aura-warning)]'
                   : 'bg-[color-mix(in_srgb,var(--aura-danger)_18%,transparent)] text-[color:var(--aura-danger)]'
               }`}
             >
-              {trialDaysLeft > 0
-                ? `Trial: ${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'} left`
+              {trialState.kind === 'active'
+                ? `Trial: ${trialState.daysLeft} day${trialState.daysLeft === 1 ? '' : 's'} left`
                 : 'Trial expired'}
             </div>
           )}
