@@ -10,6 +10,7 @@ import { roleLabel } from '../config/permissions';
 import { useAuth } from '../context/AuthContext';
 import { useDataSync } from '../hooks/useDataSync';
 import { notifyDataSync, removeById } from '../lib/dataSync';
+import DeleteBusinessModal from '../components/DeleteBusinessModal';
 
 const TRIAL_LENGTH_DAYS = 10;
 
@@ -50,6 +51,8 @@ export default function Users() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({
     full_name: '',
     email: '',
@@ -92,17 +95,22 @@ export default function Users() {
     }
   }
 
-  async function handleDelete(user) {
-    const msg = isPlatformAdmin
-      ? `Delete business "${user.full_name}" (${user.email})?\n\nThis will permanently delete the business and its owner account. All associated data (sales, purchases, products, etc.) will also be deleted.`
-      : `Remove user ${user.full_name} (${user.email})?`;
-    if (!confirm(msg)) return;
+  function requestDelete(user) {
+    setDeleteTarget(user);
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      await usersAPI.delete(user.id);
-      setUsers((prev) => removeById(prev, user.id));
+      await usersAPI.delete(deleteTarget.id);
+      setUsers((prev) => removeById(prev, deleteTarget.id));
       notifyDataSync('user_profiles');
+      setDeleteTarget(null);
     } catch (err) {
       alert('Error: ' + err.message);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -230,7 +238,7 @@ export default function Users() {
                           Mark Paid
                         </button>
                       )}
-                      <button type="button" onClick={() => handleDelete(user)} className="link-action-danger">
+                      <button type="button" onClick={() => requestDelete(user)} className="link-action-danger">
                         <Trash2 className="h-3.5 w-3.5" />
                         Remove
                       </button>
@@ -242,6 +250,18 @@ export default function Users() {
           </table>
         </div>
       </div>
+
+      <DeleteBusinessModal
+        open={Boolean(deleteTarget)}
+        name={deleteTarget?.full_name}
+        email={deleteTarget?.email}
+        isBusiness={isPlatformAdmin}
+        confirming={deleting}
+        onClose={() => {
+          if (!deleting) setDeleteTarget(null);
+        }}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }

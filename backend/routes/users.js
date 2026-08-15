@@ -220,19 +220,34 @@ router.delete('/:id', async (req, res) => {
         return res.status(400).json({ error: 'You cannot delete your own account' });
       }
 
-      // Delete all user_profiles linked to this business first (removes FK constraint)
-      await admin.from('user_profiles').delete().eq('business_id', id);
+      const { data: cascade, error: cascadeError } = await admin.rpc('delete_business_cascade', {
+        p_business_id: String(id),
+      });
 
-      // Delete the business row
-      const { error: delBizError } = await admin.from('businesses').delete().eq('id', id);
-      if (delBizError) return res.status(400).json({ error: delBizError.message });
-
-      // Delete auth user if found
-      if (ownerAuthUser) {
-        await admin.auth.admin.deleteUser(ownerAuthUser.id);
+      if (cascadeError) {
+        const missingFn = /function.*delete_business_cascade|schema cache/i.test(
+          cascadeError.message || ''
+        );
+        return res.status(400).json({
+          error: missingFn
+            ? 'Run backend/database/supabase.migration.delete_business_cascade.sql in Supabase, then try again.'
+            : cascadeError.message,
+        });
       }
 
-      return res.json({ message: `Business "${business.business_name}" and its owner deleted successfully` });
+      const profileIds = Array.isArray(cascade?.profile_ids) ? cascade.profile_ids : [];
+      const authIds = new Set(profileIds.filter(Boolean));
+      if (ownerAuthUser?.id) authIds.add(ownerAuthUser.id);
+
+      for (const userId of authIds) {
+        if (userId === req.authUser.id) continue;
+        await admin.auth.admin.deleteUser(userId);
+      }
+
+      return res.json({
+        message: `Business "${business.business_name}" and all of its data were deleted`,
+        deleted: cascade?.deleted || null,
+      });
     }
 
     // Regular admin: `id` is a user_profiles.id (auth user UUID)
