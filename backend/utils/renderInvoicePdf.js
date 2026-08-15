@@ -5,6 +5,7 @@ const { formatProductNameWithSize } = require('./productDisplay');
 const { formatInr } = require('./pdfInvoice');
 const { hasPaymentData, enrichPaymentFields } = require('./salePayment');
 const { formatAddress, isConfigured } = require('./businessSettings');
+const { invoicePlaceOfSupply, shippingIsSameAsBilling } = require('./placeOfSupply');
 
 const PAGE_W = 595.28;
 const M = 48;
@@ -165,24 +166,32 @@ function drawHeader(doc, sale, business) {
 
   const leftBottom = drawCompanyMeta(doc, detailsX, detailsY, metaWidth, business);
 
-  const metaW = 200;
+  const metaW = 220;
   const metaX = RIGHT - metaW;
   doc.font('InvoiceBold').fontSize(20).fillColor(C.text).text('TAX INVOICE', metaX, topY, {
     width: metaW,
     align: 'right',
   });
-  doc.font('InvoiceRegular').fontSize(9).fillColor(C.muted).text(
-    `Invoice No.   ${sale.invoice_number}`,
-    metaX,
-    topY + 32,
-    { width: metaW, align: 'right', lineGap: 2 }
-  );
-  doc.text(`Date   ${formatDisplayDate(sale.invoice_date)}`, metaX, doc.y + 5, {
-    width: metaW,
-    align: 'right',
-    lineGap: 2,
-  });
-  const rightBottom = doc.y;
+
+  const metaRows = [
+    ['Invoice No.:', sale.invoice_number || '—'],
+    ['Date:', formatDisplayDate(sale.invoice_date)],
+    ['Place of Supply:', invoicePlaceOfSupply(sale)],
+  ];
+  let metaY = topY + 30;
+  for (const [label, value] of metaRows) {
+    doc.font('InvoiceRegular').fontSize(8).fillColor(C.muted).text(label, metaX, metaY, {
+      width: 88,
+      lineGap: 0,
+    });
+    doc.font('InvoiceBold').fontSize(8).fillColor(C.text).text(value, metaX + 88, metaY, {
+      width: metaW - 88,
+      align: 'right',
+      lineGap: 0,
+    });
+    metaY += 13;
+  }
+  const rightBottom = metaY;
 
   const contentBottom = Math.max(leftBottom, rightBottom, topY + logo.height);
   const dividerY = contentBottom + HEADER_DIVIDER_GAP;
@@ -197,17 +206,23 @@ function drawSectionLabel(doc, label, x, y) {
   });
 }
 
-function drawBillToCard(doc, sale, startY) {
-  const cardX = M;
-  const cardW = CONTENT_W * 0.58;
-  const pad = 14;
-
+function partyCardLines(sale, { shipping = false } = {}) {
+  if (shipping) {
+    if (shippingIsSameAsBilling(sale.shipping_address, sale.address)) {
+      return [{ text: 'Same as billing' }];
+    }
+    return [{ text: sale.shipping_address }];
+  }
   const lines = [];
   lines.push({ bold: true, size: 11, color: C.text, text: sale.party_name || '—' });
   if (sale.contact) lines.push({ text: `Contact: ${sale.contact}` });
   if (sale.address) lines.push({ text: sale.address });
   if (sale.gst_number) lines.push({ text: `GSTIN: ${sale.gst_number}` });
+  return lines;
+}
 
+function drawPartyCard(doc, label, lines, cardX, startY, cardW) {
+  const pad = 12;
   const labelH = 10;
   const contentH = lines.reduce((acc, line) => acc + (line.bold ? 16 : 14), 0);
   const cardH = pad + labelH + 8 + contentH + pad;
@@ -217,7 +232,7 @@ function drawBillToCard(doc, sale, startY) {
   doc.roundedRect(cardX, startY, cardW, cardH, 8).lineWidth(0.75).strokeColor(C.border).stroke();
   doc.restore();
 
-  drawSectionLabel(doc, 'Bill To', cardX + pad, startY + pad);
+  drawSectionLabel(doc, label, cardX + pad, startY + pad);
 
   let y = startY + pad + labelH + 8;
   for (const line of lines) {
@@ -230,7 +245,22 @@ function drawBillToCard(doc, sale, startY) {
     y = doc.y + 4;
   }
 
-  return startY + cardH + 20;
+  return cardH;
+}
+
+function drawBillToCard(doc, sale, startY) {
+  const gap = 12;
+  const cardW = (CONTENT_W - gap) / 2;
+  const billH = drawPartyCard(doc, 'Bill To', partyCardLines(sale), M, startY, cardW);
+  const shipH = drawPartyCard(
+    doc,
+    'Ship To',
+    partyCardLines(sale, { shipping: true }),
+    M + cardW + gap,
+    startY,
+    cardW
+  );
+  return startY + Math.max(billH, shipH) + 20;
 }
 
 function drawTableHeader(doc, y) {

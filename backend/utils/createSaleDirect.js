@@ -35,6 +35,26 @@ function paymentFieldsForUpdate(body, totalAmount) {
   };
 }
 
+async function applyInvoiceAddressMeta(db, saleId, body) {
+  const place = String(body?.place_of_supply || '').trim();
+  const shipping = String(body?.shipping_address || '').trim();
+  const sameAsBilling = body?.ship_same_as_billing !== false && !shipping;
+  const { error } = await db
+    .from('sales')
+    .update({
+      place_of_supply: place || null,
+      shipping_address: sameAsBilling ? null : shipping,
+    })
+    .eq('id', saleId);
+  if (error && /column|schema cache|could not find|does not exist/i.test(error.message || '')) {
+    console.warn(
+      '[sales] place_of_supply/shipping_address missing — run supabase.migration.sales_place_of_supply.sql'
+    );
+    return;
+  }
+  if (error) assertNoError(error);
+}
+
 function omitUndefined(obj) {
   return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
 }
@@ -175,6 +195,7 @@ async function createSaleDirect(db, body, invoiceNumber, gstRate) {
     assertNoError(balErr);
 
     await applyPaymentUpdate(db, saleId, body, total);
+    await applyInvoiceAddressMeta(db, saleId, body);
   } catch (err) {
     // Best-effort cleanup of the draft sale row
     await db.from('sale_items').delete().eq('sale_id', saleId);
@@ -311,7 +332,8 @@ async function updateSaleDirect(db, saleId, body, gstRate) {
     .eq('id', partyId);
 
   await applyPaymentUpdate(db, id, body, total);
+  await applyInvoiceAddressMeta(db, id, body);
   return id;
 }
 
-module.exports = { createSaleDirect, updateSaleDirect, paymentFieldsForUpdate };
+module.exports = { createSaleDirect, updateSaleDirect, paymentFieldsForUpdate, applyInvoiceAddressMeta };

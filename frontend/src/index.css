@@ -1375,6 +1375,26 @@
     color: #0f172a;
   }
 
+  .invoice-tax-heading {
+    @apply text-right;
+  }
+
+  .invoice-tax-meta {
+    @apply mt-3 space-y-1 text-left sm:text-right;
+  }
+
+  .invoice-tax-meta p {
+    @apply text-sm text-slate-700 m-0;
+  }
+
+  .invoice-tax-meta span {
+    @apply text-slate-500 font-medium mr-1.5;
+  }
+
+  .invoice-parties {
+    @apply grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6;
+  }
+
   .invoice-brand-sub {
     @apply text-sm text-indigo-600 font-medium mt-0.5;
   }
@@ -1384,7 +1404,7 @@
   }
 
   .invoice-bill-to {
-    @apply mb-6 p-4 rounded-lg bg-slate-50 border border-slate-100;
+    @apply mb-0 p-4 rounded-lg bg-slate-50 border border-slate-100;
   }
 
   .invoice-section-label {
