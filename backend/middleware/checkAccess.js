@@ -2,6 +2,8 @@ function hasValidAccess(profile) {
   if (!profile) return false;
   if (profile.is_platform_admin) return true;
 
+  if (profile.payment_status === 'paid') return true;
+
   const now = new Date();
   const hasTrial = Boolean(profile.trial_ends_at);
   const hasSub = Boolean(profile.subscription_ends_at);
