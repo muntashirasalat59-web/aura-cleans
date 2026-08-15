@@ -96,13 +96,13 @@ function BrandImageUpload({ label, icon: Icon, type, currentUrl, onUploaded }) {
               'Upload'
             )}
           </button>
-          <span className="text-xs text-[var(--aura-muted)]">PNG/JPEG, up to 2MB</span>
+          <span className="text-xs text-[var(--aura-muted)]">PNG, JPEG, or SVG, up to 2MB</span>
           {localError && <span className="text-xs text-[var(--aura-danger)]">{localError}</span>}
         </div>
         <input
           ref={inputRef}
           type="file"
-          accept="image/png,image/jpeg,image/webp"
+          accept="image/png,image/jpeg,image/webp,image/svg+xml"
           className="hidden"
           onChange={handleFile}
         />
