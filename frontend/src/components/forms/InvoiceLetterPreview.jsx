@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AuraBrandLogo from '../AuraBrandLogo';
 import GstTaxSummary from '../invoice/GstTaxSummary';
@@ -5,9 +6,38 @@ import InvoiceLineItemsTable from '../invoice/InvoiceLineItemsTable';
 import InvoicePaymentPreview from '../invoice/InvoicePaymentPreview';
 import InvoiceClosingFooter from '../invoice/InvoiceClosingFooter';
 import { useBusinessSettings } from '../../context/BusinessSettingsContext';
-import { formatBusinessAddress, formatBusinessStreetAddress } from '../../config/business';
+import {
+  brandAssetSrc,
+  formatBusinessAddress,
+  formatBusinessStreetAddress,
+} from '../../config/business';
 import { paymentBreakdown } from '../../utils/invoicePayment';
 import { derivePlaceOfSupply, shippingIsSameAsBilling, stateFromGstin } from '../../utils/placeOfSupply';
+
+function InvoiceSettingsLogo({ url, version }) {
+  const [failed, setFailed] = useState(false);
+  const src = brandAssetSrc(url, version);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
+
+  if (!src || failed) {
+    if (url && failed) return null;
+    return <AuraBrandLogo variant="invoice" />;
+  }
+
+  return (
+    <img
+      key={src}
+      src={src}
+      alt="Business logo"
+      className="invoice-brand-logo brand-logo--invoice"
+      onError={() => setFailed(true)}
+      decoding="async"
+    />
+  );
+}
 
 export default function InvoiceLetterPreview({
   invoiceNumber = 'INV-DRAFT',
@@ -25,8 +55,13 @@ export default function InvoiceLetterPreview({
   compact = false,
   forPrint = false,
 }) {
-  const { settings, loading } = useBusinessSettings();
+  const { settings, loading, refresh } = useBusinessSettings();
   const configured = Boolean(settings?.configured);
+
+  useEffect(() => {
+    refresh(true);
+  }, [refresh]);
+
   const address = formatBusinessStreetAddress(settings) || settings?.address_display || formatBusinessAddress(settings);
   const phone = settings?.phone?.trim() || '';
   const gstin = settings?.gstin?.trim() || '';
@@ -49,7 +84,7 @@ export default function InvoiceLetterPreview({
       <div className="invoice-letter-head">
         <div className="invoice-letter-company">
           <div className="invoice-logo-slot">
-            <AuraBrandLogo variant="invoice" />
+            <InvoiceSettingsLogo url={settings?.logo_url} version={settings?.updated_at} />
           </div>
           <div className="invoice-company-meta">
             {loading && !configured ? (

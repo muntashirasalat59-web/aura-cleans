@@ -53,6 +53,17 @@ export function businessGstLabel(settings) {
   return gstin ? `GSTIN: ${gstin}` : '';
 }
 
+/** Cache-bust branding URLs so a replaced logo shows on the next invoice view. */
+export function brandAssetSrc(url, version) {
+  const raw = String(url || '').trim();
+  if (!raw) return '';
+  const ms = version ? new Date(version).getTime() : NaN;
+  const stamp = Number.isFinite(ms) && ms > 0 ? String(ms) : '';
+  if (!stamp) return raw;
+  const sep = raw.includes('?') ? '&' : '?';
+  return `${raw}${sep}t=${stamp}`;
+}
+
 /** @deprecated Prefer Business Settings API — kept only for rare static fallbacks. */
 export const BUSINESS = {
   paymentDueDays: DEFAULT_PAYMENT_DUE_DAYS,
