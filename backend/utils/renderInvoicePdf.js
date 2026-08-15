@@ -4,8 +4,8 @@ const { splitGst } = require('../config/business');
 const { formatProductNameWithSize } = require('./productDisplay');
 const { formatInr } = require('./pdfInvoice');
 const { hasPaymentData, enrichPaymentFields } = require('./salePayment');
-const { formatAddress, isConfigured } = require('./businessSettings');
-const { invoicePlaceOfSupply, shippingIsSameAsBilling } = require('./placeOfSupply');
+const { formatAddress, formatStreetAddress, isConfigured } = require('./businessSettings');
+const { invoicePlaceOfSupply, shippingIsSameAsBilling, derivePlaceOfSupply } = require('./placeOfSupply');
 
 const PAGE_W = 595.28;
 const M = 48;
@@ -132,24 +132,32 @@ function drawCompanyMeta(doc, x, startY, maxWidth, business) {
     return drawDetailMetaLine(doc, SETUP_HINT, x, y, maxWidth);
   }
 
-  if (business.company_name) {
-    doc.font('InvoiceBold').fontSize(11).fillColor(C.text);
-    doc.text(business.company_name, x, y, { width: maxWidth, lineGap: 1 });
-    y = Math.max(doc.y, y + 14) + 4;
+  const legalName = String(business.company_name || '').trim();
+  if (legalName) {
+    doc.font('InvoiceBold').fontSize(13).fillColor(C.text);
+    doc.text(legalName.toUpperCase(), x, y, { width: maxWidth, lineGap: 1 });
+    y = Math.max(doc.y, y + 16) + 5;
   }
 
-  const address = business.address_display || formatAddress(business);
+  const address = formatStreetAddress(business) || business.address_display || formatAddress(business);
   if (address) {
     y = drawDetailMetaLine(doc, address, x, y, maxWidth);
   }
-  if (business.gstin) {
-    y = drawDetailMetaLine(doc, `GSTIN: ${business.gstin}`, x, y, maxWidth);
+
+  const phone = String(business.phone || '').trim();
+  const gstin = String(business.gstin || '').trim();
+  const contactParts = [];
+  if (phone) contactParts.push(`Phone: ${phone}`);
+  if (gstin) contactParts.push(`GSTIN: ${gstin}`);
+  if (contactParts.length) {
+    y = drawDetailMetaLine(doc, contactParts.join('    '), x, y, maxWidth);
   }
-  if (business.phone) {
-    y = drawDetailMetaLine(doc, `Phone: ${business.phone}`, x, y, maxWidth);
-  }
-  if (business.email) {
-    y = drawDetailMetaLine(doc, business.email, x, y, maxWidth);
+
+  const state =
+    String(business.state || '').trim() ||
+    derivePlaceOfSupply({ gst_number: gstin, address: business.address_display || formatAddress(business) });
+  if (state) {
+    y = drawDetailMetaLine(doc, `State: ${state}`, x, y, maxWidth);
   }
 
   return y;
@@ -160,14 +168,13 @@ function drawHeader(doc, sale, business) {
 
   const topY = M + 8;
   const logo = drawBrandLogo(doc, M, topY, business);
-  const metaWidth = logo.stacked ? 280 : 240;
-  const detailsX = logo.stacked ? M : M + logo.width + 10;
-  const detailsY = logo.stacked ? topY + logo.height + 10 : topY + 2;
-
-  const leftBottom = drawCompanyMeta(doc, detailsX, detailsY, metaWidth, business);
-
   const metaW = 220;
   const metaX = RIGHT - metaW;
+  const detailsX = logo.stacked ? M : M + logo.width + 10;
+  const detailsY = logo.stacked ? topY + logo.height + 10 : topY + 2;
+  const metaWidth = Math.max(180, metaX - detailsX - 12);
+
+  const leftBottom = drawCompanyMeta(doc, detailsX, detailsY, metaWidth, business);
   doc.font('InvoiceBold').fontSize(20).fillColor(C.text).text('TAX INVOICE', metaX, topY, {
     width: metaW,
     align: 'right',

@@ -200,12 +200,17 @@ export default function BusinessSettings() {
           subtitle="Appears at the top of tax invoices and PDF exports."
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FormField label="Company name" required className="sm:col-span-2">
+            <FormField
+              label="Legal company name"
+              required
+              className="sm:col-span-2"
+              hint="Shown as the main heading on tax invoices (not the AURA brand name)."
+            >
               <input
                 className="input input-premium"
                 value={form.company_name}
                 onChange={(e) => updateField('company_name', e.target.value)}
-                placeholder="e.g. AURA CLEAN"
+                placeholder="e.g. LAIBA LUBRICANT PRIVATE LIMITED"
                 required
               />
             </FormField>
@@ -232,11 +237,12 @@ export default function BusinessSettings() {
                 onChange={(e) => updateField('city', e.target.value)}
               />
             </FormField>
-            <FormField label="State">
+            <FormField label="State" hint="Shown on its own line on tax invoices.">
               <input
                 className="input input-premium"
                 value={form.state}
                 onChange={(e) => updateField('state', e.target.value)}
+                placeholder="e.g. Gujarat"
               />
             </FormField>
             <FormField label="GSTIN">

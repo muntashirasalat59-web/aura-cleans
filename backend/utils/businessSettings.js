@@ -66,6 +66,14 @@ function formatAddress(row) {
     .join(', ');
 }
 
+function formatStreetAddress(row) {
+  if (!row) return '';
+  const street = [trimStr(row.address_line1), trimStr(row.address_line2), trimStr(row.city)]
+    .filter(Boolean)
+    .join(', ');
+  return street || formatAddress(row);
+}
+
 function normalizeRow(row, businessId) {
   const base = { ...EMPTY, ...(row || {}) };
   for (const key of EDITABLE) {
@@ -182,5 +190,6 @@ module.exports = {
   upsertBusinessSettings,
   normalizeRow,
   formatAddress,
+  formatStreetAddress,
   isConfigured,
 };
