@@ -7,11 +7,15 @@ import InvoiceClosingFooter from '../invoice/InvoiceClosingFooter';
 import { useBusinessSettings } from '../../context/BusinessSettingsContext';
 import { businessGstLabel, formatBusinessAddress } from '../../config/business';
 import { paymentBreakdown } from '../../utils/invoicePayment';
+import { derivePlaceOfSupply, shippingIsSameAsBilling } from '../../utils/placeOfSupply';
 
 export default function InvoiceLetterPreview({
   invoiceNumber = 'INV-DRAFT',
   invoiceDate,
   party,
+  placeOfSupply = '',
+  shippingAddress = '',
+  shipSameAsBilling = true,
   items = [],
   gstPercent = 18,
   subtotal = 0,
@@ -26,6 +30,10 @@ export default function InvoiceLetterPreview({
   const address = settings?.address_display || formatBusinessAddress(settings);
   const gstLabel = businessGstLabel(settings);
   const settlement = paymentBreakdown(payment, total);
+  const resolvedPlace =
+    String(placeOfSupply || '').trim() || derivePlaceOfSupply(party || {}) || '—';
+  const sameShipping =
+    shipSameAsBilling || shippingIsSameAsBilling(shippingAddress, party?.address);
 
   return (
     <div
@@ -69,29 +77,44 @@ export default function InvoiceLetterPreview({
             )}
           </div>
         </div>
-        <div className="text-right">
+        <div className="invoice-tax-heading">
           <p className="invoice-doc-type">TAX INVOICE</p>
-          <p className="invoice-meta-line">
-            <span className="text-slate-500">No.</span> {invoiceNumber}
-          </p>
-          <p className="invoice-meta-line">
-            <span className="text-slate-500">Date</span> {invoiceDate || '—'}
-          </p>
+          <div className="invoice-tax-meta">
+            <p>
+              <span>Invoice No.:</span> {invoiceNumber}
+            </p>
+            <p>
+              <span>Date:</span> {invoiceDate || '—'}
+            </p>
+            <p>
+              <span>Place of Supply:</span> {resolvedPlace}
+            </p>
+          </div>
         </div>
       </div>
 
-      <div className="invoice-bill-to">
-        <p className="invoice-section-label">Bill to</p>
-        {party ? (
-          <>
-            <p className="invoice-party-name">{party.name}</p>
-            {party.contact && <p className="invoice-meta-line">{party.contact}</p>}
-            {party.address && <p className="invoice-meta-line">{party.address}</p>}
-            {party.gst_number && <p className="invoice-meta-line">GST: {party.gst_number}</p>}
-          </>
-        ) : (
-          <p className="text-slate-400 italic text-sm">Select a party to preview</p>
-        )}
+      <div className="invoice-parties">
+        <div className="invoice-bill-to">
+          <p className="invoice-section-label">Bill to</p>
+          {party ? (
+            <>
+              <p className="invoice-party-name">{party.name}</p>
+              {party.contact && <p className="invoice-meta-line">{party.contact}</p>}
+              {party.address && <p className="invoice-meta-line">{party.address}</p>}
+              {party.gst_number && <p className="invoice-meta-line">GST: {party.gst_number}</p>}
+            </>
+          ) : (
+            <p className="text-slate-400 italic text-sm">Select a party to preview</p>
+          )}
+        </div>
+        <div className="invoice-bill-to">
+          <p className="invoice-section-label">Ship to</p>
+          {sameShipping ? (
+            <p className="invoice-meta-line">Same as billing</p>
+          ) : (
+            <p className="invoice-meta-line whitespace-pre-wrap">{shippingAddress}</p>
+          )}
+        </div>
       </div>
 
       <InvoiceLineItemsTable

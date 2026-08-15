@@ -25,7 +25,7 @@ function paymentForDb(paymentRow) {
 }
 const { rollbackSale } = require('../utils/saleRollback');
 const { formatSaleDeleteMessage } = require('../utils/stockMessages');
-const { createSaleDirect, updateSaleDirect } = require('../utils/createSaleDirect');
+const { createSaleDirect, updateSaleDirect, applyInvoiceAddressMeta } = require('../utils/createSaleDirect');
 const { buildInvoicePdfBuffer } = require('../utils/invoicePdfBuffer');
 const {
   normalizeIndiaWhatsAppPhone,
@@ -236,6 +236,11 @@ async function createSaleWithPayment(db, body, invoiceNumber, gstRate) {
     if (!/amount_paid|payment_status|payment_/i.test(paymentErr.message || '')) throw paymentErr;
     console.warn('[sales] saveSalePayment after create:', paymentErr.message);
   }
+  try {
+    await applyInvoiceAddressMeta(db, data, body);
+  } catch (metaErr) {
+    console.warn('[sales] invoice address meta after create:', metaErr.message);
+  }
   return data;
 }
 
@@ -265,6 +270,11 @@ async function updateSaleWithPayment(db, saleId, body, gstRate) {
   } catch (paymentErr) {
     if (!/amount_paid|payment_/i.test(paymentErr.message || '')) throw paymentErr;
     console.warn('[sales] saveSalePayment after update:', paymentErr.message);
+  }
+  try {
+    await applyInvoiceAddressMeta(db, saleId, body);
+  } catch (metaErr) {
+    console.warn('[sales] invoice address meta after update:', metaErr.message);
   }
   return data;
 }

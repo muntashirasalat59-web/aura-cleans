@@ -20,6 +20,7 @@ import DeleteInvoiceModal from '../components/invoice/DeleteInvoiceModal';
 import MarkPaidModal from '../components/invoice/MarkPaidModal';
 import ErrorModal from '../components/ErrorModal';
 import { computeGstTotals } from '../utils/invoiceGst';
+import { derivePlaceOfSupply, shippingIsSameAsBilling } from '../utils/placeOfSupply';
 import { formatInrAmount, formatLineGstDisplay, enrichInvoiceLine } from '../utils/invoiceLineItems';
 import { formatProductNameWithSize, formatProductOptionLabel } from '../utils/productDisplay';
 import {
@@ -61,6 +62,9 @@ export default function Sales() {
     party_id: '',
     invoice_date: new Date().toISOString().split('T')[0],
     gst_percent: 18,
+    place_of_supply: '',
+    ship_same_as_billing: true,
+    shipping_address: '',
     items: [{ product_id: '', quantity: 1, rate: 0 }],
     payment: emptyPaymentDetails(),
   });
@@ -171,6 +175,9 @@ export default function Sales() {
       party_id: '',
       invoice_date: new Date().toISOString().split('T')[0],
       gst_percent: 18,
+      place_of_supply: '',
+      ship_same_as_billing: true,
+      shipping_address: '',
       items: [{ product_id: '', quantity: 1, rate: 0 }],
       payment: emptyPaymentDetails(),
     });
@@ -263,6 +270,11 @@ export default function Sales() {
         party_id: String(data.party_id),
         invoice_date: data.invoice_date,
         gst_percent: data.gst_percent,
+        place_of_supply:
+          data.place_of_supply ||
+          derivePlaceOfSupply({ gst_number: data.gst_number, address: data.address }),
+        ship_same_as_billing: shippingIsSameAsBilling(data.shipping_address, data.address),
+        shipping_address: data.shipping_address || '',
         items: data.items.map((item) => ({
           product_id: String(item.product_id),
           quantity: item.quantity,
@@ -343,6 +355,9 @@ export default function Sales() {
         party_id: parseInt(form.party_id),
         invoice_date: form.invoice_date,
         gst_percent: parseFloat(form.gst_percent),
+        place_of_supply: form.place_of_supply.trim(),
+        ship_same_as_billing: form.ship_same_as_billing,
+        shipping_address: form.ship_same_as_billing ? '' : form.shipping_address.trim(),
         items: validItems.map((item) => ({
           product_id: parseInt(item.product_id),
           quantity: parseInt(item.quantity),
@@ -574,7 +589,14 @@ export default function Sales() {
                   required
                   className="md:col-span-2"
                   value={form.party_id}
-                  onChange={(partyId) => setForm((prev) => ({ ...prev, party_id: partyId }))}
+                  onChange={(partyId) => {
+                    const party = parties.find((p) => String(p.id) === String(partyId));
+                    setForm((prev) => ({
+                      ...prev,
+                      party_id: partyId,
+                      place_of_supply: derivePlaceOfSupply(party) || prev.place_of_supply,
+                    }));
+                  }}
                   parties={parties}
                   onPartyCreated={handlePartyCreated}
                   defaultTypes={SALES_PARTY_TYPES}
@@ -585,6 +607,40 @@ export default function Sales() {
                   quickAddAllowedTypes={SALES_QUICK_ADD_TYPES}
                   placeholder="Search customer…"
                 />
+                <FormField
+                  label="Place of supply"
+                  hint="Auto-filled from the customer's GSTIN or address. You can edit it."
+                  className="md:col-span-2"
+                >
+                  <input
+                    className="input input-premium"
+                    value={form.place_of_supply}
+                    onChange={(e) => setForm({ ...form, place_of_supply: e.target.value })}
+                    placeholder="Customer state (e.g. Gujarat)"
+                  />
+                </FormField>
+                <FormField label="Shipping" className="md:col-span-2">
+                  <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={form.ship_same_as_billing}
+                      onChange={(e) =>
+                        setForm({ ...form, ship_same_as_billing: e.target.checked })
+                      }
+                    />
+                    Ship to same as billing
+                  </label>
+                </FormField>
+                {!form.ship_same_as_billing && (
+                  <FormField label="Shipping address" className="md:col-span-2">
+                    <textarea
+                      className="input input-premium min-h-[84px]"
+                      value={form.shipping_address}
+                      onChange={(e) => setForm({ ...form, shipping_address: e.target.value })}
+                      placeholder="Enter shipping address"
+                    />
+                  </FormField>
+                )}
               </div>
 
               <p className="form-section-label">Product line items</p>
@@ -714,6 +770,9 @@ export default function Sales() {
                     invoiceNumber={editingId ? editingInvoiceNumber : 'INV-DRAFT'}
                     invoiceDate={form.invoice_date}
                     party={getSelectedParty()}
+                    placeOfSupply={form.place_of_supply}
+                    shippingAddress={form.shipping_address}
+                    shipSameAsBilling={form.ship_same_as_billing}
                     items={getPreviewLineItems()}
                     gstPercent={form.gst_percent}
                     subtotal={calculateSubtotal()}
@@ -766,6 +825,9 @@ export default function Sales() {
               invoiceNumber={editingId ? editingInvoiceNumber : 'INV-DRAFT'}
               invoiceDate={form.invoice_date}
               party={getSelectedParty()}
+              placeOfSupply={form.place_of_supply}
+              shippingAddress={form.shipping_address}
+              shipSameAsBilling={form.ship_same_as_billing}
               items={getPreviewLineItems()}
               gstPercent={form.gst_percent}
               subtotal={calculateSubtotal()}
@@ -806,6 +868,12 @@ export default function Sales() {
                   address: viewInvoice.address,
                   gst_number: viewInvoice.gst_number,
                 }}
+                placeOfSupply={viewInvoice.place_of_supply}
+                shippingAddress={viewInvoice.shipping_address}
+                shipSameAsBilling={shippingIsSameAsBilling(
+                  viewInvoice.shipping_address,
+                  viewInvoice.address
+                )}
                 items={viewInvoice.items.map((item) => ({
                   product_name: item.product_name,
                   unit_size: item.unit_size,
