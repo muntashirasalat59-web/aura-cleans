@@ -20,7 +20,7 @@ import DeleteInvoiceModal from '../components/invoice/DeleteInvoiceModal';
 import MarkPaidModal from '../components/invoice/MarkPaidModal';
 import ErrorModal from '../components/ErrorModal';
 import { computeGstTotals } from '../utils/invoiceGst';
-import { derivePlaceOfSupply, shippingIsSameAsBilling } from '../utils/placeOfSupply';
+import { resolveInvoicePlaceOfSupply, shippingIsSameAsBilling } from '../utils/placeOfSupply';
 import { formatInrAmount, formatLineGstDisplay, enrichInvoiceLine } from '../utils/invoiceLineItems';
 import { formatProductNameWithSize, formatProductOptionLabel } from '../utils/productDisplay';
 import {
@@ -28,6 +28,7 @@ import {
   SALES_QUICK_ADD_TYPES,
 } from '../utils/partyTypes';
 import { refreshPartiesAfterCreate } from '../utils/partyList';
+import { useBusinessSettings } from '../context/BusinessSettingsContext';
 import { useDataSync } from '../hooks/useDataSync';
 import { notifyDataSync } from '../lib/dataSync';
 import {
@@ -40,6 +41,7 @@ import { balanceDue, paymentStatus, enrichPaymentFields } from '../utils/invoice
 
 export default function Sales() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { settings: businessSettings } = useBusinessSettings();
   const [sales, setSales] = useState([]);
   const [parties, setParties] = useState([]);
   const [products, setProducts] = useState([]);
@@ -270,9 +272,12 @@ export default function Sales() {
         party_id: String(data.party_id),
         invoice_date: data.invoice_date,
         gst_percent: data.gst_percent,
-        place_of_supply:
-          data.place_of_supply ||
-          derivePlaceOfSupply({ gst_number: data.gst_number, address: data.address }),
+        place_of_supply: resolveInvoicePlaceOfSupply({
+          placeOfSupply: data.place_of_supply,
+          party: { gst_number: data.gst_number, address: data.address },
+          shippingAddress: data.shipping_address,
+          business: businessSettings,
+        }),
         ship_same_as_billing: shippingIsSameAsBilling(data.shipping_address, data.address),
         shipping_address: data.shipping_address || '',
         items: data.items.map((item) => ({
@@ -594,7 +599,13 @@ export default function Sales() {
                     setForm((prev) => ({
                       ...prev,
                       party_id: partyId,
-                      place_of_supply: derivePlaceOfSupply(party) || prev.place_of_supply,
+                      place_of_supply: resolveInvoicePlaceOfSupply({
+                        party,
+                        shippingAddress: prev.ship_same_as_billing
+                          ? party?.address
+                          : prev.shipping_address,
+                        business: businessSettings,
+                      }),
                     }));
                   }}
                   parties={parties}
@@ -609,7 +620,7 @@ export default function Sales() {
                 />
                 <FormField
                   label="Place of supply"
-                  hint="Auto-filled from the customer's GSTIN or address. You can edit it."
+                  hint="Defaults to your business state, or the customer's state when their GSTIN or address is in a different state."
                   className="md:col-span-2"
                 >
                   <input

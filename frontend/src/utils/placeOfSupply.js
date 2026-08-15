@@ -61,3 +61,30 @@ export function shippingIsSameAsBilling(shippingAddress, billingAddress) {
   if (!ship) return true;
   return ship.toLowerCase() === String(billingAddress || '').trim().toLowerCase();
 }
+
+export function businessIssuerState(business = {}) {
+  return (
+    String(business.state || '').trim() ||
+    stateFromGstin(business.gstin) ||
+    stateFromAddress(
+      [business.address_line1, business.address_line2, business.city, business.state, business.address_display]
+        .filter(Boolean)
+        .join(', ')
+    ) ||
+    ''
+  );
+}
+
+export function resolveInvoicePlaceOfSupply({
+  placeOfSupply,
+  party,
+  shippingAddress,
+  business,
+} = {}) {
+  const saved = String(placeOfSupply || '').trim();
+  if (saved && saved !== '—') return saved;
+  const customerState =
+    derivePlaceOfSupply(party || {}) || stateFromAddress(shippingAddress);
+  if (customerState) return customerState;
+  return businessIssuerState(business) || '';
+}
