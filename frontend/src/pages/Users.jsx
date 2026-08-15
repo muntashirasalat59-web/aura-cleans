@@ -11,6 +11,39 @@ import { useAuth } from '../context/AuthContext';
 import { useDataSync } from '../hooks/useDataSync';
 import { notifyDataSync, removeById } from '../lib/dataSync';
 
+const TRIAL_LENGTH_DAYS = 10;
+
+function startOfLocalDay(value) {
+  const date = new Date(value);
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+/** Live trial day from signup date. Not stored — recalculated on each render. */
+function trialProgressFromCreatedAt(createdAt) {
+  if (!createdAt) return { expired: true, day: TRIAL_LENGTH_DAYS };
+  const elapsed = Math.round(
+    (startOfLocalDay(new Date()) - startOfLocalDay(createdAt)) / (1000 * 60 * 60 * 24)
+  );
+  const day = Math.max(1, elapsed + 1);
+  return {
+    expired: day >= TRIAL_LENGTH_DAYS,
+    day: Math.min(day, TRIAL_LENGTH_DAYS),
+  };
+}
+
+function SubscriptionBadge({ user }) {
+  if (user.payment_status === 'paid') {
+    return <span className="badge badge-green">Paid</span>;
+  }
+
+  const { expired, day } = trialProgressFromCreatedAt(user.created_at);
+  if (expired) {
+    return <span className="badge badge-red">Trial expired</span>;
+  }
+
+  return <span className="badge badge-blue">Day {day} of {TRIAL_LENGTH_DAYS}</span>;
+}
+
 export default function Users() {
   const { profile } = useAuth();
   const isPlatformAdmin = Boolean(profile?.is_platform_admin);
@@ -166,7 +199,7 @@ export default function Users() {
             <tbody>
               {users.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="py-12 text-center text-slate-500">
+                  <td colSpan={isPlatformAdmin ? 6 : 5} className="py-12 text-center text-slate-500">
                     No team users yet. Add staff or another admin.
                   </td>
                 </tr>
@@ -185,11 +218,7 @@ export default function Users() {
                     </td>
                     {isPlatformAdmin && (
                       <td>
-                        {user.payment_status === 'paid' ? (
-                          <span className="badge badge-green">Paid</span>
-                        ) : (
-                          <span className="badge badge-red">Unpaid ₹{user.subscription_amount ?? 999}</span>
-                        )}
+                        <SubscriptionBadge user={user} />
                       </td>
                     )}
                     <td className="text-sm text-slate-500 whitespace-nowrap">
