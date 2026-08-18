@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { flushSync } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Trash2, X, Eye, FileDown, FileText, Pencil, Banknote, MessageCircle } from 'lucide-react';
+import { Plus, Trash2, X, Eye, FileDown, FileText, Pencil, Banknote, MessageCircle, Barcode, ScanLine } from 'lucide-react';
 import { salesAPI, partiesAPI, productsAPI } from '../api';
 import LoadingState from '../components/LoadingState';
 import PageHeader from '../components/PageHeader';
@@ -39,6 +39,8 @@ import {
 } from '../utils/invoicePayment';
 import { balanceDue, paymentStatus, enrichPaymentFields } from '../utils/invoiceReceivables';
 
+const emptySaleChannel = { sale_channel: 'offline', platform: '' };
+
 export default function Sales() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { settings: businessSettings } = useBusinessSettings();
@@ -60,6 +62,8 @@ export default function Sales() {
   const [sharingWhatsAppId, setSharingWhatsAppId] = useState(null);
   const [listSearch, setListSearch] = useState('');
   const [errorModal, setErrorModal] = useState({ open: false, title: '', message: '' });
+  const [barcodeInput, setBarcodeInput] = useState('');
+  const [barcodeError, setBarcodeError] = useState('');
   const [form, setForm] = useState({
     party_id: '',
     invoice_date: new Date().toISOString().split('T')[0],
@@ -69,6 +73,7 @@ export default function Sales() {
     shipping_address: '',
     items: [{ product_id: '', quantity: 1, rate: 0 }],
     payment: emptyPaymentDetails(),
+    ...emptySaleChannel,
   });
 
   function showError(title, message) {
@@ -160,6 +165,48 @@ export default function Sales() {
     setForm({ ...form, items: newItems });
   }
 
+  /** Barcode scan: finds the product client-side (products are already loaded)
+   * and either bumps quantity on an existing line for it, fills the first
+   * empty row, or adds a new one. */
+  function handleScanBarcode(e) {
+    e.preventDefault();
+    const code = barcodeInput.trim();
+    if (!code) return;
+
+    const product = products.find((p) => (p.barcode || '').trim() === code);
+    if (!product) {
+      setBarcodeError(`No product found for barcode ${code}`);
+      setBarcodeInput('');
+      return;
+    }
+
+    setBarcodeError('');
+    setForm((prev) => {
+      const items = [...prev.items];
+      const existingIndex = items.findIndex(
+        (item) => parseInt(item.product_id, 10) === product.id
+      );
+
+      if (existingIndex >= 0) {
+        items[existingIndex] = {
+          ...items[existingIndex],
+          quantity: (parseInt(items[existingIndex].quantity, 10) || 0) + 1,
+        };
+        return { ...prev, items };
+      }
+
+      const emptyIndex = items.findIndex((item) => !item.product_id);
+      const newItem = { product_id: String(product.id), quantity: 1, rate: product.price };
+      if (emptyIndex >= 0) {
+        items[emptyIndex] = newItem;
+      } else {
+        items.push(newItem);
+      }
+      return { ...prev, items };
+    });
+    setBarcodeInput('');
+  }
+
   const gstTotals = computeGstTotals(form.items, form.gst_percent);
   const calculateSubtotal = () => gstTotals.subtotal;
   const calculateGST = () => gstTotals.gstAmount;
@@ -173,6 +220,8 @@ export default function Sales() {
     setEditingId(null);
     setEditingInvoiceNumber('');
     setEditStockBaseline({});
+    setBarcodeInput('');
+    setBarcodeError('');
     setForm({
       party_id: '',
       invoice_date: new Date().toISOString().split('T')[0],
@@ -182,6 +231,7 @@ export default function Sales() {
       shipping_address: '',
       items: [{ product_id: '', quantity: 1, rate: 0 }],
       payment: emptyPaymentDetails(),
+      ...emptySaleChannel,
     });
   }
 
@@ -268,6 +318,8 @@ export default function Sales() {
       setEditingId(data.id);
       setEditingInvoiceNumber(data.invoice_number);
       setEditStockBaseline(baseline);
+      setBarcodeInput('');
+      setBarcodeError('');
       setForm({
         party_id: String(data.party_id),
         invoice_date: data.invoice_date,
@@ -286,6 +338,8 @@ export default function Sales() {
           rate: item.rate,
         })),
         payment: paymentFromSale(data),
+        sale_channel: data.sale_channel === 'online' ? 'online' : 'offline',
+        platform: data.platform || '',
       });
       setShowForm(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -329,6 +383,11 @@ export default function Sales() {
       return;
     }
 
+    if (form.sale_channel === 'online' && !form.platform.trim()) {
+      alert('Enter the platform name (e.g. Amazon, Flipkart) for an online sale.');
+      return;
+    }
+
     for (const item of validItems) {
       const productId = parseInt(item.product_id, 10);
       const product = products.find((p) => p.id === productId);
@@ -369,6 +428,8 @@ export default function Sales() {
           rate: parseFloat(item.rate),
         })),
         payment: paymentToPayload(form.payment, invoiceTotal),
+        sale_channel: form.sale_channel,
+        platform: form.sale_channel === 'online' ? form.platform.trim() : '',
       };
 
       if (editingId) {
@@ -587,6 +648,43 @@ export default function Sales() {
                 </FormField>
               </div>
 
+              <p className="form-section-label">Sale channel</p>
+              <div className="form-grid mb-8">
+                <FormField label="Where was this sold?" className="md:col-span-2">
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, sale_channel: 'offline', platform: '' }))}
+                      className={`btn flex-1 ${form.sale_channel === 'offline' ? 'btn-primary' : 'btn-secondary'}`}
+                    >
+                      Offline
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, sale_channel: 'online' }))}
+                      className={`btn flex-1 ${form.sale_channel === 'online' ? 'btn-primary' : 'btn-secondary'}`}
+                    >
+                      Online
+                    </button>
+                  </div>
+                </FormField>
+                {form.sale_channel === 'online' && (
+                  <FormField
+                    label="Platform"
+                    required
+                    hint="e.g. Amazon, Flipkart, Blinkit, Meesho"
+                    className="md:col-span-2"
+                  >
+                    <input
+                      className="input input-premium"
+                      value={form.platform}
+                      onChange={(e) => setForm((prev) => ({ ...prev, platform: e.target.value }))}
+                      placeholder="Type the platform name"
+                    />
+                  </FormField>
+                )}
+              </div>
+
               <p className="form-section-label">Bill to — party</p>
               <div className="form-grid mb-8">
                 <PartySelectField
@@ -655,6 +753,29 @@ export default function Sales() {
               </div>
 
               <p className="form-section-label">Product line items</p>
+
+              <form onSubmit={handleScanBarcode} className="mb-4 flex gap-2">
+                <div className="relative flex-1">
+                  <ScanLine className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    className="input input-premium pl-9"
+                    value={barcodeInput}
+                    onChange={(e) => setBarcodeInput(e.target.value)}
+                    placeholder="Scan or type barcode, then press Enter"
+                  />
+                </div>
+                <button type="submit" className="btn btn-secondary shrink-0">
+                  <Barcode className="h-4 w-4" />
+                  Add
+                </button>
+              </form>
+              {barcodeError && (
+                <p className="mb-4 -mt-2 text-xs font-medium text-red-600 dark:text-red-400">
+                  {barcodeError}
+                </p>
+              )}
+
               <div className="invoice-form-table-scroll">
                 <table className="line-items-table">
                   <thead>
@@ -988,6 +1109,7 @@ export default function Sales() {
                   <th>Invoice No.</th>
                   <th>Date</th>
                   <th>Party</th>
+                  <th>Channel</th>
                   <th className="col-num">Qty</th>
                   <th className="col-num">Subtotal</th>
                   <th className="col-num">GST</th>
@@ -1005,6 +1127,13 @@ export default function Sales() {
                     <td className="whitespace-nowrap tabular-nums">{sale.invoice_date}</td>
                     <td>
                       <p className="list-primary font-medium text-[14px]">{sale.party_name}</p>
+                    </td>
+                    <td>
+                      {sale.sale_channel === 'online' ? (
+                        <span className="badge badge-blue">{sale.platform || 'Online'}</span>
+                      ) : (
+                        <span className="badge badge-red">Offline</span>
+                      )}
                     </td>
                     <td className="col-num">
                       {Number(sale.total_quantity ?? 0).toLocaleString('en-IN')}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Pencil, Trash2, Package, AlertTriangle, X, IndianRupee } from 'lucide-react';
+import { Plus, Pencil, Trash2, Package, AlertTriangle, X, IndianRupee, Barcode } from 'lucide-react';
 import { productsAPI } from '../api';
 import LoadingState from '../components/LoadingState';
 import PageHeader from '../components/PageHeader';
@@ -42,6 +42,7 @@ const emptyForm = {
   custom_fragrance: '',
   hsn_sac: '',
   sku: '',
+  barcode: '',
   description: '',
   stock_quantity: '',
 };
@@ -82,6 +83,7 @@ export default function Products() {
   const [form, setForm] = useState(emptyForm);
   const [formErrors, setFormErrors] = useState({});
   const [formWarnings, setFormWarnings] = useState({});
+  const [generatingBarcode, setGeneratingBarcode] = useState(false);
 
   const stockFilterActive = searchParams.get('stock') === 'low';
   const stockThreshold = Number(searchParams.get('threshold')) || LOW_STOCK_THRESHOLD;
@@ -94,7 +96,7 @@ export default function Products() {
         .sort((a, b) => Number(a.stock_quantity) - Number(b.stock_quantity));
     }
     return list.filter((p) =>
-      matchesListSearch(listSearch, p.name, p.category, p.hsn_sac, p.sku)
+      matchesListSearch(listSearch, p.name, p.category, p.hsn_sac, p.sku, p.barcode)
     );
   }, [products, stockFilterActive, stockThreshold, listSearch]);
 
@@ -156,6 +158,7 @@ export default function Products() {
       custom_fragrance: isPreset ? '' : stored,
       hsn_sac: product.hsn_sac || '',
       sku: product.sku || '',
+      barcode: product.barcode || '',
       description: product.description || '',
       stock_quantity: product.stock_quantity ?? '',
     });
@@ -236,6 +239,18 @@ export default function Products() {
     setForm((prev) => ({ ...prev, sku: generateSkuPreview(prev.name) }));
   }
 
+  async function handleGenerateBarcode() {
+    setGeneratingBarcode(true);
+    try {
+      const { barcode } = await productsAPI.generateBarcode();
+      setForm((prev) => ({ ...prev, barcode }));
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      setGeneratingBarcode(false);
+    }
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!validateProductForm()) return;
@@ -256,6 +271,7 @@ export default function Products() {
         unit_type,
         unit_size,
         sku: form.sku.trim(),
+        barcode: form.barcode.trim(),
         description: form.description,
         fragrance: fragranceToSave,
         hsn_sac: form.hsn_sac.trim(),
@@ -495,7 +511,7 @@ export default function Products() {
                       placeholder="0"
                     />
                   </FormField>
-                  <FormField label="SKU / product code" className="md:col-span-2">
+                  <FormField label="SKU / product code">
                     <div className="flex gap-2">
                       <input
                         className={inputClassName()}
@@ -509,6 +525,25 @@ export default function Products() {
                         className="btn btn-secondary shrink-0"
                       >
                         Auto
+                      </button>
+                    </div>
+                  </FormField>
+                  <FormField label="Barcode" hint="Scan or type — used to find this product by scanner">
+                    <div className="flex gap-2">
+                      <input
+                        className={inputClassName(false, 'font-mono')}
+                        value={form.barcode}
+                        onChange={(e) => updateForm({ barcode: e.target.value })}
+                        placeholder="Scan or generate"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleGenerateBarcode}
+                        disabled={generatingBarcode}
+                        className="btn btn-secondary shrink-0"
+                      >
+                        <Barcode className="h-3.5 w-3.5" />
+                        {generatingBarcode ? '…' : 'Generate'}
                       </button>
                     </div>
                   </FormField>
@@ -635,7 +670,7 @@ export default function Products() {
             value={listSearch}
             onChange={setListSearch}
             placeholder="Search products..."
-            aria-label="Search products by name, category, or HSN"
+            aria-label="Search products by name, category, HSN, or barcode"
           />
         </div>
         {displayedProducts.length === 0 ? (
@@ -650,7 +685,7 @@ export default function Products() {
             }
             description={
               listSearch.trim()
-                ? 'Try another name, category, or HSN/SAC code.'
+                ? 'Try another name, category, HSN/SAC code, or barcode.'
                 : stockFilterActive
                   ? `Nothing at or below ${stockThreshold} units with the current filters.`
                   : 'Add your first product to track cost, selling price, and stock.'
@@ -672,6 +707,7 @@ export default function Products() {
                   <th className="col-num">Selling</th>
                   <th>Pack size</th>
                   <th>HSN/SAC</th>
+                  <th>Barcode</th>
                   <th>Fragrance</th>
                   <th className="col-num">Margin</th>
                   <th className="col-num">Potential Profit</th>
@@ -727,6 +763,9 @@ export default function Products() {
                       </td>
                       <td className="font-mono text-xs text-slate-600 dark:text-slate-400">
                         {product.hsn_sac || '—'}
+                      </td>
+                      <td className="font-mono text-xs text-slate-600 dark:text-slate-400">
+                        {product.barcode || '—'}
                       </td>
                       <td className="text-slate-700 dark:text-slate-300">
                         {product.fragrance || 'Unscented'}

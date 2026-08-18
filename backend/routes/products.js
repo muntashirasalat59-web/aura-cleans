@@ -38,6 +38,12 @@ function generateSku(name) {
   return `${prefix || 'PRD'}-${suffix}`;
 }
 
+/** EAN-13-shaped code, business-prefixed to keep it readable in scans. */
+function generateBarcode() {
+  const digits = Date.now().toString().slice(-9) + Math.floor(Math.random() * 900 + 100).toString();
+  return digits.slice(0, 12);
+}
+
 function normalizeProductPayload(body, existing = null) {
   const name = body.name ?? existing?.name;
   const category = body.category ?? existing?.category;
@@ -55,6 +61,11 @@ function normalizeProductPayload(body, existing = null) {
     sku = generateSku(name);
   }
 
+  let barcode = body.barcode ?? existing?.barcode ?? '';
+  if (typeof barcode === 'string') {
+    barcode = barcode.trim();
+  }
+
   const payload = {
     name,
     category,
@@ -65,6 +76,7 @@ function normalizeProductPayload(body, existing = null) {
     unit_type: unitType,
     unit_size: parseFloat(body.unit_size ?? existing?.unit_size ?? 1) || 1,
     sku: sku || null,
+    barcode: barcode || null,
     description: (body.description ?? existing?.description ?? '').trim(),
     fragrance: normalizeFragrance(body.fragrance, existing),
     hsn_sac: (body.hsn_sac ?? existing?.hsn_sac ?? '').toString().trim().slice(0, 20),
@@ -91,6 +103,50 @@ router.get('/', async (req, res) => {
     const { data, error } = await query;
     assertNoError(error);
     res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/** GET /api/products/by-barcode/:code — used by the scan input on the invoice form. */
+router.get('/by-barcode/:code', async (req, res) => {
+  try {
+    const code = String(req.params.code || '').trim();
+    if (!code) {
+      return res.status(400).json({ error: 'Barcode is required' });
+    }
+
+    const { data, error } = await req.db
+      .from('products')
+      .select('*')
+      .eq('barcode', code)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    assertNoError(error);
+    if (!data) {
+      return res.status(404).json({ error: `No active product found for barcode ${code}` });
+    }
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/generate-barcode', async (req, res) => {
+  try {
+    let code = generateBarcode();
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const { data: clash, error } = await req.db
+        .from('products')
+        .select('id')
+        .eq('barcode', code)
+        .maybeSingle();
+      assertNoError(error);
+      if (!clash) break;
+      code = generateBarcode();
+    }
+    res.json({ barcode: code });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -175,6 +231,9 @@ router.post('/', async (req, res) => {
     });
     res.status(201).json(data);
   } catch (error) {
+    if (/duplicate key.*barcode/i.test(error.message || '')) {
+      return res.status(409).json({ error: 'This barcode is already used by another product.' });
+    }
     res.status(500).json({ error: error.message });
   }
 });
@@ -207,6 +266,9 @@ router.put('/:id', async (req, res) => {
     });
     res.json(data);
   } catch (error) {
+    if (/duplicate key.*barcode/i.test(error.message || '')) {
+      return res.status(409).json({ error: 'This barcode is already used by another product.' });
+    }
     res.status(500).json({ error: error.message });
   }
 });

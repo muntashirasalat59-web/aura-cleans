@@ -34,6 +34,21 @@ const {
   uploadInvoicePdf,
 } = require('../utils/whatsappShare');
 
+/** Pull sale-channel fields out of the request body, normalized for storage. */
+function pickChannelPayload(body) {
+  const channel = body.sale_channel === 'online' ? 'online' : 'offline';
+  const platform = channel === 'online' ? String(body.platform || '').trim().slice(0, 80) : null;
+  return { sale_channel: channel, platform: platform || null };
+}
+
+async function saveSaleChannel(db, saleId, body) {
+  const patch = pickChannelPayload(body);
+  const { error } = await db.from('sales').update(patch).eq('id', saleId);
+  if (error && !/column|schema cache|could not find|does not exist/i.test(error.message || '')) {
+    assertNoError(error);
+  }
+}
+
 async function generateInvoiceNumber(db, atLeast = 0) {
   const year = new Date().getFullYear();
   const minSuffix = Number(atLeast) || 0;
@@ -226,7 +241,13 @@ async function createSaleWithPayment(db, body, invoiceNumber, gstRate) {
       '[sales] create_sale RPC unavailable — using direct create:',
       error.message
     );
-    return createSaleDirect(db, body, invoiceNumber, gstRate);
+    const directId = await createSaleDirect(db, body, invoiceNumber, gstRate);
+    try {
+      await saveSaleChannel(db, directId, body);
+    } catch (channelErr) {
+      console.warn('[sales] saveSaleChannel after direct create:', channelErr.message);
+    }
+    return directId;
   }
 
   assertNoError(error);
@@ -240,6 +261,11 @@ async function createSaleWithPayment(db, body, invoiceNumber, gstRate) {
     await applyInvoiceAddressMeta(db, data, body);
   } catch (metaErr) {
     console.warn('[sales] invoice address meta after create:', metaErr.message);
+  }
+  try {
+    await saveSaleChannel(db, data, body);
+  } catch (channelErr) {
+    console.warn('[sales] saveSaleChannel after create:', channelErr.message);
   }
   return data;
 }
@@ -261,7 +287,13 @@ async function updateSaleWithPayment(db, saleId, body, gstRate) {
       '[sales] update_sale RPC unavailable — using direct update:',
       error.message
     );
-    return updateSaleDirect(db, saleId, body, gstRate);
+    const directId = await updateSaleDirect(db, saleId, body, gstRate);
+    try {
+      await saveSaleChannel(db, directId, body);
+    } catch (channelErr) {
+      console.warn('[sales] saveSaleChannel after direct update:', channelErr.message);
+    }
+    return directId;
   }
 
   assertNoError(error);
@@ -275,6 +307,11 @@ async function updateSaleWithPayment(db, saleId, body, gstRate) {
     await applyInvoiceAddressMeta(db, saleId, body);
   } catch (metaErr) {
     console.warn('[sales] invoice address meta after update:', metaErr.message);
+  }
+  try {
+    await saveSaleChannel(db, saleId, body);
+  } catch (channelErr) {
+    console.warn('[sales] saveSaleChannel after update:', channelErr.message);
   }
   return data;
 }
@@ -513,6 +550,8 @@ router.post('/', async (req, res) => {
         party_name: sale?.party_name,
         total_amount: sale?.total_amount,
         payment_status: sale?.payment_status,
+        sale_channel: sale?.sale_channel,
+        platform: sale?.platform,
       },
     });
     res.status(201).json(sale);
