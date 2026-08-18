@@ -228,6 +228,7 @@ export const supportAPI = {
     return request(`/support-messages${qs ? `?${qs}` : ''}`);
   },
   send: (data) => request('/support-messages', { method: 'POST', body: JSON.stringify(data) }),
+  delete: (id) => request(`/support-messages/${id}`, { method: 'DELETE' }),
 };
 
 export const usersAPI = {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, Send } from 'lucide-react';
+import { Loader2, Send, Trash2 } from 'lucide-react';
 import { supportAPI } from '../api';
 
 function formatTime(value) {
@@ -26,7 +26,9 @@ export default function TrialSupportChat({
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [deletingId, setDeletingId] = useState(null);
   const bottomRef = useRef(null);
+  const viewerIsAdmin = Boolean(userId);
 
   const loadMessages = useCallback(
     async (silent = false) => {
@@ -75,6 +77,19 @@ export default function TrialSupportChat({
     }
   }
 
+  async function handleDelete(id) {
+    if (!confirm('Delete this message?')) return;
+    setDeletingId(id);
+    try {
+      await supportAPI.delete(id);
+      setMessages((prev) => prev.filter((m) => m.id !== id));
+    } catch (err) {
+      setError(err.message || 'Could not delete message.');
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <div className={`flex flex-col ${compact ? 'h-[420px]' : 'h-[360px]'}`}>
       <div
@@ -92,7 +107,6 @@ export default function TrialSupportChat({
           </p>
         ) : (
           messages.map((msg) => {
-            const viewerIsAdmin = Boolean(userId);
             const mine = viewerIsAdmin ? msg.sender === 'admin' : msg.sender === 'customer';
             const label = viewerIsAdmin
               ? msg.sender === 'admin'
@@ -102,20 +116,38 @@ export default function TrialSupportChat({
                 ? 'Team'
                 : 'You';
             return (
-              <div key={msg.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                <div
-                  className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
-                    mine
-                      ? 'bg-emerald-600 text-white'
-                      : variant === 'dark'
-                        ? 'bg-white/10 text-slate-100'
-                        : 'bg-white text-slate-800 shadow-sm dark:bg-white/10 dark:text-slate-100'
-                  }`}
-                >
-                  <p className="whitespace-pre-wrap break-words">{msg.message}</p>
-                  <p className={`mt-1 text-[10px] ${mine ? 'text-emerald-100/80' : 'text-slate-400'}`}>
-                    {label} · {formatTime(msg.created_at)}
-                  </p>
+              <div key={msg.id} className={`group flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                <div className={`flex items-end gap-1.5 ${mine ? 'flex-row-reverse' : 'flex-row'}`}>
+                  <div
+                    className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
+                      mine
+                        ? 'bg-emerald-600 text-white'
+                        : variant === 'dark'
+                          ? 'bg-white/10 text-slate-100'
+                          : 'bg-white text-slate-800 shadow-sm dark:bg-white/10 dark:text-slate-100'
+                    }`}
+                  >
+                    <p className="whitespace-pre-wrap break-words">{msg.message}</p>
+                    <p className={`mt-1 text-[10px] ${mine ? 'text-emerald-100/80' : 'text-slate-400'}`}>
+                      {label} · {formatTime(msg.created_at)}
+                    </p>
+                  </div>
+
+                  {viewerIsAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(msg.id)}
+                      disabled={deletingId === msg.id}
+                      title="Delete message"
+                      className="mb-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-slate-400 opacity-0 transition-opacity hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50 group-hover:opacity-100"
+                    >
+                      {deletingId === msg.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             );
