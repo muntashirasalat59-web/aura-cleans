@@ -91,6 +91,7 @@ export const productsAPI = {
     return request(`/products${qs ? `?${qs}` : ''}`);
   },
   getOne: (id) => request(`/products/${id}`),
+  generateBarcode: () => request('/products/generate-barcode', { method: 'POST' }),
   create: (data) => request('/products', { method: 'POST', body: JSON.stringify(data) }),
   update: (id, data) => request(`/products/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deactivate: (id) => request(`/products/${id}/deactivate`, { method: 'POST' }),
