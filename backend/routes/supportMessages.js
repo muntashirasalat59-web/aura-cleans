@@ -211,4 +211,23 @@ router.post('/', async (req, res) => {
   }
 });
 
+router.delete('/:id', async (req, res) => {
+  try {
+    if (!req.profile?.is_platform_admin) {
+      return res.status(403).json({ error: 'Platform admin access required' });
+    }
+
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ error: 'Message id is required' });
+
+    const admin = getSupabaseAdmin();
+    const { error } = await admin.from('support_messages').delete().eq('id', id);
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true, id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
