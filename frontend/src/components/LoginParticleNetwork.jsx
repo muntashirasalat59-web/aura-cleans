@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 
 const BLUE = { r: 37, g: 99, b: 235 };
 const PURPLE = { r: 124, g: 58, b: 237 };
-const LINK_DIST = 140;
+const LINK_DIST = 155;
 const LINK_DIST_SQ = LINK_DIST * LINK_DIST;
 
 /** ~3 blinks every 3s, never many at once — staggered + spatially spread. */
@@ -14,14 +14,19 @@ const BLINK_SPREAD_PX = 180;
 const BLINK_SPREAD_SQ = BLINK_SPREAD_PX * BLINK_SPREAD_PX;
 const RECENT_BLINK_KEEP = 3;
 
+/** Wave flow field — makes every particle drift together instead of bouncing independently. */
+const FLOW_STRENGTH = 0.34;
+const FLOW_SCALE = 0.0032;
+const FLOW_TIME_SPEED = 0.00028;
+
 function rand(min, max) {
   return min + Math.random() * (max - min);
 }
 
 function particleCount() {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return 0;
-  if (window.matchMedia('(max-width: 900px)').matches) return 22;
-  return 52;
+  if (window.matchMedia('(max-width: 900px)').matches) return 24;
+  return 58;
 }
 
 function spawn(count, width, height) {
@@ -31,8 +36,9 @@ function spawn(count, width, height) {
     list.push({
       x: Math.random() * width,
       y: Math.random() * height,
-      vx: (Math.random() - 0.5) * 0.32,
-      vy: (Math.random() - 0.5) * 0.32,
+      /* small personal drift, layered under the shared wave field */
+      vx: (Math.random() - 0.5) * 0.08,
+      vy: (Math.random() - 0.5) * 0.08,
       r: 1.15 + Math.random() * 1.45,
       color: purple ? PURPLE : BLUE,
       blinkStart: 0,
@@ -78,6 +84,8 @@ function pickBlinkTarget(particles, recent) {
 
 /**
  * Subtle particle-network canvas for the login background.
+ * Particles drift together in a shared wave flow field (not independent bouncing),
+ * with occasional soft blink pulses and glowing connective links.
  * Pauses when the tab is hidden; cleans up rAF + listeners on unmount.
  */
 export default function LoginParticleNetwork() {
@@ -97,6 +105,7 @@ export default function LoginParticleNetwork() {
     let dpr = 1;
     let running = true;
     let nextBlinkAt = 0;
+    let startTime = performance.now();
     const recentBlinks = [];
 
     function resize() {
@@ -148,20 +157,28 @@ export default function LoginParticleNetwork() {
 
       const n = particles.length;
       const now = performance.now();
+      const t = (now - startTime) * FLOW_TIME_SPEED;
       let activeBlinks = 0;
 
       for (let i = 0; i < n; i += 1) {
         const p = particles[i];
-        p.x += p.vx;
-        p.y += p.vy;
-        if (p.x <= 0 || p.x >= width) {
-          p.vx *= -1;
-          p.x = Math.min(Math.max(p.x, 0), width);
-        }
-        if (p.y <= 0 || p.y >= height) {
-          p.vy *= -1;
-          p.y = Math.min(Math.max(p.y, 0), height);
-        }
+
+        /* Shared wave flow field — every particle reads the same underlying
+           current at its position, so motion looks coordinated instead of
+           each dot wandering on its own. */
+        const flowX = Math.sin(p.y * FLOW_SCALE + t) * FLOW_STRENGTH;
+        const flowY = Math.cos(p.x * FLOW_SCALE + t * 1.15) * FLOW_STRENGTH;
+
+        p.x += p.vx + flowX;
+        p.y += p.vy + flowY;
+
+        /* Wrap around edges instead of bouncing — keeps the wave flowing
+           in one continuous direction rather than reflecting awkwardly. */
+        const margin = 20;
+        if (p.x < -margin) p.x = width + margin;
+        if (p.x > width + margin) p.x = -margin;
+        if (p.y < -margin) p.y = height + margin;
+        if (p.y > height + margin) p.y = -margin;
 
         if (p.blinkStart) {
           if (now - p.blinkStart >= p.blinkMs) {
@@ -187,7 +204,7 @@ export default function LoginParticleNetwork() {
         }
       }
 
-      ctx.lineWidth = 0.7;
+      ctx.lineWidth = 0.85;
       for (let i = 0; i < n; i += 1) {
         const a = particles[i];
         for (let j = i + 1; j < n; j += 1) {
@@ -197,8 +214,11 @@ export default function LoginParticleNetwork() {
           const distSq = dx * dx + dy * dy;
           if (distSq > LINK_DIST_SQ) continue;
           const dist = Math.sqrt(distSq);
-          const alpha = (1 - dist / LINK_DIST) * 0.32;
-          ctx.strokeStyle = `rgba(96, 165, 250, ${alpha})`;
+          const alpha = (1 - dist / LINK_DIST) * 0.4;
+          const grad = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
+          grad.addColorStop(0, rgba(a.color, alpha));
+          grad.addColorStop(1, rgba(b.color, alpha));
+          ctx.strokeStyle = grad;
           ctx.beginPath();
           ctx.moveTo(a.x, a.y);
           ctx.lineTo(b.x, b.y);
@@ -210,8 +230,8 @@ export default function LoginParticleNetwork() {
         const p = particles[i];
         let pulse = 0;
         if (p.blinkStart) {
-          const t = Math.min((now - p.blinkStart) / p.blinkMs, 1);
-          pulse = Math.sin(t * Math.PI) * p.blinkStrength;
+          const bt = Math.min((now - p.blinkStart) / p.blinkMs, 1);
+          pulse = Math.sin(bt * Math.PI) * p.blinkStrength;
         }
 
         if (pulse > 0.05) {
@@ -238,8 +258,13 @@ export default function LoginParticleNetwork() {
             ctx.fill();
           }
         } else {
-          /* Idle dots: cheap fill — no per-frame radial gradients */
-          ctx.fillStyle = rgba(p.color, 0.72);
+          /* Idle dots: soft glow ring + core — richer look without per-frame cost blowing up */
+          ctx.fillStyle = rgba(p.color, 0.16);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r * 2.4, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = rgba(p.color, 0.78);
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
           ctx.fill();
