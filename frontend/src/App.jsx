@@ -26,6 +26,7 @@ const Sales = lazy(() => import('./pages/Sales'));
 const Expenses = lazy(() => import('./pages/Expenses'));
 const Employees = lazy(() => import('./pages/Employees'));
 const Reports = lazy(() => import('./pages/Reports'));
+const CityReports = lazy(() => import('./pages/CityReports'));
 const PricingCalculator = lazy(() => import('./pages/PricingCalculator'));
 const Users = lazy(() => import('./pages/Users'));
 const SupportInbox = lazy(() => import('./pages/SupportInbox'));
@@ -103,6 +104,7 @@ function App() {
                   <Route path="sales" element={<Sales />} />
                   <Route path="expenses" element={<Expenses />} />
                   <Route path="reports" element={<Reports />} />
+                  <Route path="city-reports" element={<CityReports />} />
                   <Route path="pricing-calculator" element={<PricingCalculator />} />
                   <Route path="employees" element={<Employees />} />
                   <Route path="users" element={<Users />} />

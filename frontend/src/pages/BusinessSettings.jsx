@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Building2, Image as ImageIcon, PenTool, Stamp, Loader2 } from 'lucide-react';
+import { Building2, Image as ImageIcon, PenTool, Stamp, Loader2, MapPin, Plus, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { settingsAPI } from '../api';
+import { settingsAPI, citiesAPI } from '../api';
 import LoadingState from '../components/LoadingState';
 import PageHeader from '../components/PageHeader';
 import FormShell from '../components/forms/FormShell';
@@ -9,6 +9,7 @@ import { FormField } from '../components/forms/FormField';
 import FormActions from '../components/forms/FormActions';
 import { useBusinessSettings } from '../context/BusinessSettingsContext';
 import { notifyDataSync } from '../lib/dataSync';
+import { useDataSync } from '../hooks/useDataSync';
 
 const emptyForm = () => ({
   company_name: '',
@@ -108,6 +109,153 @@ function BrandImageUpload({ label, icon: Icon, type, currentUrl, onUploaded }) {
         />
       </div>
     </div>
+  );
+}
+
+function CitiesManager() {
+  const [cities, setCities] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [name, setName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [busyId, setBusyId] = useState(null);
+  const [error, setError] = useState('');
+
+  const loadCities = async (silent = false) => {
+    try {
+      if (!silent) setLoading(true);
+      const rows = await citiesAPI.getAll();
+      setCities(rows || []);
+      setError('');
+    } catch (err) {
+      setError(err.message || 'Could not load cities');
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadCities();
+  }, []);
+
+  useDataSync('business_cities', () => loadCities(true));
+
+  async function handleAdd(e) {
+    e.preventDefault();
+    const city_name = name.trim();
+    if (!city_name) return;
+    try {
+      setSaving(true);
+      setError('');
+      await citiesAPI.create({ city_name });
+      setName('');
+      notifyDataSync('business_cities');
+      await loadCities(true);
+    } catch (err) {
+      setError(err.message || 'Could not add city');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleToggle(city) {
+    try {
+      setBusyId(city.id);
+      setError('');
+      await citiesAPI.update(city.id, { is_active: city.is_active === false });
+      notifyDataSync('business_cities');
+      await loadCities(true);
+    } catch (err) {
+      setError(err.message || 'Could not update city');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleDelete(city) {
+    if (!confirm(`Remove ${city.city_name}? Invoices already tagged keep their city name until you reassign them.`)) {
+      return;
+    }
+    try {
+      setBusyId(city.id);
+      setError('');
+      const result = await citiesAPI.delete(city.id);
+      notifyDataSync('business_cities');
+      await loadCities(true);
+      if (result?.deactivated) {
+        setError('This city has invoices, so it was deactivated instead of deleted.');
+      }
+    } catch (err) {
+      setError(err.message || 'Could not remove city');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const activeCount = cities.filter((c) => c.is_active !== false).length;
+
+  return (
+    <FormShell
+      icon={MapPin}
+      title="Manage Cities/Branches"
+      subtitle="Tag invoices by city. This list does not change the invoice PDF — only reports and filters use it."
+    >
+      {loading ? (
+        <p className="text-sm text-[var(--aura-muted)]">Loading cities…</p>
+      ) : (
+        <ul className="mb-4 divide-y divide-[var(--aura-border)] rounded-[var(--aura-radius-input)] border border-[var(--aura-border)]">
+          {cities.map((city) => (
+            <li key={city.id} className="flex items-center gap-3 px-3 py-2.5">
+              <span
+                className={`flex-1 text-sm font-medium ${
+                  city.is_active === false
+                    ? 'text-slate-400 line-through'
+                    : 'text-[var(--aura-text)]'
+                }`}
+              >
+                {city.city_name}
+              </span>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={busyId === city.id || (city.is_active !== false && activeCount <= 1)}
+                onClick={() => handleToggle(city)}
+              >
+                {city.is_active === false ? 'Activate' : 'Deactivate'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm text-red-500"
+                disabled={busyId === city.id || cities.length <= 1}
+                onClick={() => handleDelete(city)}
+                title="Remove city"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <form onSubmit={handleAdd} className="flex flex-col gap-2 sm:flex-row sm:items-end">
+        <FormField label="Add city" className="flex-1">
+          <input
+            className="input input-premium"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Surat"
+          />
+        </FormField>
+        <button type="submit" className="btn btn-primary shrink-0" disabled={saving || !name.trim()}>
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+          Add city
+        </button>
+      </form>
+      {error && (
+        <p className="mt-3 text-sm text-red-600 dark:text-red-400" role="alert">
+          {error}
+        </p>
+      )}
+    </FormShell>
   );
 }
 
@@ -339,6 +487,10 @@ export default function BusinessSettings() {
           submitDisabled={saving}
         />
       </form>
+
+      <div className="mt-6 max-w-3xl">
+        <CitiesManager />
+      </div>
     </div>
   );
 }

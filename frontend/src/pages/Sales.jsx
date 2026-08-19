@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { flushSync } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Trash2, X, Eye, FileDown, FileText, Pencil, Banknote, MessageCircle, Barcode, ScanLine } from 'lucide-react';
-import { salesAPI, partiesAPI, productsAPI } from '../api';
+import { Plus, Trash2, X, Eye, FileDown, FileText, Pencil, Banknote, MessageCircle, Barcode, ScanLine, MapPin } from 'lucide-react';
+import { salesAPI, partiesAPI, productsAPI, citiesAPI } from '../api';
 import LoadingState from '../components/LoadingState';
 import PageHeader from '../components/PageHeader';
 import ExportMenu from '../components/ExportMenu';
@@ -42,14 +42,22 @@ import { balanceDue, paymentStatus, enrichPaymentFields } from '../utils/invoice
 const emptySaleChannel = { sale_channel: 'offline', platform: '' };
 const DEFAULT_GST_RATE = 18;
 
+function defaultCityIdFrom(list) {
+  const active = (list || []).filter((c) => c.is_active !== false);
+  const pick = active[0] || list?.[0];
+  return pick ? String(pick.id) : '';
+}
+
 export default function Sales() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { settings: businessSettings } = useBusinessSettings();
   const [sales, setSales] = useState([]);
   const [parties, setParties] = useState([]);
   const [products, setProducts] = useState([]);
+  const [cities, setCities] = useState([]);
   const [loading, setLoading] = useState(true);
   const paymentFilter = searchParams.get('payment');
+  const cityFilter = searchParams.get('city') || 'all';
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editingInvoiceNumber, setEditingInvoiceNumber] = useState('');
@@ -77,6 +85,7 @@ export default function Sales() {
     items: [{ product_id: '', quantity: 1, rate: 0 }],
     payment: emptyPaymentDetails(),
     ...emptySaleChannel,
+    city_id: '',
   });
 
   function showError(title, message) {
@@ -102,7 +111,16 @@ export default function Sales() {
     loadData();
   }, []);
 
-  useDataSync(['sales', 'parties', 'products'], () => loadData(true));
+  useEffect(() => {
+    if (!showForm || editingId) return;
+    setForm((prev) => {
+      if (prev.city_id) return prev;
+      const next = defaultCityIdFrom(cities);
+      return next ? { ...prev, city_id: next } : prev;
+    });
+  }, [cities, showForm, editingId]);
+
+  useDataSync(['sales', 'parties', 'products', 'business_cities'], () => loadData(true));
 
   const displayedSales = useMemo(() => {
     let list = sales;
@@ -113,10 +131,15 @@ export default function Sales() {
         return due > 0 && (status === 'pending' || status === 'partial');
       });
     }
+    if (cityFilter === 'none') {
+      list = list.filter((sale) => sale.city_id == null || sale.city_id === '');
+    } else if (cityFilter && cityFilter !== 'all') {
+      list = list.filter((sale) => String(sale.city_id) === String(cityFilter));
+    }
     return list.filter((sale) =>
-      matchesListSearch(listSearch, sale.invoice_number, sale.party_name)
+      matchesListSearch(listSearch, sale.invoice_number, sale.party_name, sale.city_name)
     );
-  }, [sales, paymentFilter, listSearch]);
+  }, [sales, paymentFilter, cityFilter, listSearch]);
 
   function clearPaymentFilter() {
     const next = new URLSearchParams(searchParams);
@@ -124,17 +147,26 @@ export default function Sales() {
     setSearchParams(next, { replace: true });
   }
 
+  function setCityFilter(value) {
+    const next = new URLSearchParams(searchParams);
+    if (!value || value === 'all') next.delete('city');
+    else next.set('city', value);
+    setSearchParams(next, { replace: true });
+  }
+
   async function loadData(silent = false) {
     try {
       if (!silent) setLoading(true);
-      const [salesData, partiesData, productsData] = await Promise.all([
+      const [salesData, partiesData, productsData, citiesData] = await Promise.all([
         salesAPI.getAll(),
         partiesAPI.getAll({ activeOnly: true }),
         productsAPI.getAll({ activeOnly: true }),
+        citiesAPI.getAll().catch(() => []),
       ]);
       setSales(salesData);
       setParties(partiesData);
       setProducts(productsData);
+      setCities(citiesData || []);
     } catch (err) {
       if (!silent) alert('Error: ' + err.message);
     } finally {
@@ -249,6 +281,7 @@ export default function Sales() {
       items: [{ product_id: '', quantity: 1, rate: 0 }],
       payment: emptyPaymentDetails(),
       ...emptySaleChannel,
+      city_id: defaultCityIdFrom(cities),
     });
   }
 
@@ -360,6 +393,7 @@ export default function Sales() {
         payment: paymentFromSale(data),
         sale_channel: data.sale_channel === 'online' ? 'online' : 'offline',
         platform: data.platform || '',
+        city_id: data.city_id != null ? String(data.city_id) : defaultCityIdFrom(cities),
       });
       setShowForm(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -394,6 +428,11 @@ export default function Sales() {
 
     if (!form.party_id) {
       alert('Please select a customer / party.');
+      return;
+    }
+
+    if (!form.city_id) {
+      alert('Select a city/branch for this invoice.');
       return;
     }
 
@@ -450,6 +489,7 @@ export default function Sales() {
         payment: paymentToPayload(form.payment, invoiceTotal),
         sale_channel: form.sale_channel,
         platform: form.sale_channel === 'online' ? form.platform.trim() : '',
+        city_id: form.city_id ? parseInt(form.city_id, 10) : null,
       };
 
       if (editingId) {
@@ -627,6 +667,38 @@ export default function Sales() {
         </div>
       )}
 
+      {cities.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <MapPin className="h-4 w-4 text-slate-400" />
+          <button
+            type="button"
+            onClick={() => setCityFilter('all')}
+            className={`btn btn-sm ${cityFilter === 'all' ? 'btn-primary' : 'btn-secondary'}`}
+          >
+            All Cities
+          </button>
+          {cities.map((city) => (
+            <button
+              key={city.id}
+              type="button"
+              onClick={() => setCityFilter(String(city.id))}
+              className={`btn btn-sm ${cityFilter === String(city.id) ? 'btn-primary' : 'btn-secondary'}`}
+            >
+              {city.city_name}
+            </button>
+          ))}
+          {sales.some((s) => s.city_id == null || s.city_id === '') && (
+            <button
+              type="button"
+              onClick={() => setCityFilter('none')}
+              className={`btn btn-sm ${cityFilter === 'none' ? 'btn-primary' : 'btn-secondary'}`}
+            >
+              Unassigned
+            </button>
+          )}
+        </div>
+      )}
+
       {showForm && (
         <div className="form-panel">
           <FormShell
@@ -649,6 +721,33 @@ export default function Sales() {
                     onChange={(e) => setForm({ ...form, invoice_date: e.target.value })}
                     required
                   />
+                </FormField>
+                <FormField
+                  label="City/Branch"
+                  required
+                  hint="Internal tag only — not printed on the PDF."
+                >
+                  <select
+                    className="input input-premium"
+                    value={form.city_id}
+                    onChange={(e) => setForm({ ...form, city_id: e.target.value })}
+                    required
+                  >
+                    <option value="" disabled>
+                      Select city
+                    </option>
+                    {cities
+                      .filter(
+                        (c) =>
+                          c.is_active !== false || String(c.id) === String(form.city_id)
+                      )
+                      .map((city) => (
+                        <option key={city.id} value={city.id}>
+                          {city.city_name}
+                          {city.is_active === false ? ' (inactive)' : ''}
+                        </option>
+                      ))}
+                  </select>
                 </FormField>
                 <FormField label="GST">
                   <div className="flex gap-2">
@@ -1146,6 +1245,7 @@ export default function Sales() {
                   <th>Invoice No.</th>
                   <th>Date</th>
                   <th>Party</th>
+                  <th>City</th>
                   <th>Channel</th>
                   <th className="col-num">Qty</th>
                   <th className="col-num">Subtotal</th>
@@ -1164,6 +1264,13 @@ export default function Sales() {
                     <td className="whitespace-nowrap tabular-nums">{sale.invoice_date}</td>
                     <td>
                       <p className="list-primary font-medium text-[14px]">{sale.party_name}</p>
+                    </td>
+                    <td>
+                      {sale.city_name ? (
+                        <span className="badge badge-blue">{sale.city_name}</span>
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
                     </td>
                     <td>
                       {sale.sale_channel === 'online' ? (

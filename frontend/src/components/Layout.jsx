@@ -56,6 +56,7 @@ const NAV_ICONS = {
   '/sales': TrendingUp,
   '/expenses': Wallet,
   '/reports': ClipboardList,
+  '/city-reports': Building2,
   '/pricing-calculator': Calculator,
   '/employees': Users,
   '/users': UserCircle,

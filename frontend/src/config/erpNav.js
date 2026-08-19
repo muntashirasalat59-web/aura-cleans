@@ -24,6 +24,12 @@ export const ERP_NAV_SECTIONS = [
       { path: '/expenses', label: 'Expenses', key: 'expenses', roles: [ROLES.ADMIN] },
       { path: '/reports', label: 'Reports', key: 'reports', roles: [ROLES.ADMIN] },
       {
+        path: '/city-reports',
+        label: 'City-wise Reports',
+        key: 'city_reports',
+        roles: [ROLES.ADMIN],
+      },
+      {
         path: '/pricing-calculator',
         label: 'Pricing & Margin Calculator',
         key: 'pricing_calculator',

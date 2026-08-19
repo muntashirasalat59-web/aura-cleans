@@ -143,6 +143,19 @@ export const purchasesAPI = {
   delete: (id) => request(`/purchases/${id}`, { method: 'DELETE' }),
 };
 
+// Cities / branches API
+export const citiesAPI = {
+  getAll: (opts = {}) => {
+    const params = new URLSearchParams();
+    if (opts.activeOnly) params.set('active_only', 'true');
+    const qs = params.toString();
+    return request(`/cities${qs ? `?${qs}` : ''}`);
+  },
+  create: (data) => request('/cities', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id, data) => request(`/cities/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  delete: (id) => request(`/cities/${id}`, { method: 'DELETE' }),
+};
+
 // Sales API
 export const salesAPI = {
   getAll: () => request('/sales'),
