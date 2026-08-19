@@ -46,7 +46,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.post('/', requireAdmin, async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const bid = businessIdOf(req);
     if (!bid) return res.status(400).json({ error: 'Business is required' });

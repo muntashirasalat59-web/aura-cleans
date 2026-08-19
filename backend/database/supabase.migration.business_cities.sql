@@ -143,6 +143,14 @@ BEGIN
   END IF;
 END $$;
 
+-- Guarantee a default city for AADIL SALAT's live business if that tenant is still empty.
+INSERT INTO public.business_cities (business_id, city_name, is_active)
+SELECT '2832e321-c90d-4007-bd95-4635040823cd', 'Ahmedabad', true
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.business_cities
+  WHERE business_id = '2832e321-c90d-4007-bd95-4635040823cd'
+);
+
 -- Realtime so the settings list refreshes across tabs.
 DO $$
 BEGIN

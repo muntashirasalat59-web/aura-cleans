@@ -13,6 +13,7 @@ import FormShell from '../components/forms/FormShell';
 import { FormField } from '../components/forms/FormField';
 import FormActions from '../components/forms/FormActions';
 import PartySelectField from '../components/forms/PartySelectField';
+import CityBranchField from '../components/forms/CityBranchField';
 import InvoiceLetterPreview from '../components/forms/InvoiceLetterPreview';
 import InvoicePaymentFields from '../components/forms/InvoicePaymentFields';
 import InvoicePaymentStatusBadge from '../components/invoice/InvoicePaymentStatusBadge';
@@ -157,16 +158,19 @@ export default function Sales() {
   async function loadData(silent = false) {
     try {
       if (!silent) setLoading(true);
-      const [salesData, partiesData, productsData, citiesData] = await Promise.all([
+      const [salesData, partiesData, productsData, citiesResult] = await Promise.all([
         salesAPI.getAll(),
         partiesAPI.getAll({ activeOnly: true }),
         productsAPI.getAll({ activeOnly: true }),
-        citiesAPI.getAll().catch(() => []),
+        citiesAPI
+          .getAll()
+          .then((rows) => rows || [])
+          .catch(() => []),
       ]);
       setSales(salesData);
       setParties(partiesData);
       setProducts(productsData);
-      setCities(citiesData || []);
+      setCities(citiesResult);
     } catch (err) {
       if (!silent) alert('Error: ' + err.message);
     } finally {
@@ -722,33 +726,18 @@ export default function Sales() {
                     required
                   />
                 </FormField>
-                <FormField
-                  label="City/Branch"
-                  required
-                  hint="Internal tag only — not printed on the PDF."
-                >
-                  <select
-                    className="input input-premium"
-                    value={form.city_id}
-                    onChange={(e) => setForm({ ...form, city_id: e.target.value })}
-                    required
-                  >
-                    <option value="" disabled>
-                      Select city
-                    </option>
-                    {cities
-                      .filter(
-                        (c) =>
-                          c.is_active !== false || String(c.id) === String(form.city_id)
-                      )
-                      .map((city) => (
-                        <option key={city.id} value={city.id}>
-                          {city.city_name}
-                          {city.is_active === false ? ' (inactive)' : ''}
-                        </option>
-                      ))}
-                  </select>
-                </FormField>
+                <CityBranchField
+                  cities={cities}
+                  value={form.city_id}
+                  onChange={(cityId) => setForm((prev) => ({ ...prev, city_id: cityId }))}
+                  onCityCreated={(created) => {
+                    setCities((prev) => {
+                      if (prev.some((c) => String(c.id) === String(created.id))) return prev;
+                      return [...prev, created];
+                    });
+                    notifyDataSync('business_cities');
+                  }}
+                />
                 <FormField label="GST">
                   <div className="flex gap-2">
                     <button
