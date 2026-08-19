@@ -13,6 +13,7 @@ const SYNC_TABLES = [
   'employees',
   'user_profiles',
   'business_settings',
+  'business_cities',
 ];
 
 /** Listen to Supabase postgres changes — keeps UI in sync without manual refresh. */

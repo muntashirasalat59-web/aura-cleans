@@ -33,6 +33,7 @@ const {
   buildWhatsAppShareUrl,
   uploadInvoicePdf,
 } = require('../utils/whatsappShare');
+const { ensureDefaultCity, pickDefaultCity, missingCitiesTable } = require('../utils/businessCities');
 
 /** Pull sale-channel fields out of the request body, normalized for storage. */
 function pickChannelPayload(body) {
@@ -44,6 +45,35 @@ function pickChannelPayload(body) {
 async function saveSaleChannel(db, saleId, body) {
   const patch = pickChannelPayload(body);
   const { error } = await db.from('sales').update(patch).eq('id', saleId);
+  if (error && !/column|schema cache|could not find|does not exist/i.test(error.message || '')) {
+    assertNoError(error);
+  }
+}
+
+async function saveSaleCity(db, saleId, body, businessId) {
+  if (!businessId) return;
+  let cityId = body.city_id != null && body.city_id !== '' ? Number(body.city_id) : NaN;
+  if (!Number.isFinite(cityId)) {
+    const cities = await ensureDefaultCity(db, businessId);
+    cityId = pickDefaultCity(cities)?.id;
+  } else {
+    const { data: city, error } = await db
+      .from('business_cities')
+      .select('id')
+      .eq('id', cityId)
+      .eq('business_id', String(businessId))
+      .maybeSingle();
+    if (error) {
+      if (missingCitiesTable(error)) return;
+      assertNoError(error);
+    }
+    if (!city) {
+      const cities = await ensureDefaultCity(db, businessId);
+      cityId = pickDefaultCity(cities)?.id;
+    }
+  }
+  if (!cityId) return;
+  const { error } = await db.from('sales').update({ city_id: cityId }).eq('id', saleId);
   if (error && !/column|schema cache|could not find|does not exist/i.test(error.message || '')) {
     assertNoError(error);
   }
@@ -112,7 +142,8 @@ async function createSaleWithUniqueInvoice(db, body, gstRate, maxAttempts = 5) {
 function mapSaleRow(row) {
   const party = row.parties;
   const items = row.sale_items || [];
-  const { parties, sale_items, ...rest } = row;
+  const city = row.business_cities;
+  const { parties, sale_items, business_cities, ...rest } = row;
   const total_quantity = items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
   const mapped = {
     ...rest,
@@ -121,6 +152,8 @@ function mapSaleRow(row) {
     contact: party?.contact,
     address: party?.address,
     gst_number: party?.gst_number,
+    city_id: rest.city_id ?? null,
+    city_name: city?.city_name || null,
     total_quantity,
   };
   Object.assign(mapped, enrichPaymentFields(mapped));
@@ -128,12 +161,21 @@ function mapSaleRow(row) {
 }
 
 async function fetchSaleWithItems(db, saleId) {
-  const { data: sale, error: saleError } = await db
+  let { data: sale, error: saleError } = await db
     .from('sales')
-    .select('*, parties(name, type, contact, address, gst_number)')
+    .select('*, parties(name, type, contact, address, gst_number), business_cities(city_name)')
     .eq('id', saleId)
     .eq('is_deleted', false)
     .single();
+
+  if (saleError && /business_cities|city_id|relationship|schema cache|could not find/i.test(saleError.message || '')) {
+    ({ data: sale, error: saleError } = await db
+      .from('sales')
+      .select('*, parties(name, type, contact, address, gst_number)')
+      .eq('id', saleId)
+      .eq('is_deleted', false)
+      .single());
+  }
 
   assertNoError(saleError);
 
@@ -318,11 +360,19 @@ async function updateSaleWithPayment(db, saleId, body, gstRate) {
 
 router.get('/', async (req, res) => {
   try {
-    const { data, error } = await req.db
+    let { data, error } = await req.db
       .from('sales')
-      .select('*, parties(name, type), sale_items(quantity)')
+      .select('*, parties(name, type), business_cities(city_name), sale_items(quantity)')
       .eq('is_deleted', false)
       .order('invoice_date', { ascending: false });
+
+    if (error && /business_cities|city_id|relationship|schema cache|could not find/i.test(error.message || '')) {
+      ({ data, error } = await req.db
+        .from('sales')
+        .select('*, parties(name, type), sale_items(quantity)')
+        .eq('is_deleted', false)
+        .order('invoice_date', { ascending: false }));
+    }
 
     assertNoError(error);
     res.json((data || []).map(mapSaleRow));
@@ -539,6 +589,11 @@ router.post('/', async (req, res) => {
 
     const gstRate = gst_percent || 18;
     const { saleId } = await createSaleWithUniqueInvoice(req.db, req.body, gstRate);
+    try {
+      await saveSaleCity(req.db, saleId, req.body, req.profile?.business_id);
+    } catch (cityErr) {
+      console.warn('[sales] saveSaleCity after create:', cityErr.message);
+    }
 
     const sale = await fetchSaleWithItems(req.db, saleId);
     await logActivity(req, {
@@ -552,6 +607,8 @@ router.post('/', async (req, res) => {
         payment_status: sale?.payment_status,
         sale_channel: sale?.sale_channel,
         platform: sale?.platform,
+        city_id: sale?.city_id,
+        city_name: sale?.city_name,
       },
     });
     res.status(201).json(sale);
@@ -582,6 +639,11 @@ router.put('/:id', async (req, res) => {
     const gstRate = gst_percent ?? 18;
 
     const updatedId = await updateSaleWithPayment(req.db, id, req.body, gstRate);
+    try {
+      await saveSaleCity(req.db, updatedId, req.body, req.profile?.business_id);
+    } catch (cityErr) {
+      console.warn('[sales] saveSaleCity after update:', cityErr.message);
+    }
 
     const sale = await fetchSaleWithItems(req.db, updatedId);
     res.json(sale);

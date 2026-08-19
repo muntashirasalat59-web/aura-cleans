@@ -33,6 +33,7 @@ const authRouter = require('./routes/auth');
 const usersRouter = require('./routes/users');
 const activityLogRouter = require('./routes/activityLog');
 const supportMessagesRouter = require('./routes/supportMessages');
+const citiesRouter = require('./routes/cities');
 const { requireAuth, requireAdmin } = require('./middleware/auth');
 const { checkAccess } = require('./middleware/checkAccess');
 
@@ -56,6 +57,7 @@ app.use('/api/dashboard', requireAuth, checkAccess, dashboardRouter);
 app.use('/api/products', requireAuth, checkAccess, productsRouter);
 app.use('/api/parties', requireAuth, checkAccess, partiesRouter);
 app.use('/api/sales', requireAuth, checkAccess, salesRouter);
+app.use('/api/cities', requireAuth, checkAccess, citiesRouter);
 
 // Admin only
 app.use('/api/purchases', requireAuth, requireAdmin, checkAccess, purchasesRouter);
@@ -69,6 +71,6 @@ app.use('/api/settings', requireAuth, checkAccess, require('./routes/settings'))
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
-  console.log(`📊 API: auth, dashboard, products, parties, sales (staff+admin)`);
+  console.log(`📊 API: auth, dashboard, products, parties, sales, cities (staff+admin)`);
   console.log(`📊 API: purchases, expenses, employees, reports, users, settings (admin where required)`);
 });

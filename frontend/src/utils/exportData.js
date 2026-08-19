@@ -61,6 +61,54 @@ export async function downloadXlsx(rows, columns, filenameBase, sheetName = 'Exp
   downloadBlob(blob, `${filenameBase}.xlsx`);
 }
 
+function excelSheetName(name, used) {
+  const cleaned = String(name || 'Sheet')
+    .replace(/[\[\]:*?/\\]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 31) || 'Sheet';
+  let candidate = cleaned;
+  let n = 2;
+  while (used.has(candidate.toLowerCase())) {
+    const suffix = ` (${n})`;
+    candidate = `${cleaned.slice(0, Math.max(1, 31 - suffix.length))}${suffix}`;
+    n += 1;
+  }
+  used.add(candidate.toLowerCase());
+  return candidate;
+}
+
+/**
+ * Multi-sheet Excel workbook. Each sheet: { name, rows, columns }.
+ * Reuses the same xlsx helper as Products / Purchases / Sales list export.
+ */
+export async function downloadXlsxWorkbook(sheets, filenameBase) {
+  const XLSX = await import('xlsx');
+  const workbook = XLSX.utils.book_new();
+  const used = new Set();
+  const list = Array.isArray(sheets) && sheets.length ? sheets : [{ name: 'Export', rows: [], columns: [] }];
+  for (const sheet of list) {
+    const columns = sheet.columns || [];
+    const rows = sheet.rows || [];
+    const aoa = [
+      columns.map((c) => c.header),
+      ...rows.map((row) =>
+        columns.map((c) => {
+          const v = row[c.key];
+          return v == null ? '' : v;
+        })
+      ),
+    ];
+    const worksheet = XLSX.utils.aoa_to_sheet(aoa);
+    XLSX.utils.book_append_sheet(workbook, worksheet, excelSheetName(sheet.name, used));
+  }
+  const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  downloadBlob(blob, `${filenameBase}.xlsx`);
+}
+
 /**
  * @param {'csv'|'xlsx'} format
  * @param {object[]} rows - already mapped export rows
