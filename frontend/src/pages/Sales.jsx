@@ -754,22 +754,29 @@ export default function Sales() {
 
               <p className="form-section-label">Product line items</p>
 
-              <form onSubmit={handleScanBarcode} className="mb-4 flex gap-2">
-                <div className="relative flex-1">
-                  <ScanLine className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    className="input input-premium pl-9"
-                    value={barcodeInput}
-                    onChange={(e) => setBarcodeInput(e.target.value)}
-                    placeholder="Scan or type barcode, then press Enter"
-                  />
-                </div>
-                <button type="submit" className="btn btn-secondary shrink-0">
-                  <Barcode className="h-4 w-4" />
-                  Add
-                </button>
-              </form>
+              <div className="mb-4 flex gap-2">
+  <div className="relative flex-1">
+    <ScanLine className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+    <input
+      type="text"
+      className="input input-premium pl-9"
+      value={barcodeInput}
+      onChange={(e) => setBarcodeInput(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.stopPropagation();
+          handleScanBarcode(e);
+        }
+      }}
+      placeholder="Scan or type barcode, then press Enter"
+    />
+  </div>
+  <button type="button" onClick={handleScanBarcode} className="btn btn-secondary shrink-0">
+    <Barcode className="h-4 w-4" />
+    Add
+  </button>
+</div>
               {barcodeError && (
                 <p className="mb-4 -mt-2 text-xs font-medium text-red-600 dark:text-red-400">
                   {barcodeError}
