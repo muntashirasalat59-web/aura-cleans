@@ -40,6 +40,7 @@ import {
 import { balanceDue, paymentStatus, enrichPaymentFields } from '../utils/invoiceReceivables';
 
 const emptySaleChannel = { sale_channel: 'offline', platform: '' };
+const DEFAULT_GST_RATE = 18;
 
 export default function Sales() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -64,10 +65,12 @@ export default function Sales() {
   const [errorModal, setErrorModal] = useState({ open: false, title: '', message: '' });
   const [barcodeInput, setBarcodeInput] = useState('');
   const [barcodeError, setBarcodeError] = useState('');
+  const [gstEnabled, setGstEnabled] = useState(true);
+  const [savedGstPercent, setSavedGstPercent] = useState(DEFAULT_GST_RATE);
   const [form, setForm] = useState({
     party_id: '',
     invoice_date: new Date().toISOString().split('T')[0],
-    gst_percent: 18,
+    gst_percent: DEFAULT_GST_RATE,
     place_of_supply: '',
     ship_same_as_billing: true,
     shipping_address: '',
@@ -165,6 +168,18 @@ export default function Sales() {
     setForm({ ...form, items: newItems });
   }
 
+  /** GST OFF sets the invoice rate to 0% (remembers the prior rate to restore on GST ON). */
+  function handleToggleGst() {
+    if (gstEnabled) {
+      setSavedGstPercent(Number(form.gst_percent) || DEFAULT_GST_RATE);
+      setGstEnabled(false);
+      setForm((prev) => ({ ...prev, gst_percent: 0 }));
+    } else {
+      setGstEnabled(true);
+      setForm((prev) => ({ ...prev, gst_percent: savedGstPercent || DEFAULT_GST_RATE }));
+    }
+  }
+
   /** Barcode scan: finds the product client-side (products are already loaded)
    * and either bumps quantity on an existing line for it, fills the first
    * empty row, or adds a new one. */
@@ -222,10 +237,12 @@ export default function Sales() {
     setEditStockBaseline({});
     setBarcodeInput('');
     setBarcodeError('');
+    setGstEnabled(true);
+    setSavedGstPercent(DEFAULT_GST_RATE);
     setForm({
       party_id: '',
       invoice_date: new Date().toISOString().split('T')[0],
-      gst_percent: 18,
+      gst_percent: DEFAULT_GST_RATE,
       place_of_supply: '',
       ship_same_as_billing: true,
       shipping_address: '',
@@ -320,10 +337,13 @@ export default function Sales() {
       setEditStockBaseline(baseline);
       setBarcodeInput('');
       setBarcodeError('');
+      const loadedGst = Number(data.gst_percent) || 0;
+      setGstEnabled(loadedGst > 0);
+      setSavedGstPercent(loadedGst > 0 ? loadedGst : DEFAULT_GST_RATE);
       setForm({
         party_id: String(data.party_id),
         invoice_date: data.invoice_date,
-        gst_percent: data.gst_percent,
+        gst_percent: loadedGst,
         place_of_supply: resolveInvoicePlaceOfSupply({
           placeOfSupply: data.place_of_supply,
           party: { gst_number: data.gst_number, address: data.address },
@@ -418,7 +438,7 @@ export default function Sales() {
       const payload = {
         party_id: parseInt(form.party_id),
         invoice_date: form.invoice_date,
-        gst_percent: parseFloat(form.gst_percent),
+        gst_percent: gstEnabled ? parseFloat(form.gst_percent) : 0,
         place_of_supply: form.place_of_supply.trim(),
         ship_same_as_billing: form.ship_same_as_billing,
         shipping_address: form.ship_same_as_billing ? '' : form.shipping_address.trim(),
@@ -630,13 +650,23 @@ export default function Sales() {
                     required
                   />
                 </FormField>
-                <FormField label="GST rate (%)">
-                  <input
-                    type="number"
-                    className="input input-premium"
-                    value={form.gst_percent}
-                    onChange={(e) => setForm({ ...form, gst_percent: e.target.value })}
-                  />
+                <FormField label="GST">
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleToggleGst}
+                      className={`btn shrink-0 ${gstEnabled ? 'btn-primary' : 'btn-secondary'}`}
+                    >
+                      {gstEnabled ? 'GST ON' : 'GST OFF'}
+                    </button>
+                    <input
+                      type="number"
+                      className="input input-premium"
+                      value={form.gst_percent}
+                      disabled={!gstEnabled}
+                      onChange={(e) => setForm({ ...form, gst_percent: e.target.value })}
+                    />
+                  </div>
                 </FormField>
                 <FormField label="Invoice no.">
                   <input
@@ -755,28 +785,28 @@ export default function Sales() {
               <p className="form-section-label">Product line items</p>
 
               <div className="mb-4 flex gap-2">
-  <div className="relative flex-1">
-    <ScanLine className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-    <input
-      type="text"
-      className="input input-premium pl-9"
-      value={barcodeInput}
-      onChange={(e) => setBarcodeInput(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          e.stopPropagation();
-          handleScanBarcode(e);
-        }
-      }}
-      placeholder="Scan or type barcode, then press Enter"
-    />
-  </div>
-  <button type="button" onClick={handleScanBarcode} className="btn btn-secondary shrink-0">
-    <Barcode className="h-4 w-4" />
-    Add
-  </button>
-</div>
+                <div className="relative flex-1">
+                  <ScanLine className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    className="input input-premium pl-9"
+                    value={barcodeInput}
+                    onChange={(e) => setBarcodeInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleScanBarcode(e);
+                      }
+                    }}
+                    placeholder="Scan or type barcode, then press Enter"
+                  />
+                </div>
+                <button type="button" onClick={handleScanBarcode} className="btn btn-secondary shrink-0">
+                  <Barcode className="h-4 w-4" />
+                  Add
+                </button>
+              </div>
               {barcodeError && (
                 <p className="mb-4 -mt-2 text-xs font-medium text-red-600 dark:text-red-400">
                   {barcodeError}
