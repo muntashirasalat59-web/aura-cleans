@@ -708,18 +708,16 @@ router.get('/', async (req, res) => {
       const { parties, ...rest } = row;
       const total = Number(rest.total_amount) || 0;
       let paid = Number(rest.amount_paid) || 0;
-      let payment_status = rest.payment_status || null;
-      if (payment_status === 'paid') paid = Math.max(paid, total);
-      else if (!payment_status) {
-        const due = Math.max(0, total - paid);
-        payment_status = due <= 0 ? 'paid' : paid > 0 ? 'partial' : 'pending';
-      }
+
+      const due = Math.max(0, Math.round((total - paid) * 100) / 100);
+      const payment_status = due <= 0 ? 'paid' : paid > 0 ? 'partial' : 'pending';
+
       return {
         ...rest,
         party_name: parties?.name,
         amount_paid: paid,
         payment_status,
-        balance_due: Math.max(0, Math.round((total - paid) * 100) / 100),
+        balance_due: due,
       };
     });
 
