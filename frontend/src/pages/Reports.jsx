@@ -69,14 +69,17 @@ export default function Reports() {
   const [preset, setPreset] = useState('month');
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   const loadReport = useCallback(async (silent = false) => {
     if (!fromDate || !toDate || fromDate > toDate) return;
     try {
       if (!silent) setLoading(true);
+      setLoadError('');
       const data = await reportsAPI.get({ from: fromDate, to: toDate });
       setReport(data);
     } catch (err) {
+      setLoadError(err.message || 'Failed to load report');
       if (!silent) alert('Error loading report: ' + err.message);
     } finally {
       if (!silent) setLoading(false);
@@ -251,6 +254,11 @@ export default function Reports() {
         </div>
         {fromDate > toDate && (
           <p className="text-sm text-rose-600 mt-3">From date must be on or before to date.</p>
+        )}
+        {loadError && (
+          <p className="text-sm text-rose-600 mt-3" role="alert">
+            Could not load this report: {loadError}
+          </p>
         )}
       </div>
 
