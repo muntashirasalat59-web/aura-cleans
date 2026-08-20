@@ -9,7 +9,8 @@ function isMissingTableError(error) {
     code === '42P01' ||
     msg.includes('does not exist') ||
     msg.includes('could not find the table') ||
-    msg.includes("could not find the 'pre_bookings'")
+    msg.includes("could not find the 'pre_bookings'") ||
+    msg.includes("could not find the 'pre_booking_items'")
   );
 }
 
@@ -22,6 +23,10 @@ function localTodayISO(today = new Date()) {
   const m = String(today.getMonth() + 1).padStart(2, '0');
   const day = String(today.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+function money(value) {
+  return Math.round((Number(value) || 0) * 100) / 100;
 }
 
 /** overdue | due_soon | upcoming — only meaningful while status is upcoming. */
@@ -51,17 +56,55 @@ function productDisplayName(product) {
   return name || '—';
 }
 
+function mapItem(row) {
+  const quantity = Number(row.quantity) || 0;
+  const rate = Number(row.rate) || 0;
+  return {
+    id: row.id,
+    product_id: row.product_id,
+    product_name: productDisplayName(row.products) || row.product_name || '—',
+    quantity,
+    rate,
+    amount: Number(row.amount) || money(rate * quantity),
+  };
+}
+
+function itemsFromRow(row) {
+  if (Array.isArray(row.pre_booking_items) && row.pre_booking_items.length > 0) {
+    return row.pre_booking_items.map(mapItem);
+  }
+  if (row.product_id) {
+    return [
+      mapItem({
+        product_id: row.product_id,
+        quantity: row.quantity,
+        rate: row.rate,
+        amount: row.total_amount,
+        products: row.products,
+      }),
+    ];
+  }
+  return [];
+}
+
 function mapPreBookingRow(row) {
   const status = row.status || 'upcoming';
+  const items = itemsFromRow(row);
+  const item_count = items.length;
+  const firstName = items[0]?.product_name || '—';
+  const product_name =
+    item_count <= 1 ? firstName : `${firstName} +${item_count - 1}`;
+  const total_amount =
+    Number(row.total_amount) || items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+
   return {
     ...row,
     party_name: row.parties?.name || row.party_name || '—',
-    product_name: productDisplayName(row.products) || row.product_name || '—',
-    quantity: Number(row.quantity) || 0,
-    rate: Number(row.rate) || 0,
-    total_amount:
-      Number(row.total_amount) ||
-      Math.round((Number(row.rate) || 0) * (Number(row.quantity) || 0) * 100) / 100,
+    items,
+    item_count,
+    product_name,
+    quantity: items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0),
+    total_amount: money(total_amount),
     urgency: status === 'upcoming' ? deliveryUrgency(row.delivery_date) : status,
   };
 }
@@ -82,6 +125,7 @@ module.exports = {
   isMissingTableError,
   dateOnly,
   localTodayISO,
+  money,
   deliveryUrgency,
   mapPreBookingRow,
   dueSoonRows,

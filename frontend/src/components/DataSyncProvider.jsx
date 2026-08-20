@@ -15,6 +15,7 @@ const SYNC_TABLES = [
   'business_settings',
   'business_cities',
   'pre_bookings',
+  'pre_booking_items',
 ];
 
 /** Listen to Supabase postgres changes — keeps UI in sync without manual refresh. */

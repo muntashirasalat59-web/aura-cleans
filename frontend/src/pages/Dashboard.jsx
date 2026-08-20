@@ -1583,6 +1583,11 @@ function PreBookingAlertBanner({ count, totalDue, preview, totalCount, onDismiss
                     {row.party_name}
                   </span>
                   <span className="max-w-[12rem] truncate text-aura-muted">{row.product_name}</span>
+                  {row.item_count > 1 && (
+                    <span className="rounded-full border border-aura-border px-2 py-0.5 text-[11px] font-semibold text-aura-muted">
+                      {row.item_count} items
+                    </span>
+                  )}
                   {row.urgency === 'overdue' && (
                     <span className="rounded-full bg-aura-danger px-2 py-1 text-[length:var(--aura-type-caption)] font-bold uppercase tracking-wide text-white">
                       Overdue
