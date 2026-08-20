@@ -2,6 +2,11 @@ const express = require('express');
 const router = express.Router();
 const { assertNoError } = require('../database/supabase');
 const { fetchBusinessSettings } = require('../utils/businessSettings');
+const {
+  isMissingTableError: isMissingPreBookingsTable,
+  mapPreBookingRow,
+  dueSoonRows,
+} = require('../utils/preBookings');
 
 /** Keep in sync with frontend/src/config/stock.js → LOW_STOCK_THRESHOLD */
 const LOW_STOCK_THRESHOLD = 50;
@@ -26,6 +31,30 @@ async function fetchExpensesSafe(db) {
     assertNoError(error);
   }
   return data || [];
+}
+
+async function fetchDuePreBookingsSafe(db, businessId) {
+  let query = db
+    .from('pre_bookings')
+    .select('*, parties(name), products(name, unit_size, unit_type)')
+    .eq('status', 'upcoming');
+  if (businessId) query = query.eq('business_id', businessId);
+
+  let { data, error } = await query;
+  if (error && /parties|products|relationship|schema cache/i.test(error.message || '')) {
+    let fallback = db.from('pre_bookings').select('*').eq('status', 'upcoming');
+    if (businessId) fallback = fallback.eq('business_id', businessId);
+    ({ data, error } = await fallback);
+  }
+  if (error) {
+    if (isMissingTableError(error) || isMissingPreBookingsTable(error)) {
+      console.warn('[dashboard] pre_bookings table missing — skipping reminder banner');
+      return [];
+    }
+    console.warn('[dashboard] pre_bookings:', error.message);
+    return [];
+  }
+  return dueSoonRows((data || []).map(mapPreBookingRow));
 }
 
 function formatDate(d) {
@@ -586,6 +615,10 @@ router.get('/', async (req, res) => {
     const yearStart = getYearStartDate();
 
     const expensesPromise = fetchExpensesSafe(db);
+    const preBookingsPromise = fetchDuePreBookingsSafe(
+      db,
+      String(req.profile?.business_id || '').trim()
+    );
 
     const [
       productsRes,
@@ -599,6 +632,7 @@ router.get('/', async (req, res) => {
       recentPurchasesActivityRes,
       partiesBalanceRes,
       expenseRows,
+      duePreBookings,
     ] = await Promise.all([
       db.from('products').select('*'),
       db.from('sales').select('total_amount, invoice_date, gst_amount').eq('is_deleted', false),
@@ -625,6 +659,7 @@ router.get('/', async (req, res) => {
         .limit(10),
       db.from('parties').select('balance, name, type'),
       expensesPromise,
+      preBookingsPromise,
     ]);
 
     assertNoError(productsRes.error);
@@ -856,6 +891,8 @@ router.get('/', async (req, res) => {
       pendingPurchases,
       pendingPayableTone,
       dueSoonDays: DUE_SOON_DAYS,
+      duePreBookings,
+      duePreBookingCount: (duePreBookings || []).length,
       lowStockCount,
       expensesThisMonth,
       expensesThisYear,
