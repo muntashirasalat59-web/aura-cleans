@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, X, Pencil, FileText, Check, Ban, Trash2, ChevronDown, IndianRupee } from 'lucide-react';
+import { Plus, X, Pencil, FileText, Ban, Trash2, ChevronDown, IndianRupee } from 'lucide-react';
 import { preBookingsAPI, partiesAPI, productsAPI } from '../api';
 import LoadingState from '../components/LoadingState';
 import PageHeader from '../components/PageHeader';
@@ -184,20 +184,6 @@ export default function PreBookings() {
   function createInvoice(row) {
     if ((row?.status || 'upcoming') !== 'upcoming') return;
     navigate(`/sales?fromPreBooking=${row.id}`);
-  }
-
-  async function markDelivered(id) {
-    if (!confirm('Mark this whole pre-booking as delivered (all products)?')) return;
-    try {
-      setBusyId(id);
-      await preBookingsAPI.markDelivered(id);
-      notifyDataSync('pre_bookings');
-      await loadBookings(true);
-    } catch (err) {
-      alert(err.message || 'Could not mark as delivered.');
-    } finally {
-      setBusyId(null);
-    }
   }
 
   async function deleteBooking(id) {
@@ -424,15 +410,6 @@ export default function PreBookings() {
                             >
                               <FileText className="h-3.5 w-3.5" />
                               Create Invoice
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busyId === row.id}
-                              onClick={() => markDelivered(row.id)}
-                              className="link-action"
-                            >
-                              <Check className="h-3.5 w-3.5" />
-                              Mark as delivered
                             </button>
                             <button
                               type="button"

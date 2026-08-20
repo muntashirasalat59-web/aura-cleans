@@ -222,7 +222,7 @@ async function updateStatus(req, res, nextStatus) {
 
   const row = mapPreBookingRow(updated || { ...existing, status: nextStatus });
   await logActivity(req, {
-    actionType: nextStatus === 'delivered' ? 'mark_delivered' : 'cancel',
+    actionType: 'cancel',
     entityType: 'pre_booking',
     entityId: row.id,
     entityName: `${row.party_name} · ${row.item_count} item${row.item_count === 1 ? '' : 's'}`,
@@ -230,14 +230,6 @@ async function updateStatus(req, res, nextStatus) {
   });
   res.json(row);
 }
-
-router.patch('/:id/deliver', async (req, res) => {
-  try {
-    await updateStatus(req, res, 'delivered');
-  } catch (error) {
-    fail(res, error);
-  }
-});
 
 router.patch('/:id/cancel', async (req, res) => {
   try {
