@@ -28,7 +28,7 @@ function fail(res, error, fallbackStatus = 500) {
   if (handleMissingTable(res, error)) return true;
   const message = publicErrorMessage(error);
   const status =
-    /required|at least one|greater than 0|cannot be negative|not found|not set up|rebuild/i.test(message)
+    /required|at least one|greater than 0|cannot be negative|not found|not set up|rebuild|only upcoming/i.test(message)
       ? 400
       : fallbackStatus;
   res.status(status).json({ error: message });
@@ -128,6 +128,52 @@ router.post('/', async (req, res) => {
       },
     });
     res.status(201).json(row);
+  } catch (error) {
+    fail(res, error);
+  }
+});
+
+router.put('/:id', async (req, res) => {
+  try {
+    const db = req.db;
+    if (!db) return res.status(401).json({ error: 'Authentication required' });
+
+    const bid = businessIdOf(req);
+    if (!bid) return res.status(400).json({ error: 'Business is required' });
+
+    const items = normalizeItems(req.body);
+    const validationError = validateBody(req.body, items);
+    if (validationError) return res.status(400).json({ error: validationError });
+
+    const { error } = await db.rpc('update_pre_booking', {
+      p_id: Number(req.params.id),
+      p_business_id: bid,
+      p_party_id: Number(req.body.party_id),
+      p_delivery_date: dateOnly(req.body.delivery_date),
+      p_notes: String(req.body.notes || '').trim(),
+      p_items: items,
+    });
+    if (error) return fail(res, error, 400);
+
+    const { data: full, error: refetchError } = await fetchOne(db, req.params.id);
+    if (refetchError) return fail(res, refetchError);
+    if (!full) return res.status(404).json({ error: 'Pre-booking not found' });
+
+    const row = mapPreBookingRow(full);
+    await logActivity(req, {
+      actionType: 'update',
+      entityType: 'pre_booking',
+      entityId: row.id,
+      entityName: `${row.party_name} · ${row.item_count} item${row.item_count === 1 ? '' : 's'}`,
+      details: {
+        item_count: row.item_count,
+        subtotal: row.subtotal,
+        gst_total: row.gst_total,
+        total_amount: row.total_amount,
+        delivery_date: row.delivery_date,
+      },
+    });
+    res.json(row);
   } catch (error) {
     fail(res, error);
   }

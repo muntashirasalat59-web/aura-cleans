@@ -35,6 +35,9 @@ function money(value) {
 function publicErrorMessage(error) {
   const msg = String(error?.message || error || '').trim();
   const lower = msg.toLowerCase();
+  if (lower.includes('update_pre_booking') && (lower.includes('does not exist') || lower.includes('could not find'))) {
+    return 'Run backend/database/supabase.migration.pre_bookings_update.sql in the Supabase SQL editor.';
+  }
   if (
     lower.includes('could not find the function') ||
     (lower.includes('create_pre_booking') && lower.includes('does not exist'))
@@ -53,7 +56,7 @@ function publicErrorMessage(error) {
   if (lower.includes('products') && (lower.includes('foreign key') || lower.includes('violates'))) {
     return 'One of the products was not found.';
   }
-  const raised = msg.match(/Add at least one product|Party is required|Delivery date is required|Business is required|Each product needs|Each row needs|GST percent cannot be negative/i);
+  const raised = msg.match(/Add at least one product|Party is required|Delivery date is required|Business is required|Each product needs|Each row needs|GST percent cannot be negative|Only upcoming pre-bookings can be edited|Pre-booking not found/i);
   if (raised) return raised[0];
   return msg.replace(/^.*error:\s*/i, '') || 'Could not save this pre-booking.';
 }

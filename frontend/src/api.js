@@ -203,6 +203,7 @@ export const expensesAPI = {
 export const preBookingsAPI = {
   getAll: () => request('/pre-bookings'),
   create: (data) => request('/pre-bookings', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id, data) => request(`/pre-bookings/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   markDelivered: (id) => request(`/pre-bookings/${id}/deliver`, { method: 'PATCH' }),
   cancel: (id) => request(`/pre-bookings/${id}/cancel`, { method: 'PATCH' }),
 };
