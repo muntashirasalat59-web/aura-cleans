@@ -58,6 +58,10 @@ function mapPreBookingRow(row) {
     party_name: row.parties?.name || row.party_name || '—',
     product_name: productDisplayName(row.products) || row.product_name || '—',
     quantity: Number(row.quantity) || 0,
+    rate: Number(row.rate) || 0,
+    total_amount:
+      Number(row.total_amount) ||
+      Math.round((Number(row.rate) || 0) * (Number(row.quantity) || 0) * 100) / 100,
     urgency: status === 'upcoming' ? deliveryUrgency(row.delivery_date) : status,
   };
 }

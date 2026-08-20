@@ -9,6 +9,7 @@ import FormActions from '../components/forms/FormActions';
 import PartySelectField from '../components/forms/PartySelectField';
 import SegmentedControl from '../components/forms/SegmentedControl';
 import { formatDisplayDate } from '../utils/invoicePayment';
+import { formatInrAmount } from '../utils/invoiceLineItems';
 import { formatProductOptionLabel, formatProductNameWithSize } from '../utils/productDisplay';
 import { SALES_PARTY_TYPES, SALES_QUICK_ADD_TYPES } from '../utils/partyTypes';
 import { refreshPartiesAfterCreate } from '../utils/partyList';
@@ -25,6 +26,7 @@ const emptyForm = () => ({
   party_id: '',
   product_id: '',
   quantity: '1',
+  rate: '',
   delivery_date: todayISO(),
   notes: '',
 });
@@ -89,6 +91,15 @@ export default function PreBookings() {
     setForm(emptyForm());
   }
 
+  function applyProduct(productId) {
+    const product = products.find((p) => String(p.id) === String(productId));
+    setForm((prev) => ({
+      ...prev,
+      product_id: productId,
+      rate: product ? String(product.price ?? '') : '',
+    }));
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.party_id) {
@@ -99,11 +110,22 @@ export default function PreBookings() {
       alert('Product is required');
       return;
     }
+    const quantity = Number(form.quantity);
+    const rate = Number(form.rate);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      alert('Quantity must be greater than 0');
+      return;
+    }
+    if (form.rate === '' || !Number.isFinite(rate) || rate < 0) {
+      alert('Rate is required');
+      return;
+    }
     try {
       await preBookingsAPI.create({
         party_id: form.party_id,
         product_id: form.product_id,
-        quantity: Number(form.quantity),
+        quantity,
+        rate,
         delivery_date: form.delivery_date,
         notes: form.notes.trim(),
       });
@@ -150,6 +172,13 @@ export default function PreBookings() {
     });
   }, [rows, statusFilter]);
 
+  const formTotal = useMemo(() => {
+    const qty = Number(form.quantity);
+    const rate = Number(form.rate);
+    if (!Number.isFinite(qty) || !Number.isFinite(rate)) return 0;
+    return Math.round(qty * rate * 100) / 100;
+  }, [form.quantity, form.rate]);
+
   if (loading && rows.length === 0) return <LoadingState />;
 
   return (
@@ -183,7 +212,7 @@ export default function PreBookings() {
           <FormShell
             icon={CalendarClock}
             title="New pre-booking"
-            subtitle="Party, product, quantity, and the date you promised to deliver."
+            subtitle="Party, product, quantity, rate, and the date you promised to deliver."
           >
             <form onSubmit={handleSubmit} className="form-grid">
               <PartySelectField
@@ -206,7 +235,7 @@ export default function PreBookings() {
                 <select
                   className="input input-premium"
                   value={form.product_id}
-                  onChange={(e) => setForm((prev) => ({ ...prev, product_id: e.target.value }))}
+                  onChange={(e) => applyProduct(e.target.value)}
                   required
                 >
                   <option value="">Select product</option>
@@ -235,6 +264,30 @@ export default function PreBookings() {
                   value={form.delivery_date}
                   onChange={(e) => setForm((prev) => ({ ...prev, delivery_date: e.target.value }))}
                   required
+                />
+              </FormField>
+              <FormField
+                label="Rate (₹ / unit)"
+                required
+                hint="Filled from the product price — change it if you negotiated."
+              >
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="input input-premium"
+                  value={form.rate}
+                  onChange={(e) => setForm((prev) => ({ ...prev, rate: e.target.value }))}
+                  required
+                />
+              </FormField>
+              <FormField label="Total amount" hint="Rate × quantity">
+                <input
+                  className="input input-premium bg-slate-50 dark:bg-slate-800/60"
+                  value={formatInrAmount(formTotal)}
+                  readOnly
+                  tabIndex={-1}
+                  aria-readonly="true"
                 />
               </FormField>
               <FormField label="Notes (optional)" className="md:col-span-2 lg:col-span-3">
@@ -276,13 +329,14 @@ export default function PreBookings() {
                 <th>Qty</th>
                 <th>Delivery date</th>
                 <th>Status</th>
+                <th>Amount</th>
                 <th className="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="py-12 text-center text-slate-500">
+                  <td colSpan="8" className="py-12 text-center text-slate-500">
                     {rows.length === 0
                       ? 'No pre-bookings yet. Add one when a customer orders for a later date.'
                       : 'No data in this filter.'}
@@ -311,6 +365,9 @@ export default function PreBookings() {
                         <span className={bookingStatusBadgeClass(display)}>
                           {bookingStatusLabel(display)}
                         </span>
+                      </td>
+                      <td className="font-semibold tabular-nums whitespace-nowrap">
+                        {formatInrAmount(row.total_amount)}
                       </td>
                       <td className="text-right">
                         {upcoming ? (

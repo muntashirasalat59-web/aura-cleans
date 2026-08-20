@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS public.pre_bookings (
   party_id BIGINT NOT NULL REFERENCES public.parties (id) ON DELETE CASCADE,
   product_id BIGINT NOT NULL REFERENCES public.products (id) ON DELETE CASCADE,
   quantity NUMERIC(12, 2) NOT NULL CHECK (quantity > 0),
+  rate NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (rate >= 0),
+  total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (total_amount >= 0),
   booking_date DATE NOT NULL DEFAULT CURRENT_DATE,
   delivery_date DATE NOT NULL,
   notes TEXT NOT NULL DEFAULT '',
@@ -16,6 +18,17 @@ CREATE TABLE IF NOT EXISTS public.pre_bookings (
 
 COMMENT ON TABLE public.pre_bookings IS
   'Simple future-order reminders. Status is manual — no stock or invoice side effects.';
+
+COMMENT ON COLUMN public.pre_bookings.rate IS
+  'Per-unit price for this booking. Defaults from the product catalog; staff may negotiate.';
+COMMENT ON COLUMN public.pre_bookings.total_amount IS
+  'rate × quantity, stored so the list and dashboard can show order value.';
+
+-- Existing installs that already ran CREATE TABLE without amount columns.
+ALTER TABLE public.pre_bookings
+  ADD COLUMN IF NOT EXISTS rate NUMERIC(12, 2) NOT NULL DEFAULT 0;
+ALTER TABLE public.pre_bookings
+  ADD COLUMN IF NOT EXISTS total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0;
 
 CREATE INDEX IF NOT EXISTS pre_bookings_business_id_idx ON public.pre_bookings (business_id);
 CREATE INDEX IF NOT EXISTS pre_bookings_delivery_date_idx ON public.pre_bookings (delivery_date);
