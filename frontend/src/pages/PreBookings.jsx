@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, X, Pencil, FileText, Check, Ban, ChevronDown, IndianRupee } from 'lucide-react';
+import { Plus, X, Pencil, FileText, Check, Ban, Trash2, ChevronDown, IndianRupee } from 'lucide-react';
 import { preBookingsAPI, partiesAPI, productsAPI } from '../api';
 import LoadingState from '../components/LoadingState';
 import PageHeader from '../components/PageHeader';
@@ -195,6 +195,27 @@ export default function PreBookings() {
       await loadBookings(true);
     } catch (err) {
       alert(err.message || 'Could not mark as delivered.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function deleteBooking(id) {
+    if (
+      !confirm(
+        "Delete this pre-booking record? This won't affect the invoice already created."
+      )
+    ) {
+      return;
+    }
+    try {
+      setBusyId(id);
+      await preBookingsAPI.delete(id);
+      notifyDataSync('pre_bookings');
+      notifyDataSync('pre_booking_items');
+      await loadBookings(true);
+    } catch (err) {
+      alert(err.message || 'Could not delete this pre-booking.');
     } finally {
       setBusyId(null);
     }
@@ -424,7 +445,17 @@ export default function PreBookings() {
                             </button>
                           </div>
                         ) : (
-                          <span className="text-slate-400">—</span>
+                          <div className="list-actions justify-end">
+                            <button
+                              type="button"
+                              disabled={busyId === row.id}
+                              onClick={() => deleteBooking(row.id)}
+                              className="link-action-danger"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Delete
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>

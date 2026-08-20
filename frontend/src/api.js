@@ -207,6 +207,7 @@ export const preBookingsAPI = {
   update: (id, data) => request(`/pre-bookings/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   markDelivered: (id) => request(`/pre-bookings/${id}/deliver`, { method: 'PATCH' }),
   cancel: (id) => request(`/pre-bookings/${id}/cancel`, { method: 'PATCH' }),
+  delete: (id) => request(`/pre-bookings/${id}`, { method: 'DELETE' }),
 };
 
 // Employees API

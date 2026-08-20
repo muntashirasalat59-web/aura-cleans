@@ -247,4 +247,44 @@ router.patch('/:id/cancel', async (req, res) => {
   }
 });
 
+router.delete('/:id', async (req, res) => {
+  try {
+    const db = req.db;
+    if (!db) return res.status(401).json({ error: 'Authentication required' });
+
+    const { data: existing, error: fetchError } = await fetchOne(db, req.params.id);
+    if (handleMissingTable(res, fetchError)) return;
+    assertNoError(fetchError);
+    if (!existing) return res.status(404).json({ error: 'Pre-booking not found' });
+
+    const bid = businessIdOf(req);
+    if (bid && String(existing.business_id) !== bid) {
+      return res.status(404).json({ error: 'Pre-booking not found' });
+    }
+
+    const status = existing.status || 'upcoming';
+    if (status !== 'delivered' && status !== 'cancelled') {
+      return res.status(400).json({
+        error: 'Only delivered or cancelled pre-bookings can be deleted',
+      });
+    }
+
+    const row = mapPreBookingRow(existing);
+    const { error } = await db.from('pre_bookings').delete().eq('id', existing.id);
+    if (handleMissingTable(res, error)) return;
+    assertNoError(error);
+
+    await logActivity(req, {
+      actionType: 'delete',
+      entityType: 'pre_booking',
+      entityId: row.id,
+      entityName: `${row.party_name} · ${row.item_count} item${row.item_count === 1 ? '' : 's'}`,
+      details: { status, converted_invoice_id: row.converted_invoice_id },
+    });
+    res.json({ ok: true, id: row.id });
+  } catch (error) {
+    fail(res, error);
+  }
+});
+
 module.exports = router;
