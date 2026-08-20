@@ -1324,13 +1324,6 @@ export default function Sales() {
                         </button>
                         {(() => {
                           const status = sale.payment_status || paymentStatus(sale);
-                          if (status === 'paid') {
-                            return (
-                              <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                                Paid
-                              </span>
-                            );
-                          }
                           if (status === 'pending' || status === 'partial') {
                             return (
                               <button
