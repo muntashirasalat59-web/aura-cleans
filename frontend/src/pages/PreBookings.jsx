@@ -1,22 +1,20 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, X, CalendarClock, Check, Ban, ChevronDown, IndianRupee } from 'lucide-react';
+import { Plus, X, Pencil, Check, Ban, ChevronDown, IndianRupee } from 'lucide-react';
 import { preBookingsAPI, partiesAPI, productsAPI } from '../api';
 import LoadingState from '../components/LoadingState';
 import PageHeader from '../components/PageHeader';
-import FormShell from '../components/forms/FormShell';
-import { FormField } from '../components/forms/FormField';
-import FormActions from '../components/forms/FormActions';
-import PartySelectField from '../components/forms/PartySelectField';
-import ProductLineItemsEditor, { emptyProductLine } from '../components/forms/ProductLineItemsEditor';
+import PreBookingForm from '../components/forms/PreBookingForm';
+import { emptyProductLine } from '../components/forms/ProductLineItemsEditor';
 import SegmentedControl from '../components/forms/SegmentedControl';
 import { formatDisplayDate } from '../utils/invoicePayment';
 import { formatInrAmount } from '../utils/invoiceLineItems';
-import { SALES_PARTY_TYPES, SALES_QUICK_ADD_TYPES } from '../utils/partyTypes';
 import { refreshPartiesAfterCreate } from '../utils/partyList';
 import { useDataSync } from '../hooks/useDataSync';
 import { notifyDataSync } from '../lib/dataSync';
 import {
   todayISO,
+  dateOnly,
+  DEFAULT_GST_RATE,
   bookingDisplayStatus,
   bookingStatusLabel,
   bookingStatusBadgeClass,
@@ -35,6 +33,7 @@ export default function PreBookings() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm());
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -85,12 +84,42 @@ export default function PreBookings() {
 
   function openCreateForm() {
     setFormError('');
+    setEditingId(null);
     setForm(emptyForm());
     setShowForm(true);
   }
 
+  function bookingToForm(row) {
+    const items = (row?.items || [])
+      .filter((item) => item?.product_id)
+      .map((item) => ({
+        product_id: String(item.product_id),
+        quantity: String(item.quantity ?? '1'),
+        rate: String(item.rate ?? ''),
+        gst_percent: String(
+          item.gst_percent === 0 || item.gst_percent ? item.gst_percent : DEFAULT_GST_RATE
+        ),
+      }));
+    return {
+      party_id: row?.party_id ? String(row.party_id) : '',
+      delivery_date: dateOnly(row?.delivery_date) || todayISO(),
+      notes: row?.notes || '',
+      items: items.length > 0 ? items : [emptyProductLine()],
+    };
+  }
+
+  function openEditForm(row) {
+    if ((row?.status || 'upcoming') !== 'upcoming') return;
+    setFormError('');
+    setEditingId(row.id);
+    setForm(bookingToForm(row));
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   function closeForm() {
     setShowForm(false);
+    setEditingId(null);
     setFormError('');
     setForm(emptyForm());
   }
@@ -128,18 +157,23 @@ export default function PreBookings() {
     }
     try {
       setSaving(true);
-      await preBookingsAPI.create({
+      const payload = {
         party_id: form.party_id,
         delivery_date: form.delivery_date,
         notes: form.notes.trim(),
         items,
-      });
+      };
+      if (editingId) {
+        await preBookingsAPI.update(editingId, payload);
+      } else {
+        await preBookingsAPI.create(payload);
+      }
       closeForm();
       notifyDataSync('pre_bookings');
       notifyDataSync('pre_booking_items');
       await loadBookings(true);
     } catch (err) {
-      setFormError(err.message || 'Could not save this pre-booking.');
+      setFormError(err.message || (editingId ? 'Could not update this pre-booking.' : 'Could not save this pre-booking.'));
     } finally {
       setSaving(false);
     }
@@ -223,76 +257,18 @@ export default function PreBookings() {
       />
 
       {showForm && (
-        <div className="form-panel">
-          <FormShell
-            icon={CalendarClock}
-            title="New pre-booking"
-            subtitle="One customer and delivery date, with as many products as they ordered."
-          >
-            <form onSubmit={handleSubmit}>
-              <div className="form-grid mb-6">
-                <PartySelectField
-                  label="Party"
-                  required
-                  className="md:col-span-2"
-                  value={form.party_id}
-                  onChange={(partyId) => setForm((prev) => ({ ...prev, party_id: partyId }))}
-                  parties={parties}
-                  onPartyCreated={handlePartyCreated}
-                  defaultTypes={SALES_PARTY_TYPES}
-                  showAllLabel="Show all party types (including manufacturers)"
-                  quickAddLabel="New Customer"
-                  quickAddTitle="New customer"
-                  quickAddDefaultType="retailer"
-                  quickAddAllowedTypes={SALES_QUICK_ADD_TYPES}
-                  placeholder="Search customer…"
-                />
-                <FormField label="Delivery date" required>
-                  <input
-                    type="date"
-                    className="input input-premium"
-                    value={form.delivery_date}
-                    onChange={(e) => setForm((prev) => ({ ...prev, delivery_date: e.target.value }))}
-                    required
-                  />
-                </FormField>
-                <FormField label="Notes (optional)" className="md:col-span-2 lg:col-span-3">
-                  <textarea
-                    className="input input-premium min-h-[88px] resize-y"
-                    rows={2}
-                    value={form.notes}
-                    onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-                    placeholder="Colour, size, reminder for the warehouse…"
-                  />
-                </FormField>
-              </div>
-
-              <p className="form-section-label">Line items</p>
-              <p className="text-xs text-slate-500 mb-3">
-                Catalog price fills Rate. GST % defaults to 18 and can be changed per product. Amount
-                includes GST.
-              </p>
-              <ProductLineItemsEditor
-                items={form.items}
-                products={products}
-                onChange={(items) => setForm((prev) => ({ ...prev, items }))}
-                addLabel="Add another product"
-              />
-
-              {formError ? (
-                <p role="alert" className="mb-4 text-sm font-medium text-red-600 dark:text-red-400">
-                  {formError}
-                </p>
-              ) : null}
-
-              <FormActions
-                submitLabel="Save pre-booking"
-                onCancel={closeForm}
-                submitDisabled={saving}
-              />
-            </form>
-          </FormShell>
-        </div>
+        <PreBookingForm
+          mode={editingId ? 'edit' : 'create'}
+          form={form}
+          onChange={setForm}
+          parties={parties}
+          products={products}
+          onPartyCreated={handlePartyCreated}
+          onSubmit={handleSubmit}
+          onCancel={closeForm}
+          error={formError}
+          saving={saving}
+        />
       )}
 
       <div className="group rounded-[var(--aura-radius-card)] border border-aura-border bg-aura-card p-6 shadow-soft">
@@ -402,7 +378,16 @@ export default function PreBookings() {
                       </td>
                       <td className="text-right">
                         {upcoming ? (
-                          <div className="flex justify-end gap-3">
+                          <div className="list-actions justify-end">
+                            <button
+                              type="button"
+                              disabled={busyId === row.id}
+                              onClick={() => openEditForm(row)}
+                              className="link-action"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              Edit
+                            </button>
                             <button
                               type="button"
                               disabled={busyId === row.id}
