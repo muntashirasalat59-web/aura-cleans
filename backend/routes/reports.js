@@ -93,9 +93,62 @@ function buildRealizedMargin(saleItemRows) {
   };
 }
 
+function dateOnly(value) {
+  return String(value || '').slice(0, 10);
+}
+
+function inDateRange(value, from, to) {
+  const day = dateOnly(value);
+  return Boolean(day) && day >= from && day <= to;
+}
+
+/** Same list query as Sales & Invoices — date filter applied in JS so column types cannot drop rows. */
+async function listSalesForReport(db) {
+  let { data, error } = await db
+    .from('sales')
+    .select('*, parties(name)')
+    .eq('is_deleted', false)
+    .order('invoice_date', { ascending: false });
+
+  if (error && /is_deleted|column|schema cache|could not find/i.test(error.message || '')) {
+    ({ data, error } = await db
+      .from('sales')
+      .select('*, parties(name)')
+      .order('invoice_date', { ascending: false }));
+  }
+  if (error && /parties|relationship/i.test(error.message || '')) {
+    ({ data, error } = await db.from('sales').select('*').order('invoice_date', { ascending: false }));
+  }
+  assertNoError(error);
+  return (data || []).filter((row) => row.is_deleted !== true);
+}
+
+async function listPurchasesForReport(db) {
+  const { data, error } = await db
+    .from('purchases')
+    .select('*, parties(name, type)')
+    .order('purchase_date', { ascending: false });
+  assertNoError(error);
+  return data || [];
+}
+
+async function listExpensesForReport(db) {
+  let { data, error } = await db
+    .from('expenses')
+    .select('*')
+    .order('expense_date', { ascending: false })
+    .order('created_at', { ascending: false });
+  if (error && /created_at|column|schema cache/i.test(error.message || '')) {
+    ({ data, error } = await db.from('expenses').select('*').order('expense_date', { ascending: false }));
+  }
+  assertNoError(error);
+  return data || [];
+}
+
 router.get('/', async (req, res) => {
   try {
-    const { from, to } = req.query;
+    const from = dateOnly(req.query.from);
+    const to = dateOnly(req.query.to);
 
     if (!from || !to) {
       return res.status(400).json({ error: 'Query params "from" and "to" (YYYY-MM-DD) are required' });
@@ -106,35 +159,21 @@ router.get('/', async (req, res) => {
     }
 
     const db = req.db;
-    const [salesRes, purchasesRes, expensesRes] = await Promise.all([
-      db
-        .from('sales')
-        .select('id, invoice_number, invoice_date, subtotal, gst_amount, total_amount, parties(name)')
-        .eq('is_deleted', false)
-        .gte('invoice_date', from)
-        .lte('invoice_date', to)
-        .order('invoice_date', { ascending: false }),
-      db
-        .from('purchases')
-        .select('id, purchase_date, total_amount, notes, parties(name)')
-        .gte('purchase_date', from)
-        .lte('purchase_date', to)
-        .order('purchase_date', { ascending: false }),
-      db
-        .from('expenses')
-        .select('id, title, category, amount, expense_date, payment_method, notes')
-        .gte('expense_date', from)
-        .lte('expense_date', to)
-        .order('expense_date', { ascending: false }),
+    if (!db) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const [allSales, allPurchases, allExpenses] = await Promise.all([
+      listSalesForReport(db),
+      listPurchasesForReport(db),
+      listExpensesForReport(db),
     ]);
 
-    assertNoError(salesRes.error);
-    assertNoError(purchasesRes.error);
-    assertNoError(expensesRes.error);
-
-    const sales = (salesRes.data || []).map(mapSale);
-    const purchases = (purchasesRes.data || []).map(mapPurchase);
-    const expenses = expensesRes.data || [];
+    const sales = allSales.filter((row) => inDateRange(row.invoice_date, from, to)).map(mapSale);
+    const purchases = allPurchases
+      .filter((row) => inDateRange(row.purchase_date, from, to))
+      .map(mapPurchase);
+    const expenses = allExpenses.filter((row) => inDateRange(row.expense_date, from, to));
 
     const saleIds = sales.map((row) => row.id);
     const purchaseIds = purchases.map((row) => row.id);
@@ -166,6 +205,17 @@ router.get('/', async (req, res) => {
     let purchaseItemsRes = { data: [] };
     if (saleIds.length > 0) {
       saleItemsRes = lineItemResults[0];
+      if (
+        saleItemsRes.error &&
+        /cost_price|price|schema cache|could not find|relationship/i.test(saleItemsRes.error.message || '')
+      ) {
+        saleItemsRes = await db
+          .from('sale_items')
+          .select(
+            'product_id, quantity, rate, amount, sale_id, sales(invoice_number, invoice_date, parties(name)), products(name, unit_size, unit_type)'
+          )
+          .in('sale_id', saleIds);
+      }
       assertNoError(saleItemsRes.error);
     }
     if (purchaseIds.length > 0) {
