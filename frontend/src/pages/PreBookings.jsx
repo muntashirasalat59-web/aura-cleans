@@ -22,12 +22,9 @@ import {
   bookingStatusBadgeClass,
 } from '../utils/preBookings';
 
-const DEFAULT_GST_RATE = 18;
-
 const emptyForm = () => ({
   party_id: '',
   delivery_date: todayISO(),
-  gst_percent: DEFAULT_GST_RATE,
   notes: '',
   items: [emptyProductLine()],
 });
@@ -39,11 +36,11 @@ export default function PreBookings() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm());
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
   const [statusFilter, setStatusFilter] = useState('upcoming');
   const [busyId, setBusyId] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
-  const [gstEnabled, setGstEnabled] = useState(true);
-  const [savedGstPercent, setSavedGstPercent] = useState(DEFAULT_GST_RATE);
 
   useEffect(() => {
     loadLookups(true);
@@ -87,33 +84,22 @@ export default function PreBookings() {
   }
 
   function openCreateForm() {
-    setGstEnabled(true);
-    setSavedGstPercent(DEFAULT_GST_RATE);
+    setFormError('');
     setForm(emptyForm());
     setShowForm(true);
   }
 
   function closeForm() {
     setShowForm(false);
-    setGstEnabled(true);
+    setFormError('');
     setForm(emptyForm());
-  }
-
-  function handleToggleGst() {
-    if (gstEnabled) {
-      setSavedGstPercent(Number(form.gst_percent) || DEFAULT_GST_RATE);
-      setGstEnabled(false);
-      setForm((prev) => ({ ...prev, gst_percent: 0 }));
-    } else {
-      setGstEnabled(true);
-      setForm((prev) => ({ ...prev, gst_percent: savedGstPercent || DEFAULT_GST_RATE }));
-    }
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
+    setFormError('');
     if (!form.party_id) {
-      alert('Party is required');
+      setFormError('Party is required');
       return;
     }
     const items = (form.items || [])
@@ -122,24 +108,29 @@ export default function PreBookings() {
         product_id: Number(item.product_id),
         quantity: Number(item.quantity),
         rate: Number(item.rate),
+        gst_percent: item.gst_percent === '' ? 18 : Number(item.gst_percent),
       }));
     if (items.length === 0) {
-      alert('Add at least one product');
+      setFormError('Add at least one product');
       return;
     }
     if (items.some((item) => !Number.isFinite(item.quantity) || item.quantity <= 0)) {
-      alert('Each product needs a quantity greater than 0');
+      setFormError('Each product needs a quantity greater than 0');
       return;
     }
     if (items.some((item) => !Number.isFinite(item.rate) || item.rate < 0)) {
-      alert('Each product needs a rate');
+      setFormError('Each product needs a rate');
+      return;
+    }
+    if (items.some((item) => !Number.isFinite(item.gst_percent) || item.gst_percent < 0)) {
+      setFormError('GST % cannot be negative');
       return;
     }
     try {
+      setSaving(true);
       await preBookingsAPI.create({
         party_id: form.party_id,
         delivery_date: form.delivery_date,
-        gst_percent: gstEnabled ? parseFloat(form.gst_percent) || 0 : 0,
         notes: form.notes.trim(),
         items,
       });
@@ -148,7 +139,9 @@ export default function PreBookings() {
       notifyDataSync('pre_booking_items');
       await loadBookings(true);
     } catch (err) {
-      alert('Error: ' + err.message);
+      setFormError(err.message || 'Could not save this pre-booking.');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -160,7 +153,7 @@ export default function PreBookings() {
       notifyDataSync('pre_bookings');
       await loadBookings(true);
     } catch (err) {
-      alert('Error: ' + err.message);
+      alert(err.message || 'Could not mark as delivered.');
     } finally {
       setBusyId(null);
     }
@@ -174,7 +167,7 @@ export default function PreBookings() {
       notifyDataSync('pre_bookings');
       await loadBookings(true);
     } catch (err) {
-      alert('Error: ' + err.message);
+      alert(err.message || 'Could not cancel this pre-booking.');
     } finally {
       setBusyId(null);
     }
@@ -186,7 +179,7 @@ export default function PreBookings() {
       (acc, row) => {
         acc.count += 1;
         acc.subtotal += Number(row.subtotal) || 0;
-        acc.gst += Number(row.gst_total ?? row.gst_amount) || 0;
+        acc.gst += Number(row.gst_total) || 0;
         acc.total += Number(row.total_amount) || 0;
         return acc;
       },
@@ -263,26 +256,6 @@ export default function PreBookings() {
                     required
                   />
                 </FormField>
-                <FormField label="GST">
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={handleToggleGst}
-                      className={`btn shrink-0 ${gstEnabled ? 'btn-primary' : 'btn-secondary'}`}
-                    >
-                      {gstEnabled ? 'GST ON' : 'GST OFF'}
-                    </button>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      className="input input-premium"
-                      value={form.gst_percent}
-                      disabled={!gstEnabled}
-                      onChange={(e) => setForm((prev) => ({ ...prev, gst_percent: e.target.value }))}
-                    />
-                  </div>
-                </FormField>
                 <FormField label="Notes (optional)" className="md:col-span-2 lg:col-span-3">
                   <textarea
                     className="input input-premium min-h-[88px] resize-y"
@@ -296,17 +269,27 @@ export default function PreBookings() {
 
               <p className="form-section-label">Line items</p>
               <p className="text-xs text-slate-500 mb-3">
-                Catalog price fills Rate — change it if you negotiated. Line amounts exclude GST.
+                Catalog price fills Rate. GST % defaults to 18 and can be changed per product. Amount
+                includes GST.
               </p>
               <ProductLineItemsEditor
                 items={form.items}
                 products={products}
-                gstPercent={gstEnabled ? form.gst_percent : 0}
                 onChange={(items) => setForm((prev) => ({ ...prev, items }))}
                 addLabel="Add another product"
               />
 
-              <FormActions submitLabel="Save pre-booking" onCancel={closeForm} />
+              {formError ? (
+                <p role="alert" className="mb-4 text-sm font-medium text-red-600 dark:text-red-400">
+                  {formError}
+                </p>
+              ) : null}
+
+              <FormActions
+                submitLabel="Save pre-booking"
+                onCancel={closeForm}
+                submitDisabled={saving}
+              />
             </form>
           </FormShell>
         </div>
@@ -364,21 +347,18 @@ export default function PreBookings() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Date</th>
                 <th>Party</th>
-                <th>Items</th>
                 <th>Delivery date</th>
+                <th>Items</th>
+                <th className="col-num">Total amount</th>
                 <th>Status</th>
-                <th className="col-num">Subtotal</th>
-                <th className="col-num">GST</th>
-                <th className="col-num">Total</th>
                 <th className="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="py-12 text-center text-slate-500">
+                  <td colSpan="6" className="py-12 text-center text-slate-500">
                     {rows.length === 0
                       ? 'No pre-bookings yet. Add one when a customer orders for a later date.'
                       : 'No data in this filter.'}
@@ -392,11 +372,11 @@ export default function PreBookings() {
                   const open = expandedId === row.id;
                   const main = (
                     <tr key={row.id}>
-                      <td className="tabular-nums text-slate-700 whitespace-nowrap">
-                        {formatDisplayDate(row.booking_date || row.created_at)}
-                      </td>
                       <td className="font-medium text-slate-900 max-w-[180px] truncate">
                         {row.party_name || '—'}
+                      </td>
+                      <td className="tabular-nums whitespace-nowrap">
+                        {formatDisplayDate(row.delivery_date)}
                       </td>
                       <td>
                         <button
@@ -412,18 +392,13 @@ export default function PreBookings() {
                           {(items.length || row.item_count || 0) === 1 ? '' : 's'}
                         </button>
                       </td>
-                      <td className="tabular-nums whitespace-nowrap">
-                        {formatDisplayDate(row.delivery_date)}
+                      <td className="col-num font-semibold text-emerald-600 dark:text-emerald-400">
+                        {formatInrAmount(row.total_amount)}
                       </td>
                       <td>
                         <span className={bookingStatusBadgeClass(display)}>
                           {bookingStatusLabel(display)}
                         </span>
-                      </td>
-                      <td className="col-num">{formatInrAmount(row.subtotal)}</td>
-                      <td className="col-num">{formatInrAmount(row.gst_total ?? row.gst_amount)}</td>
-                      <td className="col-num font-semibold text-emerald-600 dark:text-emerald-400">
-                        {formatInrAmount(row.total_amount)}
                       </td>
                       <td className="text-right">
                         {upcoming ? (
@@ -457,7 +432,7 @@ export default function PreBookings() {
                   return [
                     main,
                     <tr key={`${row.id}-items`}>
-                      <td colSpan="9" className="bg-slate-50/80 dark:bg-slate-900/40 px-4 py-3">
+                      <td colSpan="6" className="bg-slate-50/80 dark:bg-slate-900/40 px-4 py-3">
                         {items.length === 0 ? (
                           <p className="text-sm text-slate-500">No line items on this booking.</p>
                         ) : (
@@ -467,8 +442,8 @@ export default function PreBookings() {
                                 <th className="py-1 pr-3">Product</th>
                                 <th className="py-1 pr-3 text-right">Qty</th>
                                 <th className="py-1 pr-3 text-right">Rate</th>
-                                <th className="py-1 pr-3 text-right">GST</th>
-                                <th className="py-1 text-right">Amount (excl. GST)</th>
+                                <th className="py-1 pr-3 text-right">GST %</th>
+                                <th className="py-1 text-right">Amount</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -484,7 +459,7 @@ export default function PreBookings() {
                                     {formatInrAmount(item.rate)}
                                   </td>
                                   <td className="py-1 pr-3 text-right tabular-nums">
-                                    {formatInrAmount(item.gst_amount)}
+                                    {Number(item.gst_percent || 0).toLocaleString('en-IN')}%
                                   </td>
                                   <td className="py-1 text-right font-semibold tabular-nums">
                                     {formatInrAmount(item.amount)}
