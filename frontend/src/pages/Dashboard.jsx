@@ -9,6 +9,7 @@ import {
   Users,
   Receipt,
   ShoppingBag,
+  CalendarClock,
   Gauge,
   X,
   ArrowUpRight,
@@ -33,7 +34,7 @@ import TrendChart from '../components/dashboard/TrendChart';
 import { formatProductNameWithSize } from '../utils/productDisplay';
 import { formatDisplayDate } from '../utils/invoicePayment';
 import { LOW_STOCK_THRESHOLD, STOCK_ALERT_DISMISS_KEY } from '../config/stock';
-import { PAYMENT_ALERT_DISMISS_KEY, PAYABLE_ALERT_DISMISS_KEY } from '../config/payments';
+import { PAYMENT_ALERT_DISMISS_KEY, PAYABLE_ALERT_DISMISS_KEY, PREBOOKING_ALERT_DISMISS_KEY } from '../config/payments';
 import {
   DASHBOARD_BREAKPOINTS,
   DASHBOARD_COLS,
@@ -327,6 +328,13 @@ export default function Dashboard() {
       return false;
     }
   });
+  const [preBookingAlertDismissed, setPreBookingAlertDismissed] = useState(() => {
+    try {
+      return sessionStorage.getItem(PREBOOKING_ALERT_DISMISS_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
   const [editMode, setEditMode] = useState(false);
   const [layouts, setLayouts] = useState(() => cloneDefaultLayouts());
   const [hiddenWidgets, setHiddenWidgets] = useState([]);
@@ -495,6 +503,7 @@ export default function Dashboard() {
 
   const pendingInvoices = useMemo(() => stats?.pendingInvoices || [], [stats?.pendingInvoices]);
   const pendingPurchases = useMemo(() => stats?.pendingPurchases || [], [stats?.pendingPurchases]);
+  const duePreBookings = useMemo(() => stats?.duePreBookings || [], [stats?.duePreBookings]);
 
   const recentOrders = useMemo(() => {
     const list = stats?.recentOrders || stats?.recentSales || [];
@@ -575,6 +584,10 @@ export default function Dashboard() {
   const payableAlertPreview = pendingPurchases.slice(0, 5);
   const payableTone = stats.pendingPayableTone || 'info';
 
+  const duePreBookingCount = stats.duePreBookingCount ?? duePreBookings.length;
+  const showPreBookingAlert = !preBookingAlertDismissed && duePreBookings.length > 0;
+  const preBookingAlertPreview = duePreBookings.slice(0, 5);
+
   function dismissStockAlert() {
     setStockAlertDismissed(true);
     try {
@@ -597,6 +610,15 @@ export default function Dashboard() {
     setPayableAlertDismissed(true);
     try {
       sessionStorage.setItem(PAYABLE_ALERT_DISMISS_KEY, '1');
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function dismissPreBookingAlert() {
+    setPreBookingAlertDismissed(true);
+    try {
+      sessionStorage.setItem(PREBOOKING_ALERT_DISMISS_KEY, '1');
     } catch {
       /* ignore */
     }
@@ -756,6 +778,15 @@ export default function Dashboard() {
           preview={payableAlertPreview}
           totalCount={pendingPurchases.length}
           onDismiss={dismissPayableAlert}
+        />
+      )}
+
+      {showPreBookingAlert && (
+        <PreBookingAlertBanner
+          count={duePreBookingCount}
+          preview={preBookingAlertPreview}
+          totalCount={duePreBookings.length}
+          onDismiss={dismissPreBookingAlert}
         />
       )}
 
@@ -1472,6 +1503,115 @@ function PayableAlertBanner({ count, totalDue, tone, preview, totalCount, onDism
             >
               View all payables
               <ShoppingBag className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PreBookingAlertBanner({ count, preview, totalCount, onDismiss }) {
+  const hasOverdue = preview.some((row) => row.urgency === 'overdue');
+  const styles = hasOverdue
+    ? {
+        wrap: 'border-aura-border bg-[color-mix(in_srgb,var(--aura-danger)_8%,var(--aura-card))]',
+        iconWrap: 'bg-[color-mix(in_srgb,var(--aura-danger)_14%,transparent)] text-aura-danger',
+        title: 'text-aura-text',
+        sub: 'text-aura-text-secondary',
+        dismiss: 'text-aura-muted hover:bg-[color-mix(in_srgb,var(--aura-danger)_12%,transparent)] hover:text-aura-text',
+        link: 'text-aura-danger',
+      }
+    : {
+        wrap: 'border-aura-border bg-[color-mix(in_srgb,var(--aura-warning)_10%,var(--aura-card))]',
+        iconWrap: 'bg-[color-mix(in_srgb,var(--aura-warning)_14%,transparent)] text-aura-warning',
+        title: 'text-aura-text',
+        sub: 'text-aura-text-secondary',
+        dismiss: 'text-aura-muted hover:bg-[color-mix(in_srgb,var(--aura-warning)_12%,transparent)] hover:text-aura-text',
+        link: 'text-aura-warning',
+      };
+
+  const rowStyles = {
+    overdue:
+      'border-aura-border bg-[color-mix(in_srgb,var(--aura-danger)_10%,var(--aura-card))] text-aura-text',
+    due_soon:
+      'border-aura-border bg-[color-mix(in_srgb,var(--aura-warning)_10%,var(--aura-card))] text-aura-text',
+    upcoming: 'border-aura-border bg-aura-card text-aura-text',
+  };
+
+  return (
+    <div
+      role="alert"
+      className={`relative z-10 overflow-hidden rounded-[var(--aura-radius-card)] border px-4 py-4 shadow-soft sm:px-5 ${styles.wrap}`}
+    >
+      <div className="flex gap-4">
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--aura-radius-button)] ${styles.iconWrap}`}
+        >
+          <CalendarClock className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className={`font-semibold ${styles.title}`}>
+                {count} pre-booking{count === 1 ? '' : 's'} due soon
+              </p>
+              <p className={`mt-1 text-[length:var(--aura-type-body)] ${styles.sub}`}>
+                Deliver these reserved orders — overdue rows are highlighted in red.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onDismiss}
+              className={`shrink-0 rounded-[var(--aura-radius-button)] p-2 transition-colors duration-200 ${styles.dismiss}`}
+              aria-label="Dismiss pre-booking alert"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <ul className="mt-3 space-y-2">
+            {preview.map((row) => (
+              <li
+                key={row.id}
+                className={`flex flex-wrap items-center justify-between gap-2 rounded-[var(--aura-radius-button)] border px-3 py-2 text-[length:var(--aura-type-caption)] sm:text-[length:var(--aura-type-body)] ${rowStyles[row.urgency] || rowStyles.upcoming}`}
+              >
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <span className="max-w-[10rem] truncate font-semibold sm:max-w-[14rem]">
+                    {row.party_name}
+                  </span>
+                  <span className="max-w-[12rem] truncate text-aura-muted">{row.product_name}</span>
+                  {row.urgency === 'overdue' && (
+                    <span className="rounded-full bg-aura-danger px-2 py-1 text-[length:var(--aura-type-caption)] font-bold uppercase tracking-wide text-white">
+                      Overdue
+                    </span>
+                  )}
+                  {row.urgency === 'due_soon' && (
+                    <span className="rounded-full bg-aura-warning px-2 py-1 text-[length:var(--aura-type-caption)] font-bold uppercase tracking-wide text-white">
+                      Due soon
+                    </span>
+                  )}
+                </div>
+                <span className="shrink-0 tabular-nums text-aura-muted">
+                  {formatDisplayDate(row.delivery_date)}
+                </span>
+              </li>
+            ))}
+            {totalCount > preview.length && (
+              <li className={`text-[length:var(--aura-type-caption)] font-medium ${styles.sub}`}>
+                +{totalCount - preview.length} more pre-booking
+                {totalCount - preview.length === 1 ? '' : 's'}
+              </li>
+            )}
+          </ul>
+
+          <div className="mt-3">
+            <Link
+              to="/pre-bookings"
+              className={`inline-flex items-center gap-1.5 text-[length:var(--aura-type-body)] font-semibold underline-offset-2 transition-colors duration-200 hover:underline ${styles.link}`}
+            >
+              View all
+              <CalendarClock className="h-3.5 w-3.5" />
             </Link>
           </div>
         </div>

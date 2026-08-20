@@ -3,3 +3,4 @@ export const DUE_SOON_DAYS = 3;
 
 export const PAYMENT_ALERT_DISMISS_KEY = 'dashboard-payment-alert-dismissed';
 export const PAYABLE_ALERT_DISMISS_KEY = 'dashboard-payable-alert-dismissed';
+export const PREBOOKING_ALERT_DISMISS_KEY = 'dashboard-prebooking-alert-dismissed';
