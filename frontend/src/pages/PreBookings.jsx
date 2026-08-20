@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, X, CalendarClock, Check, Ban } from 'lucide-react';
+import { Plus, X, CalendarClock, Check, Ban, ChevronDown } from 'lucide-react';
 import { preBookingsAPI, partiesAPI, productsAPI } from '../api';
 import LoadingState from '../components/LoadingState';
 import PageHeader from '../components/PageHeader';
@@ -7,10 +7,10 @@ import FormShell from '../components/forms/FormShell';
 import { FormField } from '../components/forms/FormField';
 import FormActions from '../components/forms/FormActions';
 import PartySelectField from '../components/forms/PartySelectField';
+import ProductLineItemsEditor, { emptyProductLine } from '../components/forms/ProductLineItemsEditor';
 import SegmentedControl from '../components/forms/SegmentedControl';
 import { formatDisplayDate } from '../utils/invoicePayment';
 import { formatInrAmount } from '../utils/invoiceLineItems';
-import { formatProductOptionLabel, formatProductNameWithSize } from '../utils/productDisplay';
 import { SALES_PARTY_TYPES, SALES_QUICK_ADD_TYPES } from '../utils/partyTypes';
 import { refreshPartiesAfterCreate } from '../utils/partyList';
 import { useDataSync } from '../hooks/useDataSync';
@@ -24,11 +24,9 @@ import {
 
 const emptyForm = () => ({
   party_id: '',
-  product_id: '',
-  quantity: '1',
-  rate: '',
   delivery_date: todayISO(),
   notes: '',
+  items: [emptyProductLine()],
 });
 
 export default function PreBookings() {
@@ -40,6 +38,7 @@ export default function PreBookings() {
   const [form, setForm] = useState(emptyForm());
   const [statusFilter, setStatusFilter] = useState('upcoming');
   const [busyId, setBusyId] = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
 
   useEffect(() => {
     loadLookups(true);
@@ -47,6 +46,7 @@ export default function PreBookings() {
   }, []);
 
   useDataSync('pre_bookings', () => loadBookings(true));
+  useDataSync('pre_booking_items', () => loadBookings(true));
   useDataSync('parties', () => loadLookups(true));
   useDataSync('products', () => loadLookups(true));
 
@@ -91,46 +91,41 @@ export default function PreBookings() {
     setForm(emptyForm());
   }
 
-  function applyProduct(productId) {
-    const product = products.find((p) => String(p.id) === String(productId));
-    setForm((prev) => ({
-      ...prev,
-      product_id: productId,
-      rate: product ? String(product.price ?? '') : '',
-    }));
-  }
-
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.party_id) {
       alert('Party is required');
       return;
     }
-    if (!form.product_id) {
-      alert('Product is required');
+    const items = (form.items || [])
+      .filter((item) => item.product_id)
+      .map((item) => ({
+        product_id: Number(item.product_id),
+        quantity: Number(item.quantity),
+        rate: Number(item.rate),
+      }));
+    if (items.length === 0) {
+      alert('Add at least one product');
       return;
     }
-    const quantity = Number(form.quantity);
-    const rate = Number(form.rate);
-    if (!Number.isFinite(quantity) || quantity <= 0) {
-      alert('Quantity must be greater than 0');
+    if (items.some((item) => !Number.isFinite(item.quantity) || item.quantity <= 0)) {
+      alert('Each product needs a quantity greater than 0');
       return;
     }
-    if (form.rate === '' || !Number.isFinite(rate) || rate < 0) {
-      alert('Rate is required');
+    if (items.some((item) => !Number.isFinite(item.rate) || item.rate < 0)) {
+      alert('Each product needs a rate');
       return;
     }
     try {
       await preBookingsAPI.create({
         party_id: form.party_id,
-        product_id: form.product_id,
-        quantity,
-        rate,
         delivery_date: form.delivery_date,
         notes: form.notes.trim(),
+        items,
       });
       closeForm();
       notifyDataSync('pre_bookings');
+      notifyDataSync('pre_booking_items');
       await loadBookings(true);
     } catch (err) {
       alert('Error: ' + err.message);
@@ -138,7 +133,7 @@ export default function PreBookings() {
   }
 
   async function markDelivered(id) {
-    if (!confirm('Mark this pre-booking as delivered?')) return;
+    if (!confirm('Mark this whole pre-booking as delivered (all products)?')) return;
     try {
       setBusyId(id);
       await preBookingsAPI.markDelivered(id);
@@ -171,13 +166,6 @@ export default function PreBookings() {
       return (row.status || 'upcoming') === statusFilter;
     });
   }, [rows, statusFilter]);
-
-  const formTotal = useMemo(() => {
-    const qty = Number(form.quantity);
-    const rate = Number(form.rate);
-    if (!Number.isFinite(qty) || !Number.isFinite(rate)) return 0;
-    return Math.round(qty * rate * 100) / 100;
-  }, [form.quantity, form.rate]);
 
   if (loading && rows.length === 0) return <LoadingState />;
 
@@ -212,96 +200,58 @@ export default function PreBookings() {
           <FormShell
             icon={CalendarClock}
             title="New pre-booking"
-            subtitle="Party, product, quantity, rate, and the date you promised to deliver."
+            subtitle="One customer and delivery date, with as many products as they ordered."
           >
-            <form onSubmit={handleSubmit} className="form-grid">
-              <PartySelectField
-                label="Party"
-                required
-                className="md:col-span-2"
-                value={form.party_id}
-                onChange={(partyId) => setForm((prev) => ({ ...prev, party_id: partyId }))}
-                parties={parties}
-                onPartyCreated={handlePartyCreated}
-                defaultTypes={SALES_PARTY_TYPES}
-                showAllLabel="Show all party types (including manufacturers)"
-                quickAddLabel="New Customer"
-                quickAddTitle="New customer"
-                quickAddDefaultType="retailer"
-                quickAddAllowedTypes={SALES_QUICK_ADD_TYPES}
-                placeholder="Search customer…"
-              />
-              <FormField label="Product" required>
-                <select
-                  className="input input-premium"
-                  value={form.product_id}
-                  onChange={(e) => applyProduct(e.target.value)}
+            <form onSubmit={handleSubmit}>
+              <div className="form-grid mb-6">
+                <PartySelectField
+                  label="Party"
                   required
-                >
-                  <option value="">Select product</option>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {formatProductOptionLabel(p, { stock: p.stock_quantity })}
-                    </option>
-                  ))}
-                </select>
-              </FormField>
-              <FormField label="Quantity" required>
-                <input
-                  type="number"
-                  min="0.01"
-                  step="any"
-                  className="input input-premium"
-                  value={form.quantity}
-                  onChange={(e) => setForm((prev) => ({ ...prev, quantity: e.target.value }))}
-                  required
+                  className="md:col-span-2"
+                  value={form.party_id}
+                  onChange={(partyId) => setForm((prev) => ({ ...prev, party_id: partyId }))}
+                  parties={parties}
+                  onPartyCreated={handlePartyCreated}
+                  defaultTypes={SALES_PARTY_TYPES}
+                  showAllLabel="Show all party types (including manufacturers)"
+                  quickAddLabel="New Customer"
+                  quickAddTitle="New customer"
+                  quickAddDefaultType="retailer"
+                  quickAddAllowedTypes={SALES_QUICK_ADD_TYPES}
+                  placeholder="Search customer…"
                 />
-              </FormField>
-              <FormField label="Delivery date" required>
-                <input
-                  type="date"
-                  className="input input-premium"
-                  value={form.delivery_date}
-                  onChange={(e) => setForm((prev) => ({ ...prev, delivery_date: e.target.value }))}
-                  required
-                />
-              </FormField>
-              <FormField
-                label="Rate (₹ / unit)"
-                required
-                hint="Filled from the product price — change it if you negotiated."
-              >
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="input input-premium"
-                  value={form.rate}
-                  onChange={(e) => setForm((prev) => ({ ...prev, rate: e.target.value }))}
-                  required
-                />
-              </FormField>
-              <FormField label="Total amount" hint="Rate × quantity">
-                <input
-                  className="input input-premium bg-slate-50 dark:bg-slate-800/60"
-                  value={formatInrAmount(formTotal)}
-                  readOnly
-                  tabIndex={-1}
-                  aria-readonly="true"
-                />
-              </FormField>
-              <FormField label="Notes (optional)" className="md:col-span-2 lg:col-span-3">
-                <textarea
-                  className="input input-premium min-h-[88px] resize-y"
-                  rows={2}
-                  value={form.notes}
-                  onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Colour, size, reminder for the warehouse…"
-                />
-              </FormField>
-              <div className="md:col-span-2 lg:col-span-3">
-                <FormActions submitLabel="Save pre-booking" onCancel={closeForm} />
+                <FormField label="Delivery date" required>
+                  <input
+                    type="date"
+                    className="input input-premium"
+                    value={form.delivery_date}
+                    onChange={(e) => setForm((prev) => ({ ...prev, delivery_date: e.target.value }))}
+                    required
+                  />
+                </FormField>
+                <FormField label="Notes (optional)" className="md:col-span-2 lg:col-span-3">
+                  <textarea
+                    className="input input-premium min-h-[88px] resize-y"
+                    rows={2}
+                    value={form.notes}
+                    onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
+                    placeholder="Colour, size, reminder for the warehouse…"
+                  />
+                </FormField>
               </div>
+
+              <p className="form-section-label">Line items</p>
+              <p className="text-xs text-slate-500 mb-3">
+                Catalog price fills Rate — change it if you negotiated. Amount is rate × quantity.
+              </p>
+              <ProductLineItemsEditor
+                items={form.items}
+                products={products}
+                onChange={(items) => setForm((prev) => ({ ...prev, items }))}
+                addLabel="Add another product"
+              />
+
+              <FormActions submitLabel="Save pre-booking" onCancel={closeForm} />
             </form>
           </FormShell>
         </div>
@@ -325,8 +275,7 @@ export default function PreBookings() {
               <tr>
                 <th>Date</th>
                 <th>Party</th>
-                <th>Product</th>
-                <th>Qty</th>
+                <th>Items</th>
                 <th>Delivery date</th>
                 <th>Status</th>
                 <th>Amount</th>
@@ -336,28 +285,40 @@ export default function PreBookings() {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="py-12 text-center text-slate-500">
+                  <td colSpan="7" className="py-12 text-center text-slate-500">
                     {rows.length === 0
                       ? 'No pre-bookings yet. Add one when a customer orders for a later date.'
                       : 'No data in this filter.'}
                   </td>
                 </tr>
               ) : (
-                filtered.map((row) => {
+                filtered.flatMap((row) => {
                   const display = bookingDisplayStatus(row);
                   const upcoming = (row.status || 'upcoming') === 'upcoming';
-                  return (
+                  const items = row.items || [];
+                  const open = expandedId === row.id;
+                  const main = (
                     <tr key={row.id}>
                       <td className="tabular-nums text-slate-700 whitespace-nowrap">
-                        {formatDisplayDate(row.booking_date)}
+                        {formatDisplayDate(row.booking_date || row.created_at)}
                       </td>
                       <td className="font-medium text-slate-900 max-w-[180px] truncate">
                         {row.party_name || '—'}
                       </td>
-                      <td className="max-w-[220px] truncate">
-                        {row.product_name || formatProductNameWithSize(row.products) || '—'}
+                      <td>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+                          onClick={() => setExpandedId(open ? null : row.id)}
+                          aria-expanded={open}
+                        >
+                          <ChevronDown
+                            className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-180' : ''}`}
+                          />
+                          {items.length || row.item_count || 0} item
+                          {(items.length || row.item_count || 0) === 1 ? '' : 's'}
+                        </button>
                       </td>
-                      <td className="tabular-nums">{Number(row.quantity).toLocaleString('en-IN')}</td>
                       <td className="tabular-nums whitespace-nowrap">
                         {formatDisplayDate(row.delivery_date)}
                       </td>
@@ -397,6 +358,46 @@ export default function PreBookings() {
                       </td>
                     </tr>
                   );
+                  if (!open) return [main];
+                  return [
+                    main,
+                    <tr key={`${row.id}-items`}>
+                      <td colSpan="7" className="bg-slate-50/80 dark:bg-slate-900/40 px-4 py-3">
+                        {items.length === 0 ? (
+                          <p className="text-sm text-slate-500">No line items on this booking.</p>
+                        ) : (
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                                <th className="py-1 pr-3">Product</th>
+                                <th className="py-1 pr-3 text-right">Qty</th>
+                                <th className="py-1 pr-3 text-right">Rate</th>
+                                <th className="py-1 text-right">Amount</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {items.map((item) => (
+                                <tr key={item.id || `${item.product_id}-${item.product_name}`}>
+                                  <td className="py-1 pr-3 font-medium text-slate-800 dark:text-slate-100">
+                                    {item.product_name}
+                                  </td>
+                                  <td className="py-1 pr-3 text-right tabular-nums">
+                                    {Number(item.quantity).toLocaleString('en-IN')}
+                                  </td>
+                                  <td className="py-1 pr-3 text-right tabular-nums">
+                                    {formatInrAmount(item.rate)}
+                                  </td>
+                                  <td className="py-1 text-right font-semibold tabular-nums">
+                                    {formatInrAmount(item.amount)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </td>
+                    </tr>,
+                  ];
                 })
               )}
             </tbody>
