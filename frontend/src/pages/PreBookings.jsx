@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, X, CalendarClock, Check, Ban, ChevronDown } from 'lucide-react';
+import { Plus, X, CalendarClock, Check, Ban, ChevronDown, IndianRupee } from 'lucide-react';
 import { preBookingsAPI, partiesAPI, productsAPI } from '../api';
 import LoadingState from '../components/LoadingState';
 import PageHeader from '../components/PageHeader';
@@ -22,9 +22,12 @@ import {
   bookingStatusBadgeClass,
 } from '../utils/preBookings';
 
+const DEFAULT_GST_RATE = 18;
+
 const emptyForm = () => ({
   party_id: '',
   delivery_date: todayISO(),
+  gst_percent: DEFAULT_GST_RATE,
   notes: '',
   items: [emptyProductLine()],
 });
@@ -39,6 +42,8 @@ export default function PreBookings() {
   const [statusFilter, setStatusFilter] = useState('upcoming');
   const [busyId, setBusyId] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
+  const [gstEnabled, setGstEnabled] = useState(true);
+  const [savedGstPercent, setSavedGstPercent] = useState(DEFAULT_GST_RATE);
 
   useEffect(() => {
     loadLookups(true);
@@ -82,13 +87,27 @@ export default function PreBookings() {
   }
 
   function openCreateForm() {
+    setGstEnabled(true);
+    setSavedGstPercent(DEFAULT_GST_RATE);
     setForm(emptyForm());
     setShowForm(true);
   }
 
   function closeForm() {
     setShowForm(false);
+    setGstEnabled(true);
     setForm(emptyForm());
+  }
+
+  function handleToggleGst() {
+    if (gstEnabled) {
+      setSavedGstPercent(Number(form.gst_percent) || DEFAULT_GST_RATE);
+      setGstEnabled(false);
+      setForm((prev) => ({ ...prev, gst_percent: 0 }));
+    } else {
+      setGstEnabled(true);
+      setForm((prev) => ({ ...prev, gst_percent: savedGstPercent || DEFAULT_GST_RATE }));
+    }
   }
 
   async function handleSubmit(e) {
@@ -120,6 +139,7 @@ export default function PreBookings() {
       await preBookingsAPI.create({
         party_id: form.party_id,
         delivery_date: form.delivery_date,
+        gst_percent: gstEnabled ? parseFloat(form.gst_percent) || 0 : 0,
         notes: form.notes.trim(),
         items,
       });
@@ -159,6 +179,20 @@ export default function PreBookings() {
       setBusyId(null);
     }
   }
+
+  const upcomingValue = useMemo(() => {
+    const upcoming = (rows || []).filter((row) => (row.status || 'upcoming') === 'upcoming');
+    return upcoming.reduce(
+      (acc, row) => {
+        acc.count += 1;
+        acc.subtotal += Number(row.subtotal) || 0;
+        acc.gst += Number(row.gst_total ?? row.gst_amount) || 0;
+        acc.total += Number(row.total_amount) || 0;
+        return acc;
+      },
+      { count: 0, subtotal: 0, gst: 0, total: 0 }
+    );
+  }, [rows]);
 
   const filtered = useMemo(() => {
     return (rows || []).filter((row) => {
@@ -229,6 +263,26 @@ export default function PreBookings() {
                     required
                   />
                 </FormField>
+                <FormField label="GST">
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleToggleGst}
+                      className={`btn shrink-0 ${gstEnabled ? 'btn-primary' : 'btn-secondary'}`}
+                    >
+                      {gstEnabled ? 'GST ON' : 'GST OFF'}
+                    </button>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="input input-premium"
+                      value={form.gst_percent}
+                      disabled={!gstEnabled}
+                      onChange={(e) => setForm((prev) => ({ ...prev, gst_percent: e.target.value }))}
+                    />
+                  </div>
+                </FormField>
                 <FormField label="Notes (optional)" className="md:col-span-2 lg:col-span-3">
                   <textarea
                     className="input input-premium min-h-[88px] resize-y"
@@ -242,11 +296,12 @@ export default function PreBookings() {
 
               <p className="form-section-label">Line items</p>
               <p className="text-xs text-slate-500 mb-3">
-                Catalog price fills Rate — change it if you negotiated. Amount is rate × quantity.
+                Catalog price fills Rate — change it if you negotiated. Line amounts exclude GST.
               </p>
               <ProductLineItemsEditor
                 items={form.items}
                 products={products}
+                gstPercent={gstEnabled ? form.gst_percent : 0}
                 onChange={(items) => setForm((prev) => ({ ...prev, items }))}
                 addLabel="Add another product"
               />
@@ -256,6 +311,42 @@ export default function PreBookings() {
           </FormShell>
         </div>
       )}
+
+      <div className="group rounded-[var(--aura-radius-card)] border border-aura-border bg-aura-card p-6 shadow-soft">
+        <div className="relative flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <p className="text-[length:var(--aura-type-caption)] font-semibold uppercase tracking-wider text-aura-muted">
+              Total Pre-bookings Value
+            </p>
+            <p className="mt-2 truncate text-[length:var(--aura-type-h3)] font-bold tracking-tight tabular-nums text-aura-text">
+              {formatInrAmount(upcomingValue.total)}
+            </p>
+            <p className="mt-2 text-[length:var(--aura-type-body)] text-aura-text-secondary">
+              {upcomingValue.count} upcoming booking{upcomingValue.count === 1 ? '' : 's'} (delivered
+              and cancelled excluded)
+            </p>
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Subtotal</p>
+                <p className="mt-0.5 font-semibold tabular-nums">{formatInrAmount(upcomingValue.subtotal)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">GST</p>
+                <p className="mt-0.5 font-semibold tabular-nums">{formatInrAmount(upcomingValue.gst)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Grand total</p>
+                <p className="mt-0.5 font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
+                  {formatInrAmount(upcomingValue.total)}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--aura-radius-button)] bg-[color-mix(in_srgb,var(--aura-primary)_16%,transparent)] text-aura-primary shadow-soft">
+            <IndianRupee className="h-5 w-5" strokeWidth={2} />
+          </div>
+        </div>
+      </div>
 
       <SegmentedControl
         value={statusFilter}
@@ -278,14 +369,16 @@ export default function PreBookings() {
                 <th>Items</th>
                 <th>Delivery date</th>
                 <th>Status</th>
-                <th>Amount</th>
+                <th className="col-num">Subtotal</th>
+                <th className="col-num">GST</th>
+                <th className="col-num">Total</th>
                 <th className="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="py-12 text-center text-slate-500">
+                  <td colSpan="9" className="py-12 text-center text-slate-500">
                     {rows.length === 0
                       ? 'No pre-bookings yet. Add one when a customer orders for a later date.'
                       : 'No data in this filter.'}
@@ -327,7 +420,9 @@ export default function PreBookings() {
                           {bookingStatusLabel(display)}
                         </span>
                       </td>
-                      <td className="font-semibold tabular-nums whitespace-nowrap">
+                      <td className="col-num">{formatInrAmount(row.subtotal)}</td>
+                      <td className="col-num">{formatInrAmount(row.gst_total ?? row.gst_amount)}</td>
+                      <td className="col-num font-semibold text-emerald-600 dark:text-emerald-400">
                         {formatInrAmount(row.total_amount)}
                       </td>
                       <td className="text-right">
@@ -362,7 +457,7 @@ export default function PreBookings() {
                   return [
                     main,
                     <tr key={`${row.id}-items`}>
-                      <td colSpan="7" className="bg-slate-50/80 dark:bg-slate-900/40 px-4 py-3">
+                      <td colSpan="9" className="bg-slate-50/80 dark:bg-slate-900/40 px-4 py-3">
                         {items.length === 0 ? (
                           <p className="text-sm text-slate-500">No line items on this booking.</p>
                         ) : (
@@ -372,7 +467,8 @@ export default function PreBookings() {
                                 <th className="py-1 pr-3">Product</th>
                                 <th className="py-1 pr-3 text-right">Qty</th>
                                 <th className="py-1 pr-3 text-right">Rate</th>
-                                <th className="py-1 text-right">Amount</th>
+                                <th className="py-1 pr-3 text-right">GST</th>
+                                <th className="py-1 text-right">Amount (excl. GST)</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -386,6 +482,9 @@ export default function PreBookings() {
                                   </td>
                                   <td className="py-1 pr-3 text-right tabular-nums">
                                     {formatInrAmount(item.rate)}
+                                  </td>
+                                  <td className="py-1 pr-3 text-right tabular-nums">
+                                    {formatInrAmount(item.gst_amount)}
                                   </td>
                                   <td className="py-1 text-right font-semibold tabular-nums">
                                     {formatInrAmount(item.amount)}

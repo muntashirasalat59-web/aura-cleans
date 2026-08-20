@@ -12,10 +12,12 @@ const {
 
 const STATUSES = ['upcoming', 'delivered', 'cancelled'];
 const LIST_SELECT =
+  '*, parties(name), pre_booking_items(id, product_id, quantity, rate, amount, gst_percent, gst_amount, products(name, unit_size, unit_type))';
+const LIST_SELECT_NO_ITEM_GST =
   '*, parties(name), pre_booking_items(id, product_id, quantity, rate, amount, products(name, unit_size, unit_type))';
 
 function migrationHint() {
-  return 'Run backend/database/supabase.migration.pre_bookings_items.sql in the Supabase SQL editor.';
+  return 'Run backend/database/supabase.migration.pre_bookings_items.sql and supabase.migration.pre_bookings_gst.sql in the Supabase SQL editor.';
 }
 
 function handleMissingTable(res, error) {
@@ -28,7 +30,13 @@ function businessIdOf(req) {
   return String(req.profile?.business_id || '').trim();
 }
 
-function normalizeItems(body) {
+function isMissingGstColumn(error) {
+  return /gst_percent|gst_total|gst_amount|subtotal|column|schema cache|could not find/i.test(
+    error?.message || ''
+  );
+}
+
+function normalizeItems(body, gstPercent) {
   const raw = Array.isArray(body?.items) ? body.items : [];
   return raw
     .map((item) => {
@@ -37,7 +45,9 @@ function normalizeItems(body) {
       const rate = money(item?.rate);
       if (!product_id || !Number.isFinite(quantity) || quantity <= 0) return null;
       if (!Number.isFinite(rate) || rate < 0) return null;
-      return { product_id, quantity, rate, amount: money(rate * quantity) };
+      const amount = money(rate * quantity);
+      const gst_amount = money((amount * gstPercent) / 100);
+      return { product_id, quantity, rate, amount, gst_percent: gstPercent, gst_amount };
     })
     .filter(Boolean);
 }
@@ -46,11 +56,25 @@ function validateBody(body, items) {
   if (!Number(body?.party_id)) return 'Party is required';
   if (!dateOnly(body?.delivery_date)) return 'Delivery date is required';
   if (!items.length) return 'Add at least one product';
+  if (body?.gst_percent !== undefined && body?.gst_percent !== null && body?.gst_percent !== '') {
+    const gst = Number(body.gst_percent);
+    if (!Number.isFinite(gst) || gst < 0) return 'GST % cannot be negative';
+  }
   return null;
+}
+
+function resolveGstPercent(body) {
+  if (body?.gst_percent === undefined || body?.gst_percent === null || body?.gst_percent === '') {
+    return 18;
+  }
+  return Number(body.gst_percent) || 0;
 }
 
 async function fetchOne(db, id) {
   let { data, error } = await db.from('pre_bookings').select(LIST_SELECT).eq('id', id).maybeSingle();
+  if (error && /gst_percent|gst_amount|column|schema cache/i.test(error.message || '')) {
+    ({ data, error } = await db.from('pre_bookings').select(LIST_SELECT_NO_ITEM_GST).eq('id', id).maybeSingle());
+  }
   if (error && /pre_booking_items|relationship|schema cache/i.test(error.message || '')) {
     ({ data, error } = await db
       .from('pre_bookings')
@@ -69,6 +93,11 @@ async function listPreBookings(db, businessId) {
   if (businessId) query = query.eq('business_id', businessId);
 
   let { data, error } = await query;
+  if (error && /gst_percent|gst_amount|column|schema cache/i.test(error.message || '')) {
+    let fallback = db.from('pre_bookings').select(LIST_SELECT_NO_ITEM_GST).order('delivery_date', { ascending: true });
+    if (businessId) fallback = fallback.eq('business_id', businessId);
+    ({ data, error } = await fallback);
+  }
   if (error && /pre_booking_items|relationship|schema cache/i.test(error.message || '')) {
     let fallback = db.from('pre_bookings').select('*, parties(name)').order('delivery_date', { ascending: true });
     if (businessId) fallback = fallback.eq('business_id', businessId);
@@ -105,11 +134,14 @@ router.post('/', async (req, res) => {
     const bid = businessIdOf(req);
     if (!bid) return res.status(400).json({ error: 'Business is required' });
 
-    const items = normalizeItems(req.body);
+    const gstPercent = resolveGstPercent(req.body);
+    const items = normalizeItems(req.body, gstPercent);
     const validationError = validateBody(req.body, items);
     if (validationError) return res.status(400).json({ error: validationError });
 
-    const total_amount = money(items.reduce((sum, item) => sum + item.amount, 0));
+    const subtotal = money(items.reduce((sum, item) => sum + item.amount, 0));
+    const gst_total = money(items.reduce((sum, item) => sum + item.gst_amount, 0));
+    const total_amount = money(subtotal + gst_total);
     const header = {
       business_id: bid,
       party_id: Number(req.body.party_id),
@@ -117,22 +149,38 @@ router.post('/', async (req, res) => {
       delivery_date: dateOnly(req.body.delivery_date),
       notes: String(req.body.notes || '').trim(),
       status: 'upcoming',
+      gst_percent: gstPercent,
+      subtotal,
+      gst_total,
       total_amount,
     };
 
-    const { data, error } = await db.from('pre_bookings').insert(header).select().single();
+    let { data, error } = await db.from('pre_bookings').insert(header).select().single();
+    if (error && isMissingGstColumn(error)) {
+      const { gst_percent: _g, subtotal: _s, gst_total: _t, ...withoutGst } = header;
+      ({ data, error } = await db.from('pre_bookings').insert(withoutGst).select().single());
+      if (!error) {
+        console.warn('[pre-bookings] GST columns missing — run supabase.migration.pre_bookings_gst.sql');
+      }
+    }
     if (handleMissingTable(res, error)) return;
     assertNoError(error);
 
-    const { error: itemsError } = await db.from('pre_booking_items').insert(
-      items.map((item) => ({
-        pre_booking_id: data.id,
-        product_id: item.product_id,
-        quantity: item.quantity,
-        rate: item.rate,
-        amount: item.amount,
-      }))
-    );
+    const itemRows = items.map((item) => ({
+      pre_booking_id: data.id,
+      product_id: item.product_id,
+      quantity: item.quantity,
+      rate: item.rate,
+      amount: item.amount,
+      gst_percent: item.gst_percent,
+      gst_amount: item.gst_amount,
+    }));
+    let { error: itemsError } = await db.from('pre_booking_items').insert(itemRows);
+    if (itemsError && isMissingGstColumn(itemsError)) {
+      ({ error: itemsError } = await db.from('pre_booking_items').insert(
+        itemRows.map(({ gst_percent: _gp, gst_amount: _ga, ...rest }) => rest)
+      ));
+    }
     if (itemsError) {
       await db.from('pre_bookings').delete().eq('id', data.id);
       if (handleMissingTable(res, itemsError)) return;
@@ -151,7 +199,13 @@ router.post('/', async (req, res) => {
       entityType: 'pre_booking',
       entityId: row.id,
       entityName: `${row.party_name} · ${row.item_count} item${row.item_count === 1 ? '' : 's'}`,
-      details: { item_count: row.item_count, total_amount: row.total_amount, delivery_date: row.delivery_date },
+      details: {
+        item_count: row.item_count,
+        subtotal: row.subtotal,
+        gst_total: row.gst_total,
+        total_amount: row.total_amount,
+        delivery_date: row.delivery_date,
+      },
     });
     res.status(201).json(row);
   } catch (error) {

@@ -37,12 +37,22 @@ async function fetchDuePreBookingsSafe(db, businessId) {
   let query = db
     .from('pre_bookings')
     .select(
-      '*, parties(name), pre_booking_items(id, product_id, quantity, rate, amount, products(name, unit_size, unit_type))'
+      '*, parties(name), pre_booking_items(id, product_id, quantity, rate, amount, gst_percent, gst_amount, products(name, unit_size, unit_type))'
     )
     .eq('status', 'upcoming');
   if (businessId) query = query.eq('business_id', businessId);
 
   let { data, error } = await query;
+  if (error && /gst_percent|gst_amount|column/i.test(error.message || '')) {
+    let fallback = db
+      .from('pre_bookings')
+      .select(
+        '*, parties(name), pre_booking_items(id, product_id, quantity, rate, amount, products(name, unit_size, unit_type))'
+      )
+      .eq('status', 'upcoming');
+    if (businessId) fallback = fallback.eq('business_id', businessId);
+    ({ data, error } = await fallback);
+  }
   if (error && /pre_booking_items|parties|products|relationship|schema cache/i.test(error.message || '')) {
     let fallback = db
       .from('pre_bookings')

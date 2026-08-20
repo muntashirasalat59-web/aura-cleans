@@ -59,13 +59,18 @@ function productDisplayName(product) {
 function mapItem(row) {
   const quantity = Number(row.quantity) || 0;
   const rate = Number(row.rate) || 0;
+  const amount = Number(row.amount) || money(rate * quantity);
+  const gst_percent = Number(row.gst_percent) || 0;
+  const gst_amount = Number(row.gst_amount) || money((amount * gst_percent) / 100);
   return {
     id: row.id,
     product_id: row.product_id,
     product_name: productDisplayName(row.products) || row.product_name || '—',
     quantity,
     rate,
-    amount: Number(row.amount) || money(rate * quantity),
+    amount,
+    gst_percent,
+    gst_amount,
   };
 }
 
@@ -94,8 +99,14 @@ function mapPreBookingRow(row) {
   const firstName = items[0]?.product_name || '—';
   const product_name =
     item_count <= 1 ? firstName : `${firstName} +${item_count - 1}`;
-  const total_amount =
-    Number(row.total_amount) || items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const subtotal =
+    Number(row.subtotal) || items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const gst_percent = Number(row.gst_percent) || Number(items[0]?.gst_percent) || 0;
+  const gst_total =
+    Number(row.gst_total ?? row.gst_amount) ||
+    items.reduce((sum, item) => sum + (Number(item.gst_amount) || 0), 0) ||
+    money((subtotal * gst_percent) / 100);
+  const total_amount = Number(row.total_amount) || money(subtotal + gst_total);
 
   return {
     ...row,
@@ -104,6 +115,10 @@ function mapPreBookingRow(row) {
     item_count,
     product_name,
     quantity: items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0),
+    gst_percent,
+    subtotal: money(subtotal),
+    gst_total: money(gst_total),
+    gst_amount: money(gst_total),
     total_amount: money(total_amount),
     urgency: status === 'upcoming' ? deliveryUrgency(row.delivery_date) : status,
   };
