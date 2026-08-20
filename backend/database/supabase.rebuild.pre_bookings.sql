@@ -17,6 +17,7 @@ CREATE TABLE public.pre_bookings (
   subtotal NUMERIC(12, 2) NOT NULL DEFAULT 0,
   gst_total NUMERIC(12, 2) NOT NULL DEFAULT 0,
   total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (total_amount >= 0),
+  converted_invoice_id BIGINT REFERENCES public.sales (id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -27,6 +28,7 @@ CREATE INDEX pre_bookings_business_id_idx ON public.pre_bookings (business_id);
 CREATE INDEX pre_bookings_delivery_date_idx ON public.pre_bookings (delivery_date);
 CREATE INDEX pre_bookings_status_idx ON public.pre_bookings (status);
 CREATE INDEX pre_bookings_party_id_idx ON public.pre_bookings (party_id);
+CREATE INDEX pre_bookings_converted_invoice_id_idx ON public.pre_bookings (converted_invoice_id);
 
 ALTER TABLE public.pre_bookings ENABLE ROW LEVEL SECURITY;
 

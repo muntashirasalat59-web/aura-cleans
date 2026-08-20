@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { Plus, Trash2, X, Eye, FileDown, FileText, Pencil, Banknote, MessageCircle, Barcode, ScanLine, MapPin } from 'lucide-react';
-import { salesAPI, partiesAPI, productsAPI, citiesAPI } from '../api';
+import { salesAPI, partiesAPI, productsAPI, citiesAPI, preBookingsAPI } from '../api';
 import LoadingState from '../components/LoadingState';
 import PageHeader from '../components/PageHeader';
 import ExportMenu from '../components/ExportMenu';
@@ -39,6 +39,11 @@ import {
   paymentBreakdown,
 } from '../utils/invoicePayment';
 import { balanceDue, paymentStatus, enrichPaymentFields } from '../utils/invoiceReceivables';
+import {
+  todayISO,
+  gstPercentFromBookingItems,
+  invoiceItemsFromBooking,
+} from '../utils/preBookings';
 
 const emptySaleChannel = { sale_channel: 'offline', platform: '' };
 const DEFAULT_GST_RATE = 18;
@@ -57,9 +62,12 @@ export default function Sales() {
   const [products, setProducts] = useState([]);
   const [cities, setCities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const fromPreBookingId = searchParams.get('fromPreBooking');
   const paymentFilter = searchParams.get('payment');
   const cityFilter = searchParams.get('city') || 'all';
   const [showForm, setShowForm] = useState(false);
+  const [convertingBookingId, setConvertingBookingId] = useState(null);
+  const appliedPrefill = useRef(null);
   const [editingId, setEditingId] = useState(null);
   const [editingInvoiceNumber, setEditingInvoiceNumber] = useState('');
   const [editStockBaseline, setEditStockBaseline] = useState({});
@@ -113,6 +121,35 @@ export default function Sales() {
   }, []);
 
   useEffect(() => {
+    if (!fromPreBookingId || loading) return;
+    if (appliedPrefill.current === fromPreBookingId) return;
+    appliedPrefill.current = fromPreBookingId;
+    let cancelled = false;
+    (async () => {
+      try {
+        const row = await preBookingsAPI.getOne(fromPreBookingId);
+        if (cancelled) return;
+        if ((row.status || 'upcoming') !== 'upcoming') {
+          showError(
+            'Pre-booking unavailable',
+            'Only upcoming pre-bookings can be converted to an invoice.'
+          );
+          closeForm();
+          return;
+        }
+        await openFromPreBooking(row);
+      } catch (err) {
+        if (cancelled) return;
+        showError('Could not load pre-booking', err.message || 'Failed to open invoice form.');
+        closeForm();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [fromPreBookingId, loading]);
+
+  useEffect(() => {
     if (!showForm || editingId) return;
     setForm((prev) => {
       if (prev.city_id) return prev;
@@ -152,6 +189,13 @@ export default function Sales() {
     const next = new URLSearchParams(searchParams);
     if (!value || value === 'all') next.delete('city');
     else next.set('city', value);
+    setSearchParams(next, { replace: true });
+  }
+
+  function clearFromPreBookingParam() {
+    if (!searchParams.get('fromPreBooking')) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete('fromPreBooking');
     setSearchParams(next, { replace: true });
   }
 
@@ -290,13 +334,63 @@ export default function Sales() {
   }
 
   function openCreateForm() {
+    appliedPrefill.current = null;
+    setConvertingBookingId(null);
+    clearFromPreBookingParam();
     resetForm();
     setShowForm(true);
   }
 
   function closeForm() {
+    appliedPrefill.current = null;
+    setConvertingBookingId(null);
+    clearFromPreBookingParam();
     setShowForm(false);
     resetForm();
+  }
+
+  async function openFromPreBooking(row) {
+    const items = invoiceItemsFromBooking(row.items);
+    await ensurePartyInList(row.party_id);
+    await ensureProductsInList(items.map((item) => parseInt(item.product_id, 10)).filter(Boolean));
+    let party = parties.find((p) => String(p.id) === String(row.party_id));
+    if (!party && row.party_id) {
+      try {
+        party = await partiesAPI.getOne(row.party_id);
+      } catch {
+        party = null;
+      }
+    }
+    const gstPercent = gstPercentFromBookingItems(row.items);
+    setEditingId(null);
+    setEditingInvoiceNumber('');
+    setEditStockBaseline({});
+    setBarcodeInput('');
+    setBarcodeError('');
+    setGstEnabled(gstPercent > 0);
+    setSavedGstPercent(gstPercent > 0 ? gstPercent : DEFAULT_GST_RATE);
+    setConvertingBookingId(row.id);
+    setForm({
+      party_id: String(row.party_id || ''),
+      invoice_date: todayISO(),
+      gst_percent: gstPercent,
+      place_of_supply: resolveInvoicePlaceOfSupply({
+        party,
+        shippingAddress: party?.address,
+        business: businessSettings,
+      }),
+      ship_same_as_billing: true,
+      shipping_address: '',
+      items,
+      payment: emptyPaymentDetails(),
+      ...emptySaleChannel,
+      city_id:
+        row.city_id != null && row.city_id !== ''
+          ? String(row.city_id)
+          : defaultCityIdFrom(cities),
+    });
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   /** While editing, qty on this invoice is still "reserved" until save — show effective stock in dropdown */
@@ -495,6 +589,10 @@ export default function Sales() {
         platform: form.sale_channel === 'online' ? form.platform.trim() : '',
         city_id: form.city_id ? parseInt(form.city_id, 10) : null,
       };
+      const linkedBookingId = !editingId ? convertingBookingId : null;
+      if (linkedBookingId) {
+        payload.pre_booking_id = linkedBookingId;
+      }
 
       if (editingId) {
         await salesAPI.update(editingId, payload);
@@ -507,6 +605,7 @@ export default function Sales() {
       closeForm();
       notifyDataSync('sales');
       notifyDataSync('products');
+      if (linkedBookingId) notifyDataSync('pre_bookings');
     } catch (err) {
       showError('Could not save invoice', formatCreateInvoiceError(err));
     }
@@ -711,7 +810,9 @@ export default function Sales() {
             subtitle={
               editingId
                 ? `Update line items, party, or tax — ${editingInvoiceNumber}. Stock adjusts on save.`
-                : 'Create a GST tax invoice — preview before you save.'
+                : convertingBookingId
+                  ? 'Pre-filled from a pre-booking. Edit anything before you save — the booking is marked delivered only after this invoice is created.'
+                  : 'Create a GST tax invoice — preview before you save.'
             }
           >
             <form onSubmit={handleSubmit}>

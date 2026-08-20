@@ -202,6 +202,7 @@ export const expensesAPI = {
 
 export const preBookingsAPI = {
   getAll: () => request('/pre-bookings'),
+  getOne: (id) => request(`/pre-bookings/${id}`),
   create: (data) => request('/pre-bookings', { method: 'POST', body: JSON.stringify(data) }),
   update: (id, data) => request(`/pre-bookings/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   markDelivered: (id) => request(`/pre-bookings/${id}/deliver`, { method: 'PATCH' }),

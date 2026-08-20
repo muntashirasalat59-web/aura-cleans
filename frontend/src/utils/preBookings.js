@@ -50,6 +50,23 @@ export function displayGstPercent(items, totals) {
   return money((totals.gstAmount / totals.subtotal) * 100);
 }
 
+export function gstPercentFromBookingItems(items) {
+  const percents = (items || []).map((item) => Number(item.gst_percent) || 0);
+  if (!percents.length) return DEFAULT_GST_RATE;
+  return percents[0];
+}
+
+export function invoiceItemsFromBooking(items) {
+  const rows = (items || [])
+    .filter((item) => item?.product_id)
+    .map((item) => ({
+      product_id: String(item.product_id),
+      quantity: Number(item.quantity) || 1,
+      rate: Number(item.rate) || 0,
+    }));
+  return rows.length > 0 ? rows : [{ product_id: '', quantity: 1, rate: 0 }];
+}
+
 export function dateOnly(value) {
   return String(value || '').slice(0, 10);
 }

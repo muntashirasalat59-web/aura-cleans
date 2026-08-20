@@ -3,12 +3,12 @@ const router = express.Router();
 const { assertNoError } = require('../database/supabase');
 const { logActivity } = require('../utils/activityLog');
 const {
-  LIST_SELECT,
   isMissingTableError,
   dateOnly,
   money,
   publicErrorMessage,
   mapPreBookingRow,
+  selectPreBookings,
 } = require('../utils/preBookings');
 
 const STATUSES = ['upcoming', 'delivered', 'cancelled'];
@@ -66,13 +66,11 @@ function validateBody(body, items) {
 }
 
 async function fetchOne(db, id) {
-  return db.from('pre_bookings').select(LIST_SELECT).eq('id', id).maybeSingle();
+  return selectPreBookings(db, { id });
 }
 
 async function listPreBookings(db, businessId) {
-  let query = db.from('pre_bookings').select(LIST_SELECT).order('delivery_date', { ascending: true });
-  if (businessId) query = query.eq('business_id', businessId);
-  return query;
+  return selectPreBookings(db, { businessId, order: true });
 }
 
 router.get('/', async (req, res) => {
@@ -84,6 +82,25 @@ router.get('/', async (req, res) => {
     if (handleMissingTable(res, error)) return;
     assertNoError(error);
     res.json((data || []).map(mapPreBookingRow));
+  } catch (error) {
+    fail(res, error);
+  }
+});
+
+router.get('/:id', async (req, res) => {
+  try {
+    const db = req.db;
+    if (!db) return res.status(401).json({ error: 'Authentication required' });
+
+    const { data, error } = await fetchOne(db, req.params.id);
+    if (handleMissingTable(res, error)) return;
+    assertNoError(error);
+    if (!data) return res.status(404).json({ error: 'Pre-booking not found' });
+    const bid = businessIdOf(req);
+    if (bid && String(data.business_id) !== bid) {
+      return res.status(404).json({ error: 'Pre-booking not found' });
+    }
+    res.json(mapPreBookingRow(data));
   } catch (error) {
     fail(res, error);
   }

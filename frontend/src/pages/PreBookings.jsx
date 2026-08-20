@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, X, Pencil, Check, Ban, ChevronDown, IndianRupee } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, X, Pencil, FileText, Check, Ban, ChevronDown, IndianRupee } from 'lucide-react';
 import { preBookingsAPI, partiesAPI, productsAPI } from '../api';
 import LoadingState from '../components/LoadingState';
 import PageHeader from '../components/PageHeader';
@@ -28,6 +29,7 @@ const emptyForm = () => ({
 });
 
 export default function PreBookings() {
+  const navigate = useNavigate();
   const [rows, setRows] = useState([]);
   const [parties, setParties] = useState([]);
   const [products, setProducts] = useState([]);
@@ -177,6 +179,11 @@ export default function PreBookings() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function createInvoice(row) {
+    if ((row?.status || 'upcoming') !== 'upcoming') return;
+    navigate(`/sales?fromPreBooking=${row.id}`);
   }
 
   async function markDelivered(id) {
@@ -387,6 +394,15 @@ export default function PreBookings() {
                             >
                               <Pencil className="h-3.5 w-3.5" />
                               Edit
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busyId === row.id}
+                              onClick={() => createInvoice(row)}
+                              className="link-action"
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                              Create Invoice
                             </button>
                             <button
                               type="button"
