@@ -784,6 +784,7 @@ export default function Dashboard() {
       {showPreBookingAlert && (
         <PreBookingAlertBanner
           count={duePreBookingCount}
+          totalDue={duePreBookings.reduce((sum, row) => sum + (Number(row.total_amount) || 0), 0)}
           preview={preBookingAlertPreview}
           totalCount={duePreBookings.length}
           onDismiss={dismissPreBookingAlert}
@@ -1511,7 +1512,7 @@ function PayableAlertBanner({ count, totalDue, tone, preview, totalCount, onDism
   );
 }
 
-function PreBookingAlertBanner({ count, preview, totalCount, onDismiss }) {
+function PreBookingAlertBanner({ count, totalDue, preview, totalCount, onDismiss }) {
   const hasOverdue = preview.some((row) => row.urgency === 'overdue');
   const styles = hasOverdue
     ? {
@@ -1554,7 +1555,8 @@ function PreBookingAlertBanner({ count, preview, totalCount, onDismiss }) {
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className={`font-semibold ${styles.title}`}>
-                {count} pre-booking{count === 1 ? '' : 's'} due soon
+                {count} pre-booking{count === 1 ? '' : 's'} due soon — ₹
+                {Number(totalDue || 0).toLocaleString('en-IN')} total
               </p>
               <p className={`mt-1 text-[length:var(--aura-type-body)] ${styles.sub}`}>
                 Deliver these reserved orders — overdue rows are highlighted in red.
@@ -1592,9 +1594,12 @@ function PreBookingAlertBanner({ count, preview, totalCount, onDismiss }) {
                     </span>
                   )}
                 </div>
-                <span className="shrink-0 tabular-nums text-aura-muted">
-                  {formatDisplayDate(row.delivery_date)}
-                </span>
+                <div className="flex shrink-0 items-center gap-3 tabular-nums">
+                  <span className="font-semibold">
+                    ₹{Number(row.total_amount || 0).toLocaleString('en-IN')}
+                  </span>
+                  <span className="text-aura-muted">{formatDisplayDate(row.delivery_date)}</span>
+                </div>
               </li>
             ))}
             {totalCount > preview.length && (

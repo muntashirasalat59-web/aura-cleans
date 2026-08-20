@@ -13,7 +13,7 @@ const STATUSES = ['upcoming', 'delivered', 'cancelled'];
 const LIST_SELECT = '*, parties(name), products(name, unit_size, unit_type)';
 
 function migrationHint() {
-  return 'Run backend/database/supabase.migration.pre_bookings.sql in the Supabase SQL editor.';
+  return 'Run backend/database/supabase.migration.pre_bookings.sql (and supabase.migration.pre_bookings_amount.sql if the table already exists) in the Supabase SQL editor.';
 }
 
 function handleMissingTable(res, error) {
@@ -26,6 +26,14 @@ function businessIdOf(req) {
   return String(req.profile?.business_id || '').trim();
 }
 
+function money(value) {
+  return Math.round((Number(value) || 0) * 100) / 100;
+}
+
+function isMissingAmountColumn(error) {
+  return /rate|total_amount|column|schema cache|could not find/i.test(error?.message || '');
+}
+
 function validateBody(body) {
   const partyId = Number(body?.party_id);
   const productId = Number(body?.product_id);
@@ -36,7 +44,19 @@ function validateBody(body) {
   if (!productId) return 'Product is required';
   if (!Number.isFinite(quantity) || quantity <= 0) return 'Quantity must be greater than 0';
   if (!deliveryDate) return 'Delivery date is required';
+  if (body?.rate !== undefined && body?.rate !== null && body?.rate !== '') {
+    const rate = Number(body.rate);
+    if (!Number.isFinite(rate) || rate < 0) return 'Rate cannot be negative';
+  }
   return null;
+}
+
+async function resolveRate(db, body, productId) {
+  if (body?.rate !== undefined && body?.rate !== null && body?.rate !== '') {
+    return money(body.rate);
+  }
+  const { data } = await db.from('products').select('price').eq('id', productId).maybeSingle();
+  return money(data?.price);
 }
 
 async function fetchOne(db, id) {
@@ -86,18 +106,33 @@ router.post('/', async (req, res) => {
     const validationError = validateBody(req.body);
     if (validationError) return res.status(400).json({ error: validationError });
 
+    const quantity = Number(req.body.quantity);
+    const rate = await resolveRate(db, req.body, Number(req.body.product_id));
+    const total_amount = money(rate * quantity);
+
     const payload = {
       business_id: bid,
       party_id: Number(req.body.party_id),
       product_id: Number(req.body.product_id),
-      quantity: Number(req.body.quantity),
+      quantity,
+      rate,
+      total_amount,
       booking_date: dateOnly(req.body.booking_date) || localTodayISO(),
       delivery_date: dateOnly(req.body.delivery_date),
       notes: String(req.body.notes || '').trim(),
       status: 'upcoming',
     };
 
-    const { data, error } = await db.from('pre_bookings').insert(payload).select().single();
+    let { data, error } = await db.from('pre_bookings').insert(payload).select().single();
+    if (error && isMissingAmountColumn(error)) {
+      const { rate: _rate, total_amount: _total, ...withoutAmount } = payload;
+      ({ data, error } = await db.from('pre_bookings').insert(withoutAmount).select().single());
+      if (!error) {
+        console.warn(
+          '[pre-bookings] rate/total_amount columns missing — run supabase.migration.pre_bookings_amount.sql'
+        );
+      }
+    }
     if (handleMissingTable(res, error)) return;
     assertNoError(error);
 
@@ -113,7 +148,7 @@ router.post('/', async (req, res) => {
       entityType: 'pre_booking',
       entityId: row.id,
       entityName: `${row.party_name} · ${row.product_name}`,
-      details: { quantity: row.quantity, delivery_date: row.delivery_date },
+      details: { quantity: row.quantity, rate: row.rate, total_amount: row.total_amount, delivery_date: row.delivery_date },
     });
     res.status(201).json(row);
   } catch (error) {
