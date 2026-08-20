@@ -16,8 +16,12 @@ import { downloadCsv } from '../utils/csvExport';
 import { formatProductNameWithSize } from '../utils/productDisplay';
 import { useDataSync } from '../hooks/useDataSync';
 
+/** Local calendar YYYY-MM-DD (not UTC — toISOString() shifts IST dates back a day). */
 function formatDateISO(d) {
-  return d.toISOString().split('T')[0];
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function getPresetRange(preset) {

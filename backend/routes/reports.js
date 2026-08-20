@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { supabase, assertNoError } = require('../database/supabase');
+const { assertNoError } = require('../database/supabase');
 
 function sumAmount(rows, field = 'total_amount') {
   return (rows || []).reduce((acc, row) => acc + Number(row[field] || 0), 0);
@@ -105,21 +105,22 @@ router.get('/', async (req, res) => {
       return res.status(400).json({ error: '"from" date must be on or before "to" date' });
     }
 
+    const db = req.db;
     const [salesRes, purchasesRes, expensesRes] = await Promise.all([
-      supabase
+      db
         .from('sales')
         .select('id, invoice_number, invoice_date, subtotal, gst_amount, total_amount, parties(name)')
         .eq('is_deleted', false)
         .gte('invoice_date', from)
         .lte('invoice_date', to)
         .order('invoice_date', { ascending: false }),
-      supabase
+      db
         .from('purchases')
         .select('id, purchase_date, total_amount, notes, parties(name)')
         .gte('purchase_date', from)
         .lte('purchase_date', to)
         .order('purchase_date', { ascending: false }),
-      supabase
+      db
         .from('expenses')
         .select('id, title, category, amount, expense_date, payment_method, notes')
         .gte('expense_date', from)
@@ -141,7 +142,7 @@ router.get('/', async (req, res) => {
     const lineItemQueries = [];
     if (saleIds.length > 0) {
       lineItemQueries.push(
-        supabase
+        db
           .from('sale_items')
           .select(
             'product_id, quantity, rate, amount, sale_id, sales(invoice_number, invoice_date, parties(name)), products(name, unit_size, unit_type, cost_price, price)'
@@ -151,7 +152,7 @@ router.get('/', async (req, res) => {
     }
     if (purchaseIds.length > 0) {
       lineItemQueries.push(
-        supabase
+        db
           .from('purchase_items')
           .select(
             'quantity, amount, purchase_id, purchases(purchase_date, notes, parties(name)), products(name, unit_size, unit_type)'
