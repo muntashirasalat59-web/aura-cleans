@@ -1,5 +1,8 @@
 const DUE_SOON_DAYS = 3;
 
+const LIST_SELECT =
+  'id, business_id, party_id, delivery_date, notes, status, subtotal, gst_total, total_amount, created_at, parties(name), pre_booking_items(id, product_id, quantity, rate, gst_percent, gst_amount, amount, products(name, unit_size, unit_type))';
+
 function isMissingTableError(error) {
   if (!error) return false;
   const code = error.code || '';
@@ -27,6 +30,32 @@ function localTodayISO(today = new Date()) {
 
 function money(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
+}
+
+function publicErrorMessage(error) {
+  const msg = String(error?.message || error || '').trim();
+  const lower = msg.toLowerCase();
+  if (
+    lower.includes('could not find the function') ||
+    (lower.includes('create_pre_booking') && lower.includes('does not exist'))
+  ) {
+    return 'Pre-bookings is not set up yet. Run backend/database/supabase.rebuild.pre_bookings.sql in the Supabase SQL editor.';
+  }
+  if (isMissingTableError(error) || lower.includes('schema cache')) {
+    return 'Pre-bookings is not set up yet. Run backend/database/supabase.rebuild.pre_bookings.sql in the Supabase SQL editor.';
+  }
+  if (lower.includes('null value in column "product_id"')) {
+    return 'Pre-bookings still has the old single-product column. Run the rebuild SQL in Supabase, then try again.';
+  }
+  if (lower.includes('parties') && (lower.includes('foreign key') || lower.includes('violates'))) {
+    return 'That party was not found.';
+  }
+  if (lower.includes('products') && (lower.includes('foreign key') || lower.includes('violates'))) {
+    return 'One of the products was not found.';
+  }
+  const raised = msg.match(/Add at least one product|Party is required|Delivery date is required|Business is required|Each product needs|Each row needs|GST percent cannot be negative/i);
+  if (raised) return raised[0];
+  return msg.replace(/^.*error:\s*/i, '') || 'Could not save this pre-booking.';
 }
 
 /** overdue | due_soon | upcoming — only meaningful while status is upcoming. */
@@ -59,67 +88,49 @@ function productDisplayName(product) {
 function mapItem(row) {
   const quantity = Number(row.quantity) || 0;
   const rate = Number(row.rate) || 0;
-  const amount = Number(row.amount) || money(rate * quantity);
   const gst_percent = Number(row.gst_percent) || 0;
-  const gst_amount = Number(row.gst_amount) || money((amount * gst_percent) / 100);
+  const taxable = money(rate * quantity);
+  const gst_amount = Number(row.gst_amount) || money((taxable * gst_percent) / 100);
+  const amount = Number(row.amount) || money(taxable + gst_amount);
   return {
     id: row.id,
     product_id: row.product_id,
     product_name: productDisplayName(row.products) || row.product_name || '—',
     quantity,
     rate,
-    amount,
     gst_percent,
     gst_amount,
+    taxable,
+    amount,
   };
 }
 
-function itemsFromRow(row) {
-  if (Array.isArray(row.pre_booking_items) && row.pre_booking_items.length > 0) {
-    return row.pre_booking_items.map(mapItem);
-  }
-  if (row.product_id) {
-    return [
-      mapItem({
-        product_id: row.product_id,
-        quantity: row.quantity,
-        rate: row.rate,
-        amount: row.total_amount,
-        products: row.products,
-      }),
-    ];
-  }
-  return [];
-}
-
 function mapPreBookingRow(row) {
+  if (!row) return null;
   const status = row.status || 'upcoming';
-  const items = itemsFromRow(row);
+  const items = Array.isArray(row.pre_booking_items) ? row.pre_booking_items.map(mapItem) : [];
   const item_count = items.length;
   const firstName = items[0]?.product_name || '—';
-  const product_name =
-    item_count <= 1 ? firstName : `${firstName} +${item_count - 1}`;
-  const subtotal =
-    Number(row.subtotal) || items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-  const gst_percent = Number(row.gst_percent) || Number(items[0]?.gst_percent) || 0;
-  const gst_total =
-    Number(row.gst_total ?? row.gst_amount) ||
-    items.reduce((sum, item) => sum + (Number(item.gst_amount) || 0), 0) ||
-    money((subtotal * gst_percent) / 100);
+  const product_name = item_count <= 1 ? firstName : `${firstName} +${item_count - 1}`;
+  const subtotal = Number(row.subtotal) || items.reduce((sum, item) => sum + item.taxable, 0);
+  const gst_total = Number(row.gst_total) || items.reduce((sum, item) => sum + item.gst_amount, 0);
   const total_amount = Number(row.total_amount) || money(subtotal + gst_total);
 
   return {
-    ...row,
+    id: row.id,
+    business_id: row.business_id,
+    party_id: row.party_id,
     party_name: row.parties?.name || row.party_name || '—',
+    delivery_date: dateOnly(row.delivery_date),
+    notes: row.notes || '',
+    status,
     items,
     item_count,
     product_name,
-    quantity: items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0),
-    gst_percent,
     subtotal: money(subtotal),
     gst_total: money(gst_total),
-    gst_amount: money(gst_total),
     total_amount: money(total_amount),
+    created_at: row.created_at,
     urgency: status === 'upcoming' ? deliveryUrgency(row.delivery_date) : status,
   };
 }
@@ -137,10 +148,12 @@ function dueSoonRows(rows) {
 
 module.exports = {
   DUE_SOON_DAYS,
+  LIST_SELECT,
   isMissingTableError,
   dateOnly,
   localTodayISO,
   money,
+  publicErrorMessage,
   deliveryUrgency,
   mapPreBookingRow,
   dueSoonRows,

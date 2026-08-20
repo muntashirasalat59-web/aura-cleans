@@ -3,6 +3,7 @@ const router = express.Router();
 const { assertNoError } = require('../database/supabase');
 const { fetchBusinessSettings } = require('../utils/businessSettings');
 const {
+  LIST_SELECT: PRE_BOOKING_LIST_SELECT,
   isMissingTableError: isMissingPreBookingsTable,
   mapPreBookingRow,
   dueSoonRows,
@@ -36,36 +37,11 @@ async function fetchExpensesSafe(db) {
 async function fetchDuePreBookingsSafe(db, businessId) {
   let query = db
     .from('pre_bookings')
-    .select(
-      '*, parties(name), pre_booking_items(id, product_id, quantity, rate, amount, gst_percent, gst_amount, products(name, unit_size, unit_type))'
-    )
+    .select(PRE_BOOKING_LIST_SELECT)
     .eq('status', 'upcoming');
   if (businessId) query = query.eq('business_id', businessId);
 
-  let { data, error } = await query;
-  if (error && /gst_percent|gst_amount|column/i.test(error.message || '')) {
-    let fallback = db
-      .from('pre_bookings')
-      .select(
-        '*, parties(name), pre_booking_items(id, product_id, quantity, rate, amount, products(name, unit_size, unit_type))'
-      )
-      .eq('status', 'upcoming');
-    if (businessId) fallback = fallback.eq('business_id', businessId);
-    ({ data, error } = await fallback);
-  }
-  if (error && /pre_booking_items|parties|products|relationship|schema cache/i.test(error.message || '')) {
-    let fallback = db
-      .from('pre_bookings')
-      .select('*, parties(name)')
-      .eq('status', 'upcoming');
-    if (businessId) fallback = fallback.eq('business_id', businessId);
-    ({ data, error } = await fallback);
-  }
-  if (error && /parties|relationship|schema cache/i.test(error.message || '')) {
-    let fallback = db.from('pre_bookings').select('*').eq('status', 'upcoming');
-    if (businessId) fallback = fallback.eq('business_id', businessId);
-    ({ data, error } = await fallback);
-  }
+  const { data, error } = await query;
   if (error) {
     if (isMissingTableError(error) || isMissingPreBookingsTable(error)) {
       console.warn('[dashboard] pre_bookings table missing — skipping reminder banner');

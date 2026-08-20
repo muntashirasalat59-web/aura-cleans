@@ -1,7 +1,6 @@
 -- Pre-bookings clean rebuild. Run once in Supabase SQL Editor (entire file).
 -- Drops leftover single-product header columns (product_id, quantity, …)
 -- and recreates header + line items + atomic create_pre_booking().
--- Same as supabase.rebuild.pre_bookings.sql — either file is fine.
 
 DROP FUNCTION IF EXISTS public.create_pre_booking(TEXT, BIGINT, DATE, TEXT, JSONB);
 

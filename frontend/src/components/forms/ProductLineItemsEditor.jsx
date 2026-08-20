@@ -1,14 +1,20 @@
 import { Plus, Trash2 } from 'lucide-react';
 import { formatProductOptionLabel } from '../../utils/productDisplay';
-import { formatInrAmount, formatLineGstDisplay, enrichInvoiceLine } from '../../utils/invoiceLineItems';
-import { computeGstTotals } from '../../utils/invoiceGst';
+import { formatInrAmount } from '../../utils/invoiceLineItems';
+import {
+  DEFAULT_GST_RATE,
+  computePreBookingLine,
+  computePreBookingTotals,
+  displayGstPercent,
+  productGstPercent,
+} from '../../utils/preBookings';
 import GstTaxSummary from '../invoice/GstTaxSummary';
 
 export function emptyProductLine() {
-  return { product_id: '', quantity: '1', rate: '' };
+  return { product_id: '', quantity: '1', rate: '', gst_percent: String(DEFAULT_GST_RATE) };
 }
 
-/** Invoice-style line items: Product / Qty / Rate / GST / Amount (excl. GST). */
+/** Pre-booking line items: Product / Qty / Rate / GST% / Amount (incl. GST). */
 export default function ProductLineItemsEditor({
   items = [],
   products = [],
@@ -16,11 +22,10 @@ export default function ProductLineItemsEditor({
   addLabel = 'Add another product',
   rateFrom = 'price',
   getOptionLabel,
-  gstPercent = 0,
 }) {
   const rows = items.length > 0 ? items : [emptyProductLine()];
-  const gstRate = Number(gstPercent) || 0;
-  const totals = computeGstTotals(rows, gstRate);
+  const totals = computePreBookingTotals(rows);
+  const gstRate = displayGstPercent(rows, totals);
 
   function setRows(next) {
     onChange(next);
@@ -41,9 +46,13 @@ export default function ProductLineItemsEditor({
       const product = products.find((p) => String(p.id) === String(value));
       if (product) {
         const catalog = product[rateFrom] ?? product.price ?? 0;
-        next[index] = { ...next[index], rate: String(catalog) };
+        next[index] = {
+          ...next[index],
+          rate: String(catalog),
+          gst_percent: String(productGstPercent(product)),
+        };
       } else {
-        next[index] = { ...next[index], rate: '' };
+        next[index] = { ...next[index], rate: '', gst_percent: String(DEFAULT_GST_RATE) };
       }
     }
     setRows(next);
@@ -59,8 +68,8 @@ export default function ProductLineItemsEditor({
               <th className="col-item">Product</th>
               <th className="col-qty text-right">Qty</th>
               <th className="col-rate text-right whitespace-nowrap">Rate (₹)</th>
-              <th className="col-gst text-right whitespace-nowrap">GST</th>
-              <th className="col-amount text-right whitespace-nowrap">Amount (excl. GST)</th>
+              <th className="col-gst text-right whitespace-nowrap">GST %</th>
+              <th className="col-amount text-right whitespace-nowrap">Amount</th>
               <th className="col-actions" />
             </tr>
           </thead>
@@ -69,19 +78,7 @@ export default function ProductLineItemsEditor({
               const product = item.product_id
                 ? products.find((p) => String(p.id) === String(item.product_id))
                 : null;
-              const line = item.product_id
-                ? enrichInvoiceLine(
-                    {
-                      quantity: item.quantity,
-                      rate: item.rate,
-                      name: product?.name,
-                      unit_size: product?.unit_size,
-                      unit_type: product?.unit_type,
-                    },
-                    index,
-                    gstRate
-                  )
-                : null;
+              const line = item.product_id ? computePreBookingLine(item) : null;
               return (
                 <tr key={index}>
                   <td className="col-sn text-center tabular-nums text-slate-500 font-medium">
@@ -125,13 +122,18 @@ export default function ProductLineItemsEditor({
                     />
                   </td>
                   <td className="col-gst">
-                    <span className="line-item-cell-gst">
-                      {line ? formatLineGstDisplay(line) : '—'}
-                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="line-item-rate-input"
+                      value={item.gst_percent}
+                      onChange={(e) => updateRow(index, 'gst_percent', e.target.value)}
+                    />
                   </td>
                   <td className="col-amount">
                     <span className="line-item-cell-amount">
-                      {line ? formatInrAmount(line.taxable) : '—'}
+                      {line ? formatInrAmount(line.amount) : '—'}
                     </span>
                   </td>
                   <td className="col-actions">
@@ -153,7 +155,7 @@ export default function ProductLineItemsEditor({
         </table>
       </div>
       <p className="text-[10px] text-slate-500 mb-4">
-        Line amounts exclude GST. GST updates when qty, rate, or GST % changes.
+        Catalog price fills Rate. Amount includes GST and updates as you type.
       </p>
       <button type="button" onClick={addRow} className="link-action text-sm mb-6">
         <Plus className="h-4 w-4" />
