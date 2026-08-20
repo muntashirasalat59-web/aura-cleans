@@ -22,6 +22,77 @@ function mapPurchase(row) {
   };
 }
 
+function roundMoney(value) {
+  return Math.round((Number(value) || 0) * 100) / 100;
+}
+
+/** Realized margin from invoice line rates vs current product cost. */
+function buildRealizedMargin(saleItemRows) {
+  const byProduct = new Map();
+  let realizedProfit = 0;
+  let catalogPotential = 0;
+  let actualRevenue = 0;
+  let totalCost = 0;
+
+  for (const row of saleItemRows || []) {
+    const qty = Number(row.quantity) || 0;
+    const rate = Number(row.rate);
+    const amountRaw = row.amount;
+    const revenue =
+      amountRaw != null && amountRaw !== ''
+        ? Number(amountRaw) || 0
+        : (Number.isFinite(rate) ? rate : 0) * qty;
+    const costEach = Number(row.products?.cost_price) || 0;
+    const listEach = Number(row.products?.price) || 0;
+    const cost = costEach * qty;
+    const profit = revenue - cost;
+    const potential = (listEach - costEach) * qty;
+
+    realizedProfit += profit;
+    catalogPotential += potential;
+    actualRevenue += revenue;
+    totalCost += cost;
+
+    const key = String(
+      row.product_id ?? `${row.products?.name || 'product'}-${row.products?.unit_size || ''}`
+    );
+    const existing = byProduct.get(key) || {
+      product_id: row.product_id,
+      product_name: row.products?.name || 'Product',
+      unit_size: row.products?.unit_size,
+      unit_type: row.products?.unit_type,
+      quantity: 0,
+      revenue: 0,
+      cost: 0,
+      profit: 0,
+    };
+    existing.quantity += qty;
+    existing.revenue += revenue;
+    existing.cost += cost;
+    existing.profit += profit;
+    byProduct.set(key, existing);
+  }
+
+  const products = Array.from(byProduct.values())
+    .map((row) => ({
+      ...row,
+      revenue: roundMoney(row.revenue),
+      cost: roundMoney(row.cost),
+      profit: roundMoney(row.profit),
+      margin_percent: row.revenue > 0 ? roundMoney((row.profit / row.revenue) * 100) : 0,
+    }))
+    .sort((a, b) => b.profit - a.profit);
+
+  return {
+    realizedProfit: roundMoney(realizedProfit),
+    catalogPotential: roundMoney(catalogPotential),
+    difference: roundMoney(realizedProfit - catalogPotential),
+    actualRevenue: roundMoney(actualRevenue),
+    totalCost: roundMoney(totalCost),
+    products,
+  };
+}
+
 router.get('/', async (req, res) => {
   try {
     const { from, to } = req.query;
@@ -73,7 +144,7 @@ router.get('/', async (req, res) => {
         supabase
           .from('sale_items')
           .select(
-            'quantity, amount, sale_id, sales(invoice_number, invoice_date, parties(name)), products(name, unit_size, unit_type)'
+            'product_id, quantity, rate, amount, sale_id, sales(invoice_number, invoice_date, parties(name)), products(name, unit_size, unit_type, cost_price, price)'
           )
           .in('sale_id', saleIds)
       );
@@ -101,7 +172,10 @@ router.get('/', async (req, res) => {
       assertNoError(purchaseItemsRes.error);
     }
 
-    const salesLineItems = (saleItemsRes.data || [])
+    const saleItemRows = saleItemsRes.data || [];
+    const realizedMargin = buildRealizedMargin(saleItemRows);
+
+    const salesLineItems = saleItemRows
       .map((row) => ({
         invoice_date: row.sales?.invoice_date,
         invoice_number: row.sales?.invoice_number,
@@ -110,6 +184,7 @@ router.get('/', async (req, res) => {
         unit_size: row.products?.unit_size,
         unit_type: row.products?.unit_type,
         quantity: row.quantity,
+        rate: row.rate,
         amount: row.amount,
       }))
       .sort((a, b) => String(b.invoice_date).localeCompare(String(a.invoice_date)));
@@ -140,7 +215,13 @@ router.get('/', async (req, res) => {
         totalPurchases,
         totalExpenses,
         netProfit,
+        realizedProfit: realizedMargin.realizedProfit,
+        catalogPotential: realizedMargin.catalogPotential,
+        realizedVsCatalog: realizedMargin.difference,
+        realizedRevenue: realizedMargin.actualRevenue,
+        realizedCost: realizedMargin.totalCost,
       },
+      realizedByProduct: realizedMargin.products,
       sales,
       purchases,
       expenses,
