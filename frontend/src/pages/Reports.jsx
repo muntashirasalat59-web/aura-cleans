@@ -49,6 +49,15 @@ function formatDisplayDate(iso) {
   });
 }
 
+function formatInr(amount) {
+  const n = Number(amount) || 0;
+  const abs = Math.abs(n).toLocaleString('en-IN', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+  return `${n < 0 ? '−' : ''}₹${abs}`;
+}
+
 export default function Reports() {
   const monthDefault = getPresetRange('month');
   const [fromDate, setFromDate] = useState(monthDefault.from);
@@ -99,6 +108,7 @@ export default function Reports() {
   const expenses = report?.expenses || [];
   const salesLineItems = report?.salesLineItems || [];
   const purchaseLineItems = report?.purchaseLineItems || [];
+  const realizedByProduct = report?.realizedByProduct || [];
 
   function exportSalesCsv() {
     downloadCsv(
@@ -166,6 +176,28 @@ export default function Reports() {
         row.title,
         row.payment_method,
         Number(row.amount).toFixed(2),
+      ])
+    );
+  }
+
+  function exportRealizedMarginCsv() {
+    downloadCsv(
+      `realized-margin-${fromDate}-to-${toDate}`,
+      [
+        'Product',
+        'Qty sold',
+        'Revenue (actual ₹)',
+        'Cost (₹)',
+        'Actual profit (₹)',
+        'Margin % of revenue',
+      ],
+      realizedByProduct.map((row) => [
+        formatProductNameWithSize(row, 'inline'),
+        row.quantity,
+        Number(row.revenue).toFixed(2),
+        Number(row.cost).toFixed(2),
+        Number(row.profit).toFixed(2),
+        Number(row.margin_percent).toFixed(1),
       ])
     );
   }
@@ -243,12 +275,97 @@ export default function Reports() {
             />
             <SummaryStatCard
               title="Net profit"
-              value={`₹${(summary?.netProfit ?? 0).toLocaleString('en-IN')}`}
+              value={formatInr(summary?.netProfit ?? 0)}
               subtitle="Sales − purchases − expenses"
               icon={Scale}
               tone="amber"
             />
           </div>
+
+          <div>
+            <h2 className="mb-3 text-lg font-semibold text-[var(--app-heading)] dark:text-white">
+              Realized vs catalog margin
+            </h2>
+            <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+              Actual profit uses invoice line rates (after negotiation). Catalog potential is list
+              price minus cost on the same quantity sold — not the Products page stock estimate.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              <SummaryStatCard
+                title="Actual profit (realized)"
+                value={formatInr(summary?.realizedProfit ?? 0)}
+                subtitle="Invoice rate − cost, × qty sold"
+              />
+              <SummaryStatCard
+                title="Catalog potential (qty sold)"
+                value={formatInr(summary?.catalogPotential ?? 0)}
+                subtitle="List price − cost, × qty sold"
+              />
+              <SummaryStatCard
+                title="Vs list price"
+                value={formatInr(summary?.realizedVsCatalog ?? 0)}
+                subtitle={
+                  Number(summary?.realizedVsCatalog) < 0
+                    ? 'Discount vs catalog (actual is lower)'
+                    : Number(summary?.realizedVsCatalog) > 0
+                      ? 'Sold above list price'
+                      : 'Same as list price'
+                }
+              />
+            </div>
+          </div>
+
+          <ReportSection
+            title="Actual profit by product"
+            description={`${realizedByProduct.length} product(s) · sorted by highest actual profit`}
+            onExport={exportRealizedMarginCsv}
+            exportLabel="Export realized margin CSV"
+          >
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th className="text-right">Qty sold</th>
+                  <th className="text-right">Revenue (actual)</th>
+                  <th className="text-right">Cost</th>
+                  <th className="text-right">Actual profit</th>
+                  <th className="text-right">Margin %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {realizedByProduct.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="py-10 text-center text-slate-500">
+                      No sold products in this range.
+                    </td>
+                  </tr>
+                ) : (
+                  realizedByProduct.map((row) => (
+                    <tr key={row.product_id ?? `${row.product_name}-${row.unit_size}`}>
+                      <td className="font-medium text-slate-900">
+                        {formatProductNameWithSize(row, 'inline')}
+                      </td>
+                      <td className="text-right tabular-nums">{row.quantity}</td>
+                      <td className="text-right tabular-nums">{formatInr(row.revenue)}</td>
+                      <td className="text-right tabular-nums">{formatInr(row.cost)}</td>
+                      <td
+                        className={`text-right font-semibold tabular-nums ${
+                          Number(row.profit) >= 0
+                            ? 'text-emerald-700 dark:text-emerald-400'
+                            : 'text-rose-700 dark:text-rose-400'
+                        }`}
+                      >
+                        {formatInr(row.profit)}
+                      </td>
+                      <td className="text-right tabular-nums">
+                        {Number(row.margin_percent).toFixed(1)}%
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </ReportSection>
 
           <ReportSection
             title="Sales report"
