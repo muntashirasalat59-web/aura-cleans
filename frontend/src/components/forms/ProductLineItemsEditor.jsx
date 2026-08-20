@@ -1,17 +1,14 @@
 import { Plus, Trash2 } from 'lucide-react';
 import { formatProductOptionLabel } from '../../utils/productDisplay';
-import { formatInrAmount } from '../../utils/invoiceLineItems';
-import { lineSubtotal } from '../../utils/invoiceGst';
+import { formatInrAmount, formatLineGstDisplay, enrichInvoiceLine } from '../../utils/invoiceLineItems';
+import { computeGstTotals } from '../../utils/invoiceGst';
+import GstTaxSummary from '../invoice/GstTaxSummary';
 
 export function emptyProductLine() {
   return { product_id: '', quantity: '1', rate: '' };
 }
 
-function money(value) {
-  return Math.round((Number(value) || 0) * 100) / 100;
-}
-
-/** Same line-items-table UI as Create Invoice, without GST/HSN (pre-bookings / simple orders). */
+/** Invoice-style line items: Product / Qty / Rate / GST / Amount (excl. GST). */
 export default function ProductLineItemsEditor({
   items = [],
   products = [],
@@ -19,8 +16,11 @@ export default function ProductLineItemsEditor({
   addLabel = 'Add another product',
   rateFrom = 'price',
   getOptionLabel,
+  gstPercent = 0,
 }) {
   const rows = items.length > 0 ? items : [emptyProductLine()];
+  const gstRate = Number(gstPercent) || 0;
+  const totals = computeGstTotals(rows, gstRate);
 
   function setRows(next) {
     onChange(next);
@@ -49,8 +49,6 @@ export default function ProductLineItemsEditor({
     setRows(next);
   }
 
-  const total = rows.reduce((sum, row) => sum + lineSubtotal(row.quantity, row.rate), 0);
-
   return (
     <div>
       <div className="invoice-form-table-scroll mb-4">
@@ -61,7 +59,8 @@ export default function ProductLineItemsEditor({
               <th className="col-item">Product</th>
               <th className="col-qty text-right">Qty</th>
               <th className="col-rate text-right whitespace-nowrap">Rate (₹)</th>
-              <th className="col-amount text-right whitespace-nowrap">Amount</th>
+              <th className="col-gst text-right whitespace-nowrap">GST</th>
+              <th className="col-amount text-right whitespace-nowrap">Amount (excl. GST)</th>
               <th className="col-actions" />
             </tr>
           </thead>
@@ -70,7 +69,19 @@ export default function ProductLineItemsEditor({
               const product = item.product_id
                 ? products.find((p) => String(p.id) === String(item.product_id))
                 : null;
-              const amount = lineSubtotal(item.quantity, item.rate);
+              const line = item.product_id
+                ? enrichInvoiceLine(
+                    {
+                      quantity: item.quantity,
+                      rate: item.rate,
+                      name: product?.name,
+                      unit_size: product?.unit_size,
+                      unit_type: product?.unit_type,
+                    },
+                    index,
+                    gstRate
+                  )
+                : null;
               return (
                 <tr key={index}>
                   <td className="col-sn text-center tabular-nums text-slate-500 font-medium">
@@ -113,9 +124,14 @@ export default function ProductLineItemsEditor({
                       onChange={(e) => updateRow(index, 'rate', e.target.value)}
                     />
                   </td>
+                  <td className="col-gst">
+                    <span className="line-item-cell-gst">
+                      {line ? formatLineGstDisplay(line) : '—'}
+                    </span>
+                  </td>
                   <td className="col-amount">
                     <span className="line-item-cell-amount">
-                      {item.product_id ? formatInrAmount(amount) : '—'}
+                      {line ? formatInrAmount(line.taxable) : '—'}
                     </span>
                   </td>
                   <td className="col-actions">
@@ -136,16 +152,20 @@ export default function ProductLineItemsEditor({
           </tbody>
         </table>
       </div>
+      <p className="text-[10px] text-slate-500 mb-4">
+        Line amounts exclude GST. GST updates when qty, rate, or GST % changes.
+      </p>
       <button type="button" onClick={addRow} className="link-action text-sm mb-6">
         <Plus className="h-4 w-4" />
         {addLabel}
       </button>
       <div className="invoice-summary-box lg:ml-auto min-w-[280px] mb-6">
-        <div className="invoice-summary-row invoice-summary-total">
-          <span>Total amount</span>
-          <span className="tabular-nums">{formatInrAmount(money(total))}</span>
-        </div>
-        <p className="mt-2 text-[11px] text-slate-500">Sum of all line amounts (rate × quantity).</p>
+        <GstTaxSummary
+          gstPercent={gstRate}
+          gstAmount={totals.gstAmount}
+          subtotal={totals.subtotal}
+          total={totals.total}
+        />
       </div>
     </div>
   );

@@ -11,6 +11,9 @@ CREATE TABLE IF NOT EXISTS public.pre_bookings (
   delivery_date DATE NOT NULL,
   notes TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'upcoming' CHECK (status IN ('upcoming', 'delivered', 'cancelled')),
+  gst_percent NUMERIC(5, 2) NOT NULL DEFAULT 0,
+  subtotal NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  gst_total NUMERIC(12, 2) NOT NULL DEFAULT 0,
   total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (total_amount >= 0),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -44,7 +47,9 @@ CREATE TABLE IF NOT EXISTS public.pre_booking_items (
   product_id BIGINT NOT NULL REFERENCES public.products (id) ON DELETE CASCADE,
   quantity NUMERIC(12, 2) NOT NULL CHECK (quantity > 0),
   rate NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (rate >= 0),
-  amount NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (amount >= 0)
+  amount NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (amount >= 0),
+  gst_percent NUMERIC(5, 2) NOT NULL DEFAULT 0,
+  gst_amount NUMERIC(12, 2) NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS pre_booking_items_booking_idx ON public.pre_booking_items (pre_booking_id);
