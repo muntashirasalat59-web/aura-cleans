@@ -596,6 +596,19 @@ router.post('/', async (req, res) => {
     }
 
     const sale = await fetchSaleWithItems(req.db, saleId);
+    const preBookingId = Number(req.body?.pre_booking_id);
+    if (preBookingId) {
+      try {
+        const { linkConvertedSale } = require('../utils/preBookings');
+        await linkConvertedSale(req.db, {
+          preBookingId,
+          saleId,
+          businessId: req.profile?.business_id,
+        });
+      } catch (linkErr) {
+        console.warn('[sales] link pre-booking after create:', linkErr.message);
+      }
+    }
     await logActivity(req, {
       actionType: 'create',
       entityType: 'sale',

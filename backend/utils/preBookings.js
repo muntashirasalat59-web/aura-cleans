@@ -1,7 +1,11 @@
 const DUE_SOON_DAYS = 3;
 
-const LIST_SELECT =
-  'id, business_id, party_id, delivery_date, notes, status, subtotal, gst_total, total_amount, created_at, parties(name), pre_booking_items(id, product_id, quantity, rate, gst_percent, gst_amount, amount, products(name, unit_size, unit_type))';
+const LIST_EMBED =
+  'parties(name), pre_booking_items(id, product_id, quantity, rate, gst_percent, gst_amount, amount, products(name, unit_size, unit_type))';
+const LIST_COLUMNS =
+  'id, business_id, party_id, delivery_date, notes, status, subtotal, gst_total, total_amount, created_at';
+const LIST_SELECT = `${LIST_COLUMNS}, converted_invoice_id, ${LIST_EMBED}`;
+const LIST_SELECT_NO_CONVERTED = `${LIST_COLUMNS}, ${LIST_EMBED}`;
 
 function isMissingTableError(error) {
   if (!error) return false;
@@ -133,6 +137,7 @@ function mapPreBookingRow(row) {
     subtotal: money(subtotal),
     gst_total: money(gst_total),
     total_amount: money(total_amount),
+    converted_invoice_id: row.converted_invoice_id || null,
     created_at: row.created_at,
     urgency: status === 'upcoming' ? deliveryUrgency(row.delivery_date) : status,
   };
@@ -149,9 +154,81 @@ function dueSoonRows(rows) {
     });
 }
 
+function isMissingConvertedColumn(error) {
+  return /converted_invoice_id/i.test(error?.message || '');
+}
+
+async function selectPreBookings(db, { id, businessId, order } = {}) {
+  let query = db.from('pre_bookings').select(LIST_SELECT);
+  if (id) query = query.eq('id', id);
+  if (businessId) query = query.eq('business_id', businessId);
+  if (order) query = query.order('delivery_date', { ascending: true });
+
+  let { data, error } = id ? await query.maybeSingle() : await query;
+  if (error && isMissingConvertedColumn(error)) {
+    let fallback = db.from('pre_bookings').select(LIST_SELECT_NO_CONVERTED);
+    if (id) fallback = fallback.eq('id', id);
+    if (businessId) fallback = fallback.eq('business_id', businessId);
+    if (order) fallback = fallback.order('delivery_date', { ascending: true });
+    ({ data, error } = id ? await fallback.maybeSingle() : await fallback);
+  }
+  return { data, error };
+}
+
+async function linkConvertedSale(db, { preBookingId, saleId, businessId }) {
+  const id = Number(preBookingId);
+  const invoiceId = Number(saleId);
+  if (!id || !invoiceId) return;
+
+  const { data: existing, error: fetchError } = await db
+    .from('pre_bookings')
+    .select('id, status, business_id, converted_invoice_id')
+    .eq('id', id)
+    .maybeSingle();
+
+  let booking = existing;
+  let loadError = fetchError;
+  if (loadError && isMissingConvertedColumn(loadError)) {
+    const fallback = await db
+      .from('pre_bookings')
+      .select('id, status, business_id')
+      .eq('id', id)
+      .maybeSingle();
+    booking = fallback.data;
+    loadError = fallback.error;
+  }
+  if (loadError) throw loadError;
+  if (!booking) throw new Error('Pre-booking not found');
+  if (businessId && String(booking.business_id) !== String(businessId)) {
+    throw new Error('Pre-booking not found');
+  }
+  if ((booking.status || 'upcoming') !== 'upcoming') {
+    throw new Error('Only upcoming pre-bookings can be converted to an invoice');
+  }
+  if (booking.converted_invoice_id) {
+    throw new Error('This pre-booking already has an invoice');
+  }
+
+  const withRef = {
+    status: 'delivered',
+    converted_invoice_id: invoiceId,
+  };
+  let { error } = await db.from('pre_bookings').update(withRef).eq('id', id);
+  if (error && isMissingConvertedColumn(error)) {
+    ({ error } = await db.from('pre_bookings').update({ status: 'delivered' }).eq('id', id));
+    if (!error) {
+      console.warn(
+        '[pre-bookings] converted_invoice_id missing — run supabase.migration.pre_bookings_invoice.sql'
+      );
+    }
+  }
+  if (error) throw error;
+}
+
 module.exports = {
   DUE_SOON_DAYS,
   LIST_SELECT,
+  LIST_SELECT_NO_CONVERTED,
   isMissingTableError,
   dateOnly,
   localTodayISO,
@@ -160,4 +237,6 @@ module.exports = {
   deliveryUrgency,
   mapPreBookingRow,
   dueSoonRows,
+  selectPreBookings,
+  linkConvertedSale,
 };
