@@ -70,7 +70,7 @@ const NAV_ICONS = {
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { profile, role, signOut, refreshProfile } = useAuth();
+  const { profile, role, signOut } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -161,10 +161,6 @@ export default function Layout() {
   }, [isPlatformAdmin, loadSupportUnread]);
 
   useDataSync('support_messages', () => loadSupportUnread());
-
-  useEffect(() => {
-    refreshProfile?.();
-  }, [refreshProfile]);
 
   useEffect(() => {
     function onKey(e) {

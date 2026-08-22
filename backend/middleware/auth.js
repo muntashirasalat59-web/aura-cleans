@@ -1,36 +1,63 @@
-  const { supabase, createClientWithToken, assertNoError, getDbClient } = require('../database/supabase');
+const { supabase, createClientWithToken, assertNoError, getDbClient } = require('../database/supabase');
 const { getSupabaseAdmin } = require('../database/supabaseAdmin');
 
-async function attachBusinessAccess(profile) {
-  if (!profile?.business_id) return profile;
+const PROFILE_CACHE_TTL_MS = 30_000;
+const profileCache = new Map();
+
+function decodeJwtSub(token) {
   try {
-    const admin = getSupabaseAdmin();
-    const { data: biz, error } = await admin
-      .from('businesses')
-      .select('payment_status, business_name')
-      .eq('id', profile.business_id)
-      .maybeSingle();
-    if (error || !biz) return profile;
-    return {
-      ...profile,
-      payment_status: biz.payment_status || profile.payment_status || null,
-      business_name: biz.business_name || profile.business_name || null,
-    };
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(Buffer.from(b64, 'base64').toString('utf8'));
+    return payload.sub || null;
   } catch {
-    return profile;
+    return null;
   }
 }
+
+function getCachedAuth(userId) {
+  const entry = profileCache.get(userId);
+  if (!entry || Date.now() > entry.expiresAt) {
+    profileCache.delete(userId);
+    return null;
+  }
+  return entry;
+}
+
+function setCachedAuth(userId, authUser, profile) {
+  profileCache.set(userId, {
+    authUser,
+    profile,
+    expiresAt: Date.now() + PROFILE_CACHE_TTL_MS,
+  });
+}
+
+function mergeBusinessFields(profile) {
+  if (!profile) return profile;
+  const biz = profile.businesses;
+  if (!biz) return profile;
+  const row = Array.isArray(biz) ? biz[0] : biz;
+  const { businesses, ...rest } = profile;
+  return {
+    ...rest,
+    payment_status: row?.payment_status || rest.payment_status || null,
+    business_name: row?.business_name || rest.business_name || null,
+  };
+}
+
+const PROFILE_SELECT = '*, businesses(payment_status, business_name)';
 
 async function fetchUserProfile(userId, accessToken) {
   try {
     const admin = getSupabaseAdmin();
     const { data, error } = await admin
       .from('user_profiles')
-      .select('*')
+      .select(PROFILE_SELECT)
       .eq('id', userId)
       .maybeSingle();
     assertNoError(error);
-    if (data) return attachBusinessAccess(data);
+    if (data) return mergeBusinessFields(data);
   } catch (err) {
     if (!String(err.message).includes('SUPABASE_SERVICE_ROLE_KEY')) {
       throw err;
@@ -40,12 +67,12 @@ async function fetchUserProfile(userId, accessToken) {
   const userClient = createClientWithToken(accessToken);
   const { data: profile, error: profileError } = await userClient
     .from('user_profiles')
-    .select('*')
+    .select(PROFILE_SELECT)
     .eq('id', userId)
     .maybeSingle();
 
   assertNoError(profileError);
-  return attachBusinessAccess(profile);
+  return mergeBusinessFields(profile);
 }
 
 async function requireAuth(req, res, next) {
@@ -56,19 +83,37 @@ async function requireAuth(req, res, next) {
     }
 
     const token = authHeader.slice(7);
-    const { data, error } = await supabase.auth.getUser(token);
-
-    if (error || !data?.user) {
+    const userId = decodeJwtSub(token);
+    if (!userId) {
       return res.status(401).json({ error: 'Invalid or expired session' });
     }
 
-    const profile = await fetchUserProfile(data.user.id, token);
+    const cached = getCachedAuth(userId);
+    if (cached) {
+      req.authUser = cached.authUser;
+      req.profile = cached.profile;
+      req.accessToken = token;
+      req.db = getDbClient(token);
+      return next();
+    }
+
+    const [userResult, profile] = await Promise.all([
+      supabase.auth.getUser(token),
+      fetchUserProfile(userId, token),
+    ]);
+
+    if (userResult.error || !userResult.data?.user) {
+      return res.status(401).json({ error: 'Invalid or expired session' });
+    }
 
     if (!profile) {
       return res.status(403).json({ error: 'User profile not found. Contact your administrator.' });
     }
 
-    req.authUser = data.user;
+    const authUser = userResult.data.user;
+    setCachedAuth(userId, authUser, profile);
+
+    req.authUser = authUser;
     req.profile = profile;
     req.accessToken = token;
     req.db = getDbClient(token);

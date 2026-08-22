@@ -11,42 +11,73 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
   const signingOutRef = useRef(false);
+  const signingInRef = useRef(false);
+  const sessionRef = useRef(null);
+  const profileRef = useRef(null);
+  const profileLoadPromiseRef = useRef(null);
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
 
   const clearAuth = useCallback(() => {
+    profileLoadPromiseRef.current = null;
     setAccessToken(null);
     setProfile(null);
     setSession(null);
+    setProfileLoading(false);
   }, []);
 
-  const loadProfile = useCallback(async (accessToken) => {
-    setAccessToken(accessToken);
-    try {
-      const data = await authAPI.me();
-      setProfile(data.profile);
-      return data.profile;
-    } catch (apiErr) {
-      console.error('[Auth] /api/auth/me failed:', apiErr?.message || apiErr);
+  const loadProfile = useCallback(async (accessToken, { force = false } = {}) => {
+    if (!accessToken) return null;
 
-      const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
-      if (!userError && userData?.user) {
-        const { data: row, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('id', userData.user.id)
-          .maybeSingle();
-
-        if (profileError) {
-          console.error('[Auth] user_profiles query:', profileError.message);
-        } else if (row) {
-          setProfile(row);
-          return row;
-        }
-      }
-
-      setProfile(null);
-      return null;
+    if (!force && profileLoadPromiseRef.current) {
+      return profileLoadPromiseRef.current;
     }
+
+    setAccessToken(accessToken);
+    setProfileLoading(true);
+
+    const promise = (async () => {
+      try {
+        const data = await authAPI.me();
+        setProfile(data.profile);
+        return data.profile;
+      } catch (apiErr) {
+        console.error('[Auth] /api/auth/me failed:', apiErr?.message || apiErr);
+
+        const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
+        if (!userError && userData?.user) {
+          const { data: row, error: profileError } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('id', userData.user.id)
+            .maybeSingle();
+
+          if (profileError) {
+            console.error('[Auth] user_profiles query:', profileError.message);
+          } else if (row) {
+            setProfile(row);
+            return row;
+          }
+        }
+
+        setProfile(null);
+        return null;
+      } finally {
+        setProfileLoading(false);
+        profileLoadPromiseRef.current = null;
+      }
+    })();
+
+    profileLoadPromiseRef.current = promise;
+    return promise;
   }, []);
 
   const signOut = useCallback(async () => {
@@ -108,8 +139,14 @@ export function AuthProvider({ children }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      /* Boot path already handled by refreshSession — avoid duplicate /auth/me. */
       if (event === 'INITIAL_SESSION') return;
+      if (signingInRef.current) return;
+
+      const token = newSession?.access_token;
+      if (token && token === sessionRef.current?.access_token) {
+        if (profileLoadPromiseRef.current || profileRef.current) return;
+      }
+
       await applySession(newSession);
       setLoading(false);
     });
@@ -130,36 +167,41 @@ export function AuthProvider({ children }) {
     }
 
     const email = loginIdentifierToEmail(identifier);
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    signingInRef.current = true;
 
-    if (error) {
-      throw new Error(mapAuthError(error));
-    }
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    const confirmedAt = data.user?.email_confirmed_at || data.user?.confirmed_at;
-    if (data.user && !confirmedAt && !isPhoneAuthEmail(email)) {
-      await supabase.auth.signOut({ scope: 'local' });
-      throw new Error('Please verify your email first. Check your inbox.');
-    }
-
-    if (data.session?.access_token) {
-      const p = await loadProfile(data.session.access_token);
-      if (!p) {
-        await signOut();
-        throw new Error('Account not provisioned. Contact your administrator.');
+      if (error) {
+        throw new Error(mapAuthError(error));
       }
-      setSession(data.session);
-    }
 
-    return data;
+      const confirmedAt = data.user?.email_confirmed_at || data.user?.confirmed_at;
+      if (data.user && !confirmedAt && !isPhoneAuthEmail(email)) {
+        await supabase.auth.signOut({ scope: 'local' });
+        throw new Error('Please verify your email first. Check your inbox.');
+      }
+
+      if (data.session?.access_token) {
+        setSession(data.session);
+        setAccessToken(data.session.access_token);
+        loadProfile(data.session.access_token).then((p) => {
+          if (!p) signOut();
+        });
+      }
+
+      return data;
+    } finally {
+      signingInRef.current = false;
+    }
   }
 
   const refreshProfile = useCallback(async () => {
     if (session?.access_token) {
-      return loadProfile(session.access_token);
+      return loadProfile(session.access_token, { force: true });
     }
     return null;
   }, [loadProfile, session?.access_token]);
@@ -169,6 +211,7 @@ export function AuthProvider({ children }) {
     profile,
     role: profile?.role ?? null,
     loading,
+    profileLoading,
     signIn,
     signOut,
     refreshProfile,
