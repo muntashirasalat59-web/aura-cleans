@@ -4,13 +4,21 @@ import LoadingState from './LoadingState';
 import { defaultHomeForRole, isPathAllowed } from '../config/permissions';
 
 export default function ProtectedRoute({ children }) {
-  const { isAuthenticated, loading, role } = useAuth();
+  const { isAuthenticated, loading, profileLoading, session, role } = useAuth();
   const location = useLocation();
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F7F8FA] dark:bg-slate-950 transition-colors duration-200">
         <LoadingState message="Checking session…" />
+      </div>
+    );
+  }
+
+  if (session?.access_token && profileLoading && !isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F7F8FA] dark:bg-slate-950 transition-colors duration-200">
+        <LoadingState message="Loading your account…" />
       </div>
     );
   }
