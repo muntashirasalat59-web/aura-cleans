@@ -111,9 +111,21 @@ export default function Parties() {
 
   useDataSync('parties', () => loadParties(true));
 
+  /** Default ("All types") view hides Retailer parties to keep the directory
+   * focused on Wholesalers/Manufacturers — retail customers created via
+   * pre-bookings would otherwise flood this list. Select the "Retailer" tab
+   * explicitly to view them; Sales invoice's customer picker is unaffected
+   * since it loads parties independently. */
+  const visibleParties = useMemo(() => {
+    if (filter === 'all') {
+      return parties.filter((party) => party.type !== 'retailer');
+    }
+    return parties;
+  }, [parties, filter]);
+
   const displayedParties = useMemo(
-    () => parties.filter((party) => matchesListSearch(listSearch, party.name, party.contact)),
-    [parties, listSearch]
+    () => visibleParties.filter((party) => matchesListSearch(listSearch, party.name, party.contact)),
+    [visibleParties, listSearch]
   );
 
   async function loadParties(silent = false) {
@@ -351,7 +363,7 @@ export default function Parties() {
           value={filter}
           onChange={setFilter}
           options={[
-            { value: 'all', label: 'All types' },
+            { value: 'all', label: 'Wholesale & Mfr.' },
             ...PARTY_TYPE_OPTIONS,
           ]}
         />
