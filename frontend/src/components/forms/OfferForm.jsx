@@ -5,9 +5,9 @@ import FormActions from './FormActions';
 import { formatProductOptionLabel } from '../../utils/productDisplay';
 import { formatInrAmount } from '../../utils/invoiceLineItems';
 import { sanitizeDecimalInput } from '../../utils/formValidation';
-import { emptyComboLine, comboWholesaleTotal, comboCostTotal } from '../../utils/offers';
+import { emptyComboLine, comboRetailTotal } from '../../utils/offers';
 import { money } from '../../utils/preBookings';
-import { wholesalePrice } from '../../utils/productPricing';
+import { hasRetailPrice, listedRetailPrice } from '../../utils/productPricing';
 
 export default function OfferForm({
   mode = 'create',
@@ -21,12 +21,10 @@ export default function OfferForm({
 }) {
   const editing = mode === 'edit';
   const rows = form.items?.length ? form.items : [emptyComboLine()];
-  const wholesaleTotal = comboWholesaleTotal(rows, products);
-  const costTotal = comboCostTotal(rows, products);
+  const retailTotal = comboRetailTotal(rows, products);
   const comboPrice = Number(form.combo_price) || 0;
-  const vsWholesale = money(comboPrice - wholesaleTotal);
-  const vsCost = money(comboPrice - costTotal);
-  const isLossVsWholesale = comboPrice > 0 && vsWholesale < 0;
+  const vsRetail = money(comboPrice - retailTotal);
+  const isLossVsRetail = comboPrice > 0 && retailTotal > 0 && vsRetail < 0;
 
   function setField(patch) {
     onChange({ ...form, ...patch });
@@ -63,7 +61,7 @@ export default function OfferForm({
                 className={inputClassName()}
                 value={form.offer_name}
                 onChange={(e) => setField({ offer_name: e.target.value })}
-                placeholder='e.g. ₹349 Combo'
+                placeholder="e.g. ₹349 Combo"
                 required
               />
             </FormField>
@@ -109,7 +107,7 @@ export default function OfferForm({
                   <th className="col-sn text-center">#</th>
                   <th className="col-item">Product</th>
                   <th className="col-qty text-right">Qty</th>
-                  <th className="col-rate text-right whitespace-nowrap">Wholesale</th>
+                  <th className="col-rate text-right whitespace-nowrap">Retail</th>
                   <th className="col-amount text-right whitespace-nowrap">Line total</th>
                   <th className="col-actions" />
                 </tr>
@@ -120,8 +118,9 @@ export default function OfferForm({
                     ? products.find((p) => String(p.id) === String(item.product_id))
                     : null;
                   const qty = Number(item.quantity) || 0;
-                  const unit = wholesalePrice(product);
-                  const line = product ? money(unit * qty) : null;
+                  const missingRetail = Boolean(product && !hasRetailPrice(product));
+                  const unit = listedRetailPrice(product);
+                  const line = product && !missingRetail ? money(unit * qty) : null;
                   return (
                     <tr key={index}>
                       <td className="col-sn text-center tabular-nums text-slate-500 font-medium">
@@ -129,7 +128,7 @@ export default function OfferForm({
                       </td>
                       <td className="col-item">
                         <select
-                          className="line-item-row-input"
+                          className={`line-item-row-input ${missingRetail ? 'input-error' : ''}`}
                           value={item.product_id}
                           onChange={(e) => updateRow(index, 'product_id', e.target.value)}
                           title={product ? formatProductOptionLabel(product) : 'Select product'}
@@ -141,6 +140,11 @@ export default function OfferForm({
                             </option>
                           ))}
                         </select>
+                        {missingRetail ? (
+                          <p className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">
+                            Set a retail price for this product first
+                          </p>
+                        ) : null}
                       </td>
                       <td className="col-qty">
                         <input
@@ -153,8 +157,12 @@ export default function OfferForm({
                         />
                       </td>
                       <td className="col-rate">
-                        <span className="line-item-cell-amount">
-                          {product ? formatInrAmount(unit) : '—'}
+                        <span
+                          className={`line-item-cell-amount ${
+                            missingRetail ? 'text-red-600 dark:text-red-400' : ''
+                          }`}
+                        >
+                          {product ? (missingRetail ? '—' : formatInrAmount(unit)) : '—'}
                         </span>
                       </td>
                       <td className="col-amount">
@@ -188,50 +196,39 @@ export default function OfferForm({
 
           <div
             className={`invoice-summary-box lg:ml-auto min-w-[280px] mb-6 ${
-              isLossVsWholesale ? 'border-red-300 dark:border-red-800' : ''
+              isLossVsRetail ? 'border-red-300 dark:border-red-800' : ''
             }`}
           >
             <p className="form-section-label mb-3">Live preview</p>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between gap-4">
-                <span className="text-slate-500">Wholesale catalog total</span>
-                <span className="tabular-nums font-medium">{formatInrAmount(wholesaleTotal)}</span>
+                <span className="text-slate-500">Normal retail total</span>
+                <span className="tabular-nums font-medium">{formatInrAmount(retailTotal)}</span>
               </div>
               <div className="flex justify-between gap-4">
                 <span className="text-slate-500">Combo price</span>
                 <span className="tabular-nums font-semibold">{formatInrAmount(comboPrice)}</span>
               </div>
               <div className="flex justify-between gap-4 border-t border-slate-200 dark:border-slate-700 pt-2">
-                <span className="text-slate-500">vs wholesale</span>
+                <span className="text-slate-500">vs retail</span>
                 <span
                   className={`tabular-nums font-semibold ${
-                    vsWholesale < 0
+                    vsRetail < 0
                       ? 'text-red-600 dark:text-red-400'
-                      : vsWholesale > 0
+                      : vsRetail > 0
                         ? 'text-emerald-700 dark:text-emerald-400'
                         : ''
                   }`}
                 >
-                  {vsWholesale > 0 ? '+' : ''}
-                  {formatInrAmount(vsWholesale)}
-                </span>
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-500">vs cost</span>
-                <span
-                  className={`tabular-nums ${
-                    vsCost < 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-700 dark:text-slate-200'
-                  }`}
-                >
-                  {vsCost > 0 ? '+' : ''}
-                  {formatInrAmount(vsCost)}
+                  {vsRetail > 0 ? '+' : ''}
+                  {formatInrAmount(vsRetail)}
                 </span>
               </div>
             </div>
-            {isLossVsWholesale ? (
+            {isLossVsRetail ? (
               <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-400">
-                This combo sells below the wholesale catalog total. You lose{' '}
-                {formatInrAmount(Math.abs(vsWholesale))} per pack vs wholesale.
+                This combo sells below the normal retail total. Discount vs retail is{' '}
+                {formatInrAmount(Math.abs(vsRetail))} per pack.
               </p>
             ) : null}
           </div>

@@ -5,6 +5,7 @@ import LoadingState from '../components/LoadingState';
 import PageHeader from '../components/PageHeader';
 import OfferForm from '../components/forms/OfferForm';
 import { emptyComboLine, todayISODate } from '../utils/offers';
+import { hasRetailPrice } from '../utils/productPricing';
 import SegmentedControl from '../components/forms/SegmentedControl';
 import { formatDisplayDate } from '../utils/invoicePayment';
 import { formatInrAmount } from '../utils/invoiceLineItems';
@@ -126,6 +127,14 @@ export default function Offers() {
     }
     if (items.some((item) => !Number.isFinite(item.quantity) || item.quantity <= 0)) {
       setFormError('Each product needs a quantity greater than 0');
+      return;
+    }
+    const missingRetail = items.some((item) => {
+      const product = products.find((p) => String(p.id) === String(item.product_id));
+      return !hasRetailPrice(product);
+    });
+    if (missingRetail) {
+      setFormError('Set a retail price for this product first');
       return;
     }
     if (form.valid_from && form.valid_to && form.valid_from > form.valid_to) {
