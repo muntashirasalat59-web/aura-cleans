@@ -10,6 +10,7 @@ const {
   mapOfferRow,
   OFFER_SELECT,
   OFFER_SELECT_NO_BOOKINGS,
+  selectWithoutItemRate,
 } = require('../utils/offers');
 
 function businessIdOf(req) {
@@ -26,7 +27,7 @@ function fail(res, error, fallbackStatus = 500) {
   if (handleMissing(res, error)) return true;
   const message = publicErrorMessage(error);
   const status =
-    /required|at least one|greater than 0|cannot|not found|not set up|Valid from/i.test(message)
+    /required|at least one|greater than 0|cannot|not found|not set up|Valid from|retail rate/i.test(message)
       ? 400
       : fallbackStatus;
   res.status(status).json({ error: message });
@@ -39,8 +40,11 @@ function normalizeItems(body) {
     .map((item) => {
       const product_id = Number(item?.product_id);
       const quantity = Number(item?.quantity);
+      const rate = money(item?.rate);
       if (!product_id || !Number.isFinite(quantity) || quantity <= 0) return null;
-      return { product_id, quantity };
+      if (!Number.isFinite(rate) || rate < 0) return null;
+      if (item?.rate === '' || item?.rate === undefined || item?.rate === null) return null;
+      return { product_id, quantity, rate };
     })
     .filter(Boolean);
 }
@@ -50,6 +54,21 @@ function validateBody(body, items) {
   const combo = Number(body?.combo_price);
   if (!Number.isFinite(combo) || combo < 0) return 'Combo price cannot be negative';
   if (!items.length) return 'Add at least one product';
+  const rawWithProduct = (Array.isArray(body?.items) ? body.items : []).filter((item) =>
+    Number(item?.product_id)
+  );
+  if (
+    rawWithProduct.some(
+      (item) =>
+        item?.rate === '' ||
+        item?.rate === undefined ||
+        item?.rate === null ||
+        !Number.isFinite(Number(item.rate)) ||
+        Number(item.rate) < 0
+    )
+  ) {
+    return 'Each product needs a retail rate';
+  }
   const from = dateOnly(body?.valid_from);
   const to = dateOnly(body?.valid_to);
   if (from && to && from > to) return 'Valid from cannot be after valid to';
@@ -57,18 +76,26 @@ function validateBody(body, items) {
 }
 
 async function selectOffers(db, { id, businessId } = {}) {
-  let query = db.from('offers').select(OFFER_SELECT);
-  if (id) query = query.eq('id', id);
-  if (businessId) query = query.eq('business_id', businessId);
-  query = query.order('created_at', { ascending: false });
+  async function run(select) {
+    let query = db.from('offers').select(select);
+    if (id) query = query.eq('id', id);
+    if (businessId) query = query.eq('business_id', businessId);
+    query = query.order('created_at', { ascending: false });
+    return id ? query.maybeSingle() : query;
+  }
 
-  let { data, error } = id ? await query.maybeSingle() : await query;
+  let { data, error } = await run(OFFER_SELECT);
+  if (error && /offer_items.*rate|column.*rate/i.test(error.message || '')) {
+    ({ data, error } = await run(selectWithoutItemRate(OFFER_SELECT)));
+    if (!error) {
+      console.warn('[offers] offer_items.rate missing — run supabase.migration.offer_items_rate.sql');
+    }
+  }
   if (error && /pre_bookings|offer_id/i.test(error.message || '')) {
-    let fallback = db.from('offers').select(OFFER_SELECT_NO_BOOKINGS);
-    if (id) fallback = fallback.eq('id', id);
-    if (businessId) fallback = fallback.eq('business_id', businessId);
-    fallback = fallback.order('created_at', { ascending: false });
-    ({ data, error } = id ? await fallback.maybeSingle() : await fallback);
+    ({ data, error } = await run(OFFER_SELECT_NO_BOOKINGS));
+    if (error && /offer_items.*rate|column.*rate/i.test(error.message || '')) {
+      ({ data, error } = await run(selectWithoutItemRate(OFFER_SELECT_NO_BOOKINGS)));
+    }
   }
   return { data, error };
 }
@@ -77,13 +104,19 @@ async function replaceItems(db, offerId, items) {
   const { error: delError } = await db.from('offer_items').delete().eq('offer_id', offerId);
   assertNoError(delError);
   if (!items.length) return;
-  const { error } = await db.from('offer_items').insert(
-    items.map((item) => ({
-      offer_id: offerId,
-      product_id: item.product_id,
-      quantity: item.quantity,
-    }))
-  );
+  const payload = items.map((item) => ({
+    offer_id: offerId,
+    product_id: item.product_id,
+    quantity: item.quantity,
+    rate: money(item.rate),
+  }));
+  let { error } = await db.from('offer_items').insert(payload);
+  if (error && /rate/i.test(error.message || '')) {
+    console.warn('[offers] offer_items.rate missing — run supabase.migration.offer_items_rate.sql');
+    ({ error } = await db.from('offer_items').insert(
+      payload.map(({ rate, ...rest }) => rest)
+    ));
+  }
   assertNoError(error);
 }
 

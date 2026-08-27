@@ -5,7 +5,7 @@ import LoadingState from '../components/LoadingState';
 import PageHeader from '../components/PageHeader';
 import OfferForm from '../components/forms/OfferForm';
 import { emptyComboLine, todayISODate } from '../utils/offers';
-import { hasRetailPrice } from '../utils/productPricing';
+import { listedRetailPrice } from '../utils/productPricing';
 import SegmentedControl from '../components/forms/SegmentedControl';
 import { formatDisplayDate } from '../utils/invoicePayment';
 import { formatInrAmount } from '../utils/invoiceLineItems';
@@ -75,10 +75,16 @@ export default function Offers() {
   function offerToForm(row) {
     const items = (row?.items || [])
       .filter((item) => item?.product_id)
-      .map((item) => ({
-        product_id: String(item.product_id),
-        quantity: String(item.quantity ?? '1'),
-      }));
+      .map((item) => {
+        const product = products.find((p) => String(p.id) === String(item.product_id));
+        const hasStored = item.rate !== undefined && item.rate !== null && item.rate !== '';
+        const catalog = listedRetailPrice(product);
+        return {
+          product_id: String(item.product_id),
+          quantity: String(item.quantity ?? '1'),
+          rate: hasStored ? String(item.rate) : catalog > 0 ? String(catalog) : '',
+        };
+      });
     return {
       offer_name: row?.offer_name || '',
       combo_price: row?.combo_price != null ? String(row.combo_price) : '',
@@ -120,6 +126,7 @@ export default function Offers() {
       .map((item) => ({
         product_id: Number(item.product_id),
         quantity: Number(item.quantity),
+        rate: Number(item.rate),
       }));
     if (items.length === 0) {
       setFormError('Add at least one product to the combo');
@@ -129,12 +136,8 @@ export default function Offers() {
       setFormError('Each product needs a quantity greater than 0');
       return;
     }
-    const missingRetail = items.some((item) => {
-      const product = products.find((p) => String(p.id) === String(item.product_id));
-      return !hasRetailPrice(product);
-    });
-    if (missingRetail) {
-      setFormError('Set a retail price for this product first');
+    if (items.some((item) => !Number.isFinite(item.rate) || item.rate < 0)) {
+      setFormError('Each product needs a retail rate');
       return;
     }
     if (form.valid_from && form.valid_to && form.valid_from > form.valid_to) {

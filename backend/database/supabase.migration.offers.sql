@@ -44,11 +44,14 @@ CREATE TABLE IF NOT EXISTS public.offer_items (
   offer_id BIGINT NOT NULL REFERENCES public.offers (id) ON DELETE CASCADE,
   product_id BIGINT NOT NULL REFERENCES public.products (id) ON DELETE RESTRICT,
   quantity NUMERIC(12, 2) NOT NULL CHECK (quantity > 0),
+  rate NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (rate >= 0),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 COMMENT ON TABLE public.offer_items IS
-  'Fixed products and quantities included in a combo offer.';
+  'Fixed products, quantities, and combo-specific retail rates included in a combo offer.';
+COMMENT ON COLUMN public.offer_items.rate IS
+  'Retail unit rate for this product inside this combo. May differ from products.retail_price.';
 
 CREATE INDEX IF NOT EXISTS offer_items_offer_idx ON public.offer_items (offer_id);
 CREATE INDEX IF NOT EXISTS offer_items_product_idx ON public.offer_items (product_id);
@@ -67,6 +70,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.offer_items TO authenticated;
 GRANT ALL ON public.offer_items TO service_role;
 GRANT USAGE, SELECT ON SEQUENCE public.offer_items_id_seq TO authenticated;
 GRANT ALL ON SEQUENCE public.offer_items_id_seq TO service_role;
+
+ALTER TABLE public.offer_items
+  ADD COLUMN IF NOT EXISTS rate NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (rate >= 0);
 
 ALTER TABLE public.pre_bookings
   ADD COLUMN IF NOT EXISTS offer_id BIGINT REFERENCES public.offers (id) ON DELETE SET NULL;

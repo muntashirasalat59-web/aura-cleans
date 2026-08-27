@@ -1,9 +1,9 @@
 import { emptyProductLine } from '../components/forms/ProductLineItemsEditor';
 import { DEFAULT_GST_RATE, money, productGstPercent } from './preBookings';
-import { listedRetailPrice, wholesalePrice } from './productPricing';
+import { listedRetailPrice } from './productPricing';
 
 export function emptyComboLine() {
-  return { product_id: '', quantity: '1' };
+  return { product_id: '', quantity: '1', rate: '' };
 }
 
 export function todayISODate() {
@@ -23,20 +23,32 @@ export function isOfferActiveNow(offer, today = todayISODate()) {
   return true;
 }
 
+/** Combo line unit rate: edited value if present, otherwise catalog retail. */
+export function comboLineRate(item, product) {
+  if (item?.rate !== '' && item?.rate != null && Number.isFinite(Number(item.rate))) {
+    return Number(item.rate);
+  }
+  return listedRetailPrice(product);
+}
+
+export function comboLineAmount(item, product) {
+  const qty = Number(item?.quantity) || 0;
+  return money(comboLineRate(item, product) * qty);
+}
+
 export function comboRetailTotal(items, products) {
   return money(
     (items || []).reduce((sum, item) => {
       if (!item?.product_id) return sum;
       const product = products.find((p) => String(p.id) === String(item.product_id));
-      const qty = Number(item.quantity) || 0;
-      return sum + listedRetailPrice(product) * qty;
+      return sum + comboLineAmount(item, product);
     }, 0)
   );
 }
 
 /**
  * Fill pre-booking lines from a combo offer. Rates are split so line totals
- * (incl. GST) add up to combo_price.
+ * (incl. GST) add up to combo_price. Weights follow each item's combo retail rate.
  */
 export function comboToPreBookingItems(offer, products) {
   const items = (offer?.items || []).filter(
@@ -49,10 +61,12 @@ export function comboToPreBookingItems(offer, products) {
     const product = products.find((p) => String(p.id) === String(item.product_id));
     const quantity = Number(item.quantity) || 1;
     const gst_percent = product ? productGstPercent(product) : DEFAULT_GST_RATE;
+    const unitRate = comboLineRate(item, product);
     return {
       product_id: String(item.product_id),
       quantity,
-      retailLine: listedRetailPrice(product) * quantity,
+      unitRate,
+      retailLine: unitRate * quantity,
       gst_percent,
     };
   });
@@ -60,16 +74,12 @@ export function comboToPreBookingItems(offer, products) {
   const totalRetail = rows.reduce((sum, row) => sum + row.retailLine, 0);
 
   if (!(comboPrice > 0)) {
-    return rows.map((row) => {
-      const product = products.find((p) => String(p.id) === String(row.product_id));
-      const unit = listedRetailPrice(product) || wholesalePrice(product);
-      return {
-        product_id: row.product_id,
-        quantity: String(row.quantity),
-        rate: String(unit),
-        gst_percent: String(row.gst_percent),
-      };
-    });
+    return rows.map((row) => ({
+      product_id: row.product_id,
+      quantity: String(row.quantity),
+      rate: String(row.unitRate),
+      gst_percent: String(row.gst_percent),
+    }));
   }
 
   let allocated = 0;

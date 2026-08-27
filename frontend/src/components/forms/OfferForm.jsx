@@ -5,9 +5,9 @@ import FormActions from './FormActions';
 import { formatProductOptionLabel } from '../../utils/productDisplay';
 import { formatInrAmount } from '../../utils/invoiceLineItems';
 import { sanitizeDecimalInput } from '../../utils/formValidation';
-import { emptyComboLine, comboRetailTotal } from '../../utils/offers';
+import { emptyComboLine, comboRetailTotal, comboLineAmount } from '../../utils/offers';
 import { money } from '../../utils/preBookings';
-import { hasRetailPrice, listedRetailPrice } from '../../utils/productPricing';
+import { listedRetailPrice } from '../../utils/productPricing';
 
 export default function OfferForm({
   mode = 'create',
@@ -44,7 +44,16 @@ export default function OfferForm({
   }
 
   function updateRow(index, field, value) {
-    setRows(rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
+    const next = rows.map((row, i) => (i === index ? { ...row, [field]: value } : row));
+    if (field === 'product_id') {
+      const product = products.find((p) => String(p.id) === String(value));
+      const catalog = listedRetailPrice(product);
+      next[index] = {
+        ...next[index],
+        rate: catalog > 0 ? String(catalog) : '',
+      };
+    }
+    setRows(next);
   }
 
   return (
@@ -96,8 +105,8 @@ export default function OfferForm({
 
           <p className="form-section-label">Combo items</p>
           <p className="text-xs text-slate-500 mb-3">
-            Fixed products and quantities in this pack. Selecting this offer on a pre-booking will
-            auto-fill these lines.
+            Fixed products and quantities in this pack. Retail fills from the catalog, then you can
+            edit it for this combo. Selecting this offer on a pre-booking will auto-fill these lines.
           </p>
 
           <div className="invoice-form-table-scroll mb-4">
@@ -117,10 +126,9 @@ export default function OfferForm({
                   const product = item.product_id
                     ? products.find((p) => String(p.id) === String(item.product_id))
                     : null;
-                  const qty = Number(item.quantity) || 0;
-                  const missingRetail = Boolean(product && !hasRetailPrice(product));
-                  const unit = listedRetailPrice(product);
-                  const line = product && !missingRetail ? money(unit * qty) : null;
+                  const rateEmpty = item.rate === '' || item.rate == null;
+                  const missingRate = Boolean(product && rateEmpty);
+                  const line = product && !rateEmpty ? comboLineAmount(item, product) : null;
                   return (
                     <tr key={index}>
                       <td className="col-sn text-center tabular-nums text-slate-500 font-medium">
@@ -128,7 +136,7 @@ export default function OfferForm({
                       </td>
                       <td className="col-item">
                         <select
-                          className={`line-item-row-input ${missingRetail ? 'input-error' : ''}`}
+                          className={`line-item-row-input ${missingRate ? 'input-error' : ''}`}
                           value={item.product_id}
                           onChange={(e) => updateRow(index, 'product_id', e.target.value)}
                           title={product ? formatProductOptionLabel(product) : 'Select product'}
@@ -140,7 +148,7 @@ export default function OfferForm({
                             </option>
                           ))}
                         </select>
-                        {missingRetail ? (
+                        {missingRate ? (
                           <p className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">
                             Set a retail price for this product first
                           </p>
@@ -157,13 +165,18 @@ export default function OfferForm({
                         />
                       </td>
                       <td className="col-rate">
-                        <span
-                          className={`line-item-cell-amount ${
-                            missingRetail ? 'text-red-600 dark:text-red-400' : ''
-                          }`}
-                        >
-                          {product ? (missingRetail ? '—' : formatInrAmount(unit)) : '—'}
-                        </span>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          className={`line-item-rate-input ${missingRate ? 'input-error' : ''}`}
+                          value={item.rate}
+                          disabled={!item.product_id}
+                          onChange={(e) =>
+                            updateRow(index, 'rate', sanitizeDecimalInput(e.target.value))
+                          }
+                          placeholder="0.00"
+                          aria-label="Retail rate"
+                        />
                       </td>
                       <td className="col-amount">
                         <span className="line-item-cell-amount">
@@ -202,7 +215,7 @@ export default function OfferForm({
             <p className="form-section-label mb-3">Live preview</p>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between gap-4">
-                <span className="text-slate-500">Normal retail total</span>
+                <span className="text-slate-500">Normal total</span>
                 <span className="tabular-nums font-medium">{formatInrAmount(retailTotal)}</span>
               </div>
               <div className="flex justify-between gap-4">
@@ -210,7 +223,7 @@ export default function OfferForm({
                 <span className="tabular-nums font-semibold">{formatInrAmount(comboPrice)}</span>
               </div>
               <div className="flex justify-between gap-4 border-t border-slate-200 dark:border-slate-700 pt-2">
-                <span className="text-slate-500">vs retail</span>
+                <span className="text-slate-500">vs total</span>
                 <span
                   className={`tabular-nums font-semibold ${
                     vsRetail < 0
@@ -227,7 +240,7 @@ export default function OfferForm({
             </div>
             {isLossVsRetail ? (
               <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-400">
-                This combo sells below the normal retail total. Discount vs retail is{' '}
+                This combo sells below the normal total. Discount vs line items is{' '}
                 {formatInrAmount(Math.abs(vsRetail))} per pack.
               </p>
             ) : null}

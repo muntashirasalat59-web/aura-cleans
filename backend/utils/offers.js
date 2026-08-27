@@ -34,7 +34,7 @@ function publicErrorMessage(error) {
     return 'This offer is linked to products that cannot be removed.';
   }
   const raised = msg.match(
-    /Offer name is required|Combo price|Add at least one product|Each row needs a product|quantity greater than 0|Valid from|not found|Only inactive/i
+    /Offer name is required|Combo price|Add at least one product|Each row needs a product|quantity greater than 0|Each product needs a retail rate|Valid from|not found|Only inactive/i
   );
   if (raised) return raised[0];
   return msg.replace(/^.*error:\s*/i, '') || 'Could not save this offer.';
@@ -61,6 +61,7 @@ function mapOfferItem(row) {
     product_id: row.product_id,
     product_name: productDisplayName(row.products) || row.product_name || '—',
     quantity: Number(row.quantity) || 0,
+    rate: money(row.rate),
   };
 }
 
@@ -98,10 +99,17 @@ function mapOfferRow(row) {
 }
 
 const OFFER_SELECT =
-  'id, business_id, offer_name, combo_price, valid_from, valid_to, is_active, created_at, offer_items(id, product_id, quantity, products(name, unit_size, unit_type)), pre_bookings(id, party_id, delivery_date, status, total_amount, converted_invoice_id, parties(name))';
+  'id, business_id, offer_name, combo_price, valid_from, valid_to, is_active, created_at, offer_items(id, product_id, quantity, rate, products(name, unit_size, unit_type)), pre_bookings(id, party_id, delivery_date, status, total_amount, converted_invoice_id, parties(name))';
 
 const OFFER_SELECT_NO_BOOKINGS =
-  'id, business_id, offer_name, combo_price, valid_from, valid_to, is_active, created_at, offer_items(id, product_id, quantity, products(name, unit_size, unit_type))';
+  'id, business_id, offer_name, combo_price, valid_from, valid_to, is_active, created_at, offer_items(id, product_id, quantity, rate, products(name, unit_size, unit_type))';
+
+function selectWithoutItemRate(select) {
+  return String(select || '').replace(
+    'offer_items(id, product_id, quantity, rate, products',
+    'offer_items(id, product_id, quantity, products'
+  );
+}
 
 module.exports = {
   money,
@@ -111,4 +119,5 @@ module.exports = {
   mapOfferRow,
   OFFER_SELECT,
   OFFER_SELECT_NO_BOOKINGS,
+  selectWithoutItemRate,
 };
