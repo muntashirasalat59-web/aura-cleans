@@ -16,6 +16,7 @@ export const ERP_NAV_SECTIONS = [
       { path: '/purchases', label: 'Purchases', key: 'purchases', roles: [ROLES.ADMIN] },
       { path: '/sales', label: 'Sales & Invoices', key: 'sales', roles: [ROLES.ADMIN, ROLES.STAFF] },
       { path: '/pre-bookings', label: 'Pre-bookings', key: 'pre_bookings', roles: [ROLES.ADMIN, ROLES.STAFF] },
+      { path: '/offers', label: 'Offers & Promotions', key: 'offers', roles: [ROLES.ADMIN, ROLES.STAFF] },
     ],
   },
   {

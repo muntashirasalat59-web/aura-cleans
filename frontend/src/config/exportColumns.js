@@ -7,7 +7,8 @@ export const PRODUCT_EXPORT_COLUMNS = [
   { key: 'status', header: 'Status' },
   { key: 'supplier', header: 'Supplier' },
   { key: 'cost_price', header: 'Cost' },
-  { key: 'price', header: 'Selling' },
+  { key: 'price', header: 'Wholesale' },
+  { key: 'retail_price', header: 'Retail' },
   { key: 'pack_size', header: 'Pack size' },
   { key: 'hsn_sac', header: 'HSN/SAC' },
   { key: 'fragrance', header: 'Fragrance' },
@@ -19,6 +20,7 @@ export const PRODUCT_EXPORT_COLUMNS = [
 export function mapProductExportRow(product) {
   const cost = Number(product.cost_price || 0);
   const price = Number(product.price || 0);
+  const retail = Number(product.retail_price || 0);
   return {
     name: product.name || '',
     category: product.category || '',
@@ -26,6 +28,7 @@ export function mapProductExportRow(product) {
     supplier: product.supplier || '',
     cost_price: cost,
     price,
+    retail_price: retail,
     pack_size: formatPackSize(product) || '',
     hsn_sac: product.hsn_sac || '',
     fragrance: product.fragrance || 'Unscented',

@@ -842,6 +842,10 @@
     min-width: 5.5rem;
   }
 
+  .line-items-table .col-price-type {
+    min-width: 8.5rem;
+  }
+
   .line-items-table .col-rate {
     min-width: 8.5rem;
   }

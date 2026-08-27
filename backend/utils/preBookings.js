@@ -4,7 +4,8 @@ const LIST_EMBED =
   'parties(name), pre_booking_items(id, product_id, quantity, rate, gst_percent, gst_amount, amount, products(name, unit_size, unit_type))';
 const LIST_COLUMNS =
   'id, business_id, party_id, delivery_date, notes, status, subtotal, gst_total, total_amount, created_at';
-const LIST_SELECT = `${LIST_COLUMNS}, converted_invoice_id, ${LIST_EMBED}`;
+const LIST_SELECT = `${LIST_COLUMNS}, converted_invoice_id, offer_id, offers(id, offer_name), ${LIST_EMBED}`;
+const LIST_SELECT_NO_OFFER = `${LIST_COLUMNS}, converted_invoice_id, ${LIST_EMBED}`;
 const LIST_SELECT_NO_CONVERTED = `${LIST_COLUMNS}, ${LIST_EMBED}`;
 
 function isMissingTableError(error) {
@@ -138,6 +139,8 @@ function mapPreBookingRow(row) {
     gst_total: money(gst_total),
     total_amount: money(total_amount),
     converted_invoice_id: row.converted_invoice_id || null,
+    offer_id: row.offer_id || null,
+    offer_name: row.offers?.offer_name || row.offer_name || '',
     created_at: row.created_at,
     urgency: status === 'upcoming' ? deliveryUrgency(row.delivery_date) : status,
   };
@@ -158,19 +161,33 @@ function isMissingConvertedColumn(error) {
   return /converted_invoice_id/i.test(error?.message || '');
 }
 
-async function selectPreBookings(db, { id, businessId, order } = {}) {
-  let query = db.from('pre_bookings').select(LIST_SELECT);
-  if (id) query = query.eq('id', id);
-  if (businessId) query = query.eq('business_id', businessId);
-  if (order) query = query.order('delivery_date', { ascending: true });
+function isMissingOfferColumn(error) {
+  const msg = error?.message || '';
+  return (
+    /offer_id/i.test(msg) ||
+    /could not find the 'offers'/i.test(msg) ||
+    /relationship between 'pre_bookings' and 'offers'/i.test(msg)
+  );
+}
 
-  let { data, error } = id ? await query.maybeSingle() : await query;
+async function selectPreBookings(db, { id, businessId, order } = {}) {
+  async function run(select) {
+    let query = db.from('pre_bookings').select(select);
+    if (id) query = query.eq('id', id);
+    if (businessId) query = query.eq('business_id', businessId);
+    if (order) query = query.order('delivery_date', { ascending: true });
+    return id ? query.maybeSingle() : query;
+  }
+
+  let { data, error } = await run(LIST_SELECT);
+  if (error && isMissingOfferColumn(error)) {
+    ({ data, error } = await run(LIST_SELECT_NO_OFFER));
+    if (!error) {
+      console.warn('[pre-bookings] offer_id missing — run supabase.migration.offers.sql');
+    }
+  }
   if (error && isMissingConvertedColumn(error)) {
-    let fallback = db.from('pre_bookings').select(LIST_SELECT_NO_CONVERTED);
-    if (id) fallback = fallback.eq('id', id);
-    if (businessId) fallback = fallback.eq('business_id', businessId);
-    if (order) fallback = fallback.order('delivery_date', { ascending: true });
-    ({ data, error } = id ? await fallback.maybeSingle() : await fallback);
+    ({ data, error } = await run(LIST_SELECT_NO_CONVERTED));
   }
   return { data, error };
 }
@@ -228,6 +245,7 @@ async function linkConvertedSale(db, { preBookingId, saleId, businessId }) {
 module.exports = {
   DUE_SOON_DAYS,
   LIST_SELECT,
+  LIST_SELECT_NO_OFFER,
   LIST_SELECT_NO_CONVERTED,
   isMissingTableError,
   dateOnly,

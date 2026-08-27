@@ -1,0 +1,101 @@
+import { emptyProductLine } from '../components/forms/ProductLineItemsEditor';
+import { DEFAULT_GST_RATE, money, productGstPercent } from './preBookings';
+import { wholesalePrice } from './productPricing';
+
+export function emptyComboLine() {
+  return { product_id: '', quantity: '1' };
+}
+
+export function todayISODate() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+export function isOfferActiveNow(offer, today = todayISODate()) {
+  if (!offer || offer.is_active === false) return false;
+  const from = String(offer.valid_from || '').slice(0, 10);
+  const to = String(offer.valid_to || '').slice(0, 10);
+  if (from && from > today) return false;
+  if (to && to < today) return false;
+  return true;
+}
+
+export function comboWholesaleTotal(items, products) {
+  return money(
+    (items || []).reduce((sum, item) => {
+      if (!item?.product_id) return sum;
+      const product = products.find((p) => String(p.id) === String(item.product_id));
+      const qty = Number(item.quantity) || 0;
+      return sum + wholesalePrice(product) * qty;
+    }, 0)
+  );
+}
+
+export function comboCostTotal(items, products) {
+  return money(
+    (items || []).reduce((sum, item) => {
+      if (!item?.product_id) return sum;
+      const product = products.find((p) => String(p.id) === String(item.product_id));
+      const qty = Number(item.quantity) || 0;
+      return sum + (Number(product?.cost_price) || 0) * qty;
+    }, 0)
+  );
+}
+
+/**
+ * Fill pre-booking lines from a combo offer. Rates are split so line totals
+ * (incl. GST) add up to combo_price.
+ */
+export function comboToPreBookingItems(offer, products) {
+  const items = (offer?.items || []).filter(
+    (item) => item?.product_id && Number(item.quantity) > 0
+  );
+  if (!items.length) return [emptyProductLine()];
+
+  const comboPrice = money(offer?.combo_price);
+  const rows = items.map((item) => {
+    const product = products.find((p) => String(p.id) === String(item.product_id));
+    const quantity = Number(item.quantity) || 1;
+    const gst_percent = product ? productGstPercent(product) : DEFAULT_GST_RATE;
+    return {
+      product_id: String(item.product_id),
+      quantity,
+      wholesaleLine: wholesalePrice(product) * quantity,
+      gst_percent,
+    };
+  });
+
+  const totalWholesale = rows.reduce((sum, row) => sum + row.wholesaleLine, 0);
+
+  if (!(comboPrice > 0)) {
+    return rows.map((row) => {
+      const product = products.find((p) => String(p.id) === String(row.product_id));
+      return {
+        product_id: row.product_id,
+        quantity: String(row.quantity),
+        rate: String(wholesalePrice(product)),
+        gst_percent: String(row.gst_percent),
+      };
+    });
+  }
+
+  let allocated = 0;
+  return rows.map((row, index) => {
+    const weight = totalWholesale > 0 ? row.wholesaleLine / totalWholesale : 1 / rows.length;
+    const isLast = index === rows.length - 1;
+    const lineIncl = isLast ? money(comboPrice - allocated) : money(comboPrice * weight);
+    if (!isLast) allocated = money(allocated + lineIncl);
+    const gst = Number(row.gst_percent) || 0;
+    const taxable = gst > 0 ? money(lineIncl / (1 + gst / 100)) : lineIncl;
+    const rate = row.quantity > 0 ? money(taxable / row.quantity) : 0;
+    return {
+      product_id: row.product_id,
+      quantity: String(row.quantity),
+      rate: String(rate),
+      gst_percent: String(row.gst_percent),
+    };
+  });
+}

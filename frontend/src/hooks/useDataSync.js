@@ -22,6 +22,7 @@ export function useDataSync(tables, onSync) {
       if (watch.includes(changedTable)) return true;
       if (changedTable === 'sale_items' && watch.includes('sales')) return true;
       if (changedTable === 'purchase_items' && watch.includes('purchases')) return true;
+      if (changedTable === 'offer_items' && watch.includes('offers')) return true;
       return false;
     }
 

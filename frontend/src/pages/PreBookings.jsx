@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, X, Pencil, FileText, Ban, Trash2, ChevronDown, IndianRupee } from 'lucide-react';
-import { preBookingsAPI, partiesAPI, productsAPI } from '../api';
+import { preBookingsAPI, partiesAPI, productsAPI, offersAPI } from '../api';
 import LoadingState from '../components/LoadingState';
 import PageHeader from '../components/PageHeader';
 import PreBookingForm from '../components/forms/PreBookingForm';
@@ -20,9 +20,11 @@ import {
   bookingStatusLabel,
   bookingStatusBadgeClass,
 } from '../utils/preBookings';
+import { comboToPreBookingItems, isOfferActiveNow } from '../utils/offers';
 
 const emptyForm = () => ({
   party_id: '',
+  offer_id: '',
   delivery_date: todayISO(),
   notes: '',
   items: [emptyProductLine()],
@@ -33,6 +35,7 @@ export default function PreBookings() {
   const [rows, setRows] = useState([]);
   const [parties, setParties] = useState([]);
   const [products, setProducts] = useState([]);
+  const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -40,6 +43,7 @@ export default function PreBookings() {
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
   const [statusFilter, setStatusFilter] = useState('upcoming');
+  const [offerFilter, setOfferFilter] = useState('all');
   const [busyId, setBusyId] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
 
@@ -52,15 +56,18 @@ export default function PreBookings() {
   useDataSync('pre_booking_items', () => loadBookings(true));
   useDataSync('parties', () => loadLookups(true));
   useDataSync('products', () => loadLookups(true));
+  useDataSync('offers', () => loadLookups(true));
 
   async function loadLookups(silent = false) {
     try {
-      const [partyRows, productRows] = await Promise.all([
+      const [partyRows, productRows, offerRows] = await Promise.all([
         partiesAPI.getAll({ activeOnly: true }),
         productsAPI.getAll({ activeOnly: true }),
+        offersAPI.getAll().catch(() => []),
       ]);
       setParties(partyRows);
       setProducts(productRows);
+      setOffers(offerRows || []);
     } catch (err) {
       if (!silent) alert('Error loading parties/products: ' + err.message);
     }
@@ -104,6 +111,7 @@ export default function PreBookings() {
       }));
     return {
       party_id: row?.party_id ? String(row.party_id) : '',
+      offer_id: row?.offer_id ? String(row.offer_id) : '',
       delivery_date: dateOnly(row?.delivery_date) || todayISO(),
       notes: row?.notes || '',
       items: items.length > 0 ? items : [emptyProductLine()],
@@ -117,6 +125,18 @@ export default function PreBookings() {
     setForm(bookingToForm(row));
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function handleFormChange(next) {
+    if (String(next.offer_id || '') !== String(form.offer_id || '')) {
+      if (next.offer_id) {
+        const offer = offers.find((row) => String(row.id) === String(next.offer_id));
+        if (offer) {
+          next = { ...next, items: comboToPreBookingItems(offer, products) };
+        }
+      }
+    }
+    setForm(next);
   }
 
   function closeForm() {
@@ -163,6 +183,7 @@ export default function PreBookings() {
         party_id: form.party_id,
         delivery_date: form.delivery_date,
         notes: form.notes.trim(),
+        offer_id: form.offer_id || null,
         items,
       };
       if (editingId) {
@@ -237,10 +258,36 @@ export default function PreBookings() {
 
   const filtered = useMemo(() => {
     return (rows || []).filter((row) => {
-      if (statusFilter === 'all') return true;
-      return (row.status || 'upcoming') === statusFilter;
+      if (statusFilter !== 'all' && (row.status || 'upcoming') !== statusFilter) return false;
+      if (offerFilter !== 'all' && String(row.offer_id || '') !== String(offerFilter)) return false;
+      return true;
     });
-  }, [rows, statusFilter]);
+  }, [rows, statusFilter, offerFilter]);
+
+  const offerSummary = useMemo(() => {
+    const counts = new Map();
+    for (const row of rows || []) {
+      if (!row.offer_id) continue;
+      const key = String(row.offer_id);
+      const current = counts.get(key) || {
+        id: row.offer_id,
+        name: row.offer_name || offers.find((o) => String(o.id) === key)?.offer_name || 'Offer',
+        count: 0,
+      };
+      current.count += 1;
+      counts.set(key, current);
+    }
+    return [...counts.values()].sort((a, b) => b.count - a.count);
+  }, [rows, offers]);
+
+  const formOfferOptions = useMemo(() => {
+    const active = (offers || []).filter((offer) => isOfferActiveNow(offer));
+    if (form.offer_id && !active.some((offer) => String(offer.id) === String(form.offer_id))) {
+      const current = (offers || []).find((offer) => String(offer.id) === String(form.offer_id));
+      if (current) return [current, ...active];
+    }
+    return active;
+  }, [offers, form.offer_id]);
 
   if (loading && rows.length === 0) return <LoadingState />;
 
@@ -274,9 +321,10 @@ export default function PreBookings() {
         <PreBookingForm
           mode={editingId ? 'edit' : 'create'}
           form={form}
-          onChange={setForm}
+          onChange={handleFormChange}
           parties={parties}
           products={products}
+          offers={formOfferOptions}
           onPartyCreated={handlePartyCreated}
           onSubmit={handleSubmit}
           onCancel={closeForm}
@@ -321,16 +369,53 @@ export default function PreBookings() {
         </div>
       </div>
 
-      <SegmentedControl
-        value={statusFilter}
-        onChange={setStatusFilter}
-        options={[
-          { value: 'all', label: 'All' },
-          { value: 'upcoming', label: 'Upcoming' },
-          { value: 'delivered', label: 'Delivered' },
-          { value: 'cancelled', label: 'Cancelled' },
-        ]}
-      />
+      {offerSummary.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {offerSummary.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setOfferFilter(String(item.id) === String(offerFilter) ? 'all' : String(item.id))}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                String(offerFilter) === String(item.id)
+                  ? 'border-aura-primary bg-[color-mix(in_srgb,var(--aura-primary)_14%,transparent)] text-aura-primary'
+                  : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'
+              }`}
+            >
+              {item.name} — {item.count} booking{item.count === 1 ? '' : 's'}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <SegmentedControl
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={[
+            { value: 'all', label: 'All' },
+            { value: 'upcoming', label: 'Upcoming' },
+            { value: 'delivered', label: 'Delivered' },
+            { value: 'cancelled', label: 'Cancelled' },
+          ]}
+        />
+        <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+          <span className="whitespace-nowrap font-medium">All Offers</span>
+          <select
+            className="input input-premium min-w-[12rem]"
+            value={offerFilter}
+            onChange={(e) => setOfferFilter(e.target.value)}
+            aria-label="Filter by offer"
+          >
+            <option value="all">All Offers</option>
+            {offers.map((offer) => (
+              <option key={offer.id} value={offer.id}>
+                {offer.offer_name}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
 
       <div className="table-wrap">
         <div className="overflow-x-auto">
@@ -338,6 +423,7 @@ export default function PreBookings() {
             <thead>
               <tr>
                 <th>Party</th>
+                <th>Offer</th>
                 <th>Delivery date</th>
                 <th>Items</th>
                 <th className="col-num">Total amount</th>
@@ -348,7 +434,7 @@ export default function PreBookings() {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="py-12 text-center text-slate-500">
+                  <td colSpan="7" className="py-12 text-center text-slate-500">
                     {rows.length === 0
                       ? 'No pre-bookings yet. Add one when a customer orders for a later date.'
                       : 'No data in this filter.'}
@@ -364,6 +450,13 @@ export default function PreBookings() {
                     <tr key={row.id}>
                       <td className="font-medium text-slate-900 max-w-[180px] truncate">
                         {row.party_name || '—'}
+                      </td>
+                      <td className="max-w-[160px] truncate" title={row.offer_name || ''}>
+                        {row.offer_name ? (
+                          <span className="badge badge-size">{row.offer_name}</span>
+                        ) : (
+                          '—'
+                        )}
                       </td>
                       <td className="tabular-nums whitespace-nowrap">
                         {formatDisplayDate(row.delivery_date)}
@@ -441,7 +534,7 @@ export default function PreBookings() {
                   return [
                     main,
                     <tr key={`${row.id}-items`}>
-                      <td colSpan="6" className="bg-slate-50/80 dark:bg-slate-900/40 px-4 py-3">
+                      <td colSpan="7" className="bg-slate-50/80 dark:bg-slate-900/40 px-4 py-3">
                         {items.length === 0 ? (
                           <p className="text-sm text-slate-500">No line items on this booking.</p>
                         ) : (

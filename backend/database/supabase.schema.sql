@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS public.products (
   name TEXT NOT NULL,
   category TEXT NOT NULL,
   price NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  retail_price NUMERIC(12, 2) NOT NULL DEFAULT 0,
   cost_price NUMERIC(12, 2) NOT NULL DEFAULT 0,
   stock_quantity INTEGER NOT NULL DEFAULT 0,
   supplier TEXT NOT NULL DEFAULT '',
@@ -24,6 +25,9 @@ CREATE TABLE IF NOT EXISTS public.products (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_products_sku_unique
   ON public.products (sku)
   WHERE sku IS NOT NULL AND sku <> '';
+
+COMMENT ON COLUMN public.products.price IS 'Wholesale selling price (B2B)';
+COMMENT ON COLUMN public.products.retail_price IS 'Retail / consumer selling price (MRP)';
 
 CREATE TABLE IF NOT EXISTS public.parties (
   id BIGSERIAL PRIMARY KEY,

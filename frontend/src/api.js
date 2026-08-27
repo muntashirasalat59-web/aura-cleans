@@ -200,6 +200,21 @@ export const expensesAPI = {
   delete: (id) => request(`/expenses/${id}`, { method: 'DELETE' }),
 };
 
+export const offersAPI = {
+  getAll: (opts = {}) => {
+    const params = new URLSearchParams();
+    if (opts.activeOnly) params.set('active_only', 'true');
+    const qs = params.toString();
+    return request(`/offers${qs ? `?${qs}` : ''}`);
+  },
+  getOne: (id) => request(`/offers/${id}`),
+  create: (data) => request('/offers', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id, data) => request(`/offers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deactivate: (id) => request(`/offers/${id}/deactivate`, { method: 'POST' }),
+  reactivate: (id) => request(`/offers/${id}/reactivate`, { method: 'POST' }),
+  delete: (id) => request(`/offers/${id}`, { method: 'DELETE' }),
+};
+
 export const preBookingsAPI = {
   getAll: () => request('/pre-bookings'),
   getOne: (id) => request(`/pre-bookings/${id}`),

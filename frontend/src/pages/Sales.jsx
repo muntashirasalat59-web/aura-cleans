@@ -24,6 +24,7 @@ import { computeGstTotals } from '../utils/invoiceGst';
 import { resolveInvoicePlaceOfSupply, shippingIsSameAsBilling } from '../utils/placeOfSupply';
 import { formatInrAmount, formatLineGstDisplay, enrichInvoiceLine } from '../utils/invoiceLineItems';
 import { formatProductNameWithSize, formatProductOptionLabel } from '../utils/productDisplay';
+import { catalogRate } from '../utils/productPricing';
 import {
   SALES_PARTY_TYPES,
   SALES_QUICK_ADD_TYPES,
@@ -91,7 +92,7 @@ export default function Sales() {
     place_of_supply: '',
     ship_same_as_billing: true,
     shipping_address: '',
-    items: [{ product_id: '', quantity: 1, rate: 0 }],
+    items: [{ product_id: '', quantity: 1, rate: 0, price_type: 'wholesale' }],
     payment: emptyPaymentDetails(),
     ...emptySaleChannel,
     city_id: '',
@@ -225,7 +226,7 @@ export default function Sales() {
   function addItemRow() {
     setForm({
       ...form,
-      items: [...form.items, { product_id: '', quantity: 1, rate: 0 }],
+      items: [...form.items, { product_id: '', quantity: 1, rate: 0, price_type: 'wholesale' }],
     });
   }
 
@@ -241,7 +242,14 @@ export default function Sales() {
     if (field === 'product_id') {
       const product = products.find((p) => p.id === parseInt(value, 10));
       if (product) {
-        newItems[index].rate = product.price;
+        newItems[index].rate = catalogRate(product, newItems[index].price_type || 'wholesale');
+      }
+    }
+
+    if (field === 'price_type') {
+      const product = products.find((p) => p.id === parseInt(newItems[index].product_id, 10));
+      if (product) {
+        newItems[index].rate = catalogRate(product, value);
       }
     }
 
@@ -291,7 +299,14 @@ export default function Sales() {
       }
 
       const emptyIndex = items.findIndex((item) => !item.product_id);
-      const newItem = { product_id: String(product.id), quantity: 1, rate: product.price };
+      const priceType =
+        emptyIndex >= 0 ? items[emptyIndex].price_type || 'wholesale' : 'wholesale';
+      const newItem = {
+        product_id: String(product.id),
+        quantity: 1,
+        rate: catalogRate(product, priceType),
+        price_type: priceType,
+      };
       if (emptyIndex >= 0) {
         items[emptyIndex] = newItem;
       } else {
@@ -326,7 +341,7 @@ export default function Sales() {
       place_of_supply: '',
       ship_same_as_billing: true,
       shipping_address: '',
-      items: [{ product_id: '', quantity: 1, rate: 0 }],
+      items: [{ product_id: '', quantity: 1, rate: 0, price_type: 'wholesale' }],
       payment: emptyPaymentDetails(),
       ...emptySaleChannel,
       city_id: defaultCityIdFrom(cities),
@@ -1010,6 +1025,7 @@ export default function Sales() {
                       <th className="col-item">Item Name</th>
                       <th className="col-hsn whitespace-nowrap">HSN/SAC</th>
                       <th className="col-qty text-right">Qty</th>
+                      <th className="col-price-type whitespace-nowrap">Price type</th>
                       <th className="col-rate text-right whitespace-nowrap">Price/Unit (₹)</th>
                       <th className="col-gst text-right whitespace-nowrap">GST</th>
                       <th className="col-amount text-right whitespace-nowrap">Amount (excl. GST)</th>
@@ -1066,6 +1082,17 @@ export default function Sales() {
                               value={item.quantity}
                               onChange={(e) => updateItem(index, 'quantity', e.target.value)}
                             />
+                          </td>
+                          <td className="col-price-type">
+                            <select
+                              className="line-item-row-input"
+                              value={item.price_type || 'wholesale'}
+                              onChange={(e) => updateItem(index, 'price_type', e.target.value)}
+                              aria-label="Price type"
+                            >
+                              <option value="wholesale">Wholesale</option>
+                              <option value="retail">Retail</option>
+                            </select>
                           </td>
                           <td className="col-rate">
                             <input

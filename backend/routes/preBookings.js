@@ -65,6 +65,36 @@ function validateBody(body, items) {
   return null;
 }
 
+async function resolveOfferId(db, offerId, businessId) {
+  if (offerId === undefined || offerId === null || offerId === '') return null;
+  const parsed = Number(offerId);
+  if (!parsed) throw new Error('That offer was not found.');
+  const { data, error } = await db
+    .from('offers')
+    .select('id')
+    .eq('id', parsed)
+    .eq('business_id', businessId)
+    .maybeSingle();
+  if (error && /offers/i.test(error.message || '')) {
+    console.warn('[pre-bookings] offers table missing — run supabase.migration.offers.sql');
+    return null;
+  }
+  assertNoError(error);
+  if (!data) throw new Error('That offer was not found.');
+  return parsed;
+}
+
+async function applyOfferId(db, bookingId, offerIdValue) {
+  const id = Number(bookingId);
+  if (!id) return;
+  const { error } = await db.from('pre_bookings').update({ offer_id: offerIdValue }).eq('id', id);
+  if (error && /offer_id/i.test(error.message || '')) {
+    console.warn('[pre-bookings] offer_id missing — run supabase.migration.offers.sql');
+    return;
+  }
+  assertNoError(error);
+}
+
 async function fetchOne(db, id) {
   return selectPreBookings(db, { id });
 }
@@ -118,6 +148,8 @@ router.post('/', async (req, res) => {
     const validationError = validateBody(req.body, items);
     if (validationError) return res.status(400).json({ error: validationError });
 
+    const offerId = await resolveOfferId(db, req.body.offer_id, bid);
+
     const { data: createdId, error } = await db.rpc('create_pre_booking', {
       p_business_id: bid,
       p_party_id: Number(req.body.party_id),
@@ -126,6 +158,8 @@ router.post('/', async (req, res) => {
       p_items: items,
     });
     if (error) return fail(res, error, 400);
+
+    await applyOfferId(db, createdId, offerId);
 
     const { data: full, error: refetchError } = await fetchOne(db, createdId);
     if (refetchError) return fail(res, refetchError);
@@ -162,6 +196,8 @@ router.put('/:id', async (req, res) => {
     const validationError = validateBody(req.body, items);
     if (validationError) return res.status(400).json({ error: validationError });
 
+    const offerId = await resolveOfferId(db, req.body.offer_id, bid);
+
     const { error } = await db.rpc('update_pre_booking', {
       p_id: Number(req.params.id),
       p_business_id: bid,
@@ -171,6 +207,8 @@ router.put('/:id', async (req, res) => {
       p_items: items,
     });
     if (error) return fail(res, error, 400);
+
+    await applyOfferId(db, req.params.id, offerId);
 
     const { data: full, error: refetchError } = await fetchOne(db, req.params.id);
     if (refetchError) return fail(res, refetchError);

@@ -70,6 +70,7 @@ function normalizeProductPayload(body, existing = null) {
     name,
     category,
     price: parseFloat(body.price ?? existing?.price ?? 0) || 0,
+    retail_price: parseFloat(body.retail_price ?? existing?.retail_price ?? 0) || 0,
     cost_price: parseFloat(body.cost_price ?? existing?.cost_price ?? 0) || 0,
     stock_quantity: parseInt(body.stock_quantity ?? existing?.stock_quantity ?? 0, 10) || 0,
     supplier: (body.supplier ?? existing?.supplier ?? '').trim(),
@@ -87,6 +88,40 @@ function normalizeProductPayload(body, existing = null) {
   }
 
   return payload;
+}
+
+function isMissingRetailPriceColumn(error) {
+  return /retail_price/i.test(error?.message || '');
+}
+
+async function insertProduct(db, payload) {
+  let { data, error } = await db.from('products').insert(payload).select().single();
+  if (error && isMissingRetailPriceColumn(error)) {
+    const rest = { ...payload };
+    delete rest.retail_price;
+    ({ data, error } = await db.from('products').insert(rest).select().single());
+    if (!error) {
+      console.warn(
+        '[products] retail_price missing — run backend/database/supabase.migration.products_retail_price.sql'
+      );
+    }
+  }
+  return { data, error };
+}
+
+async function updateProduct(db, id, payload) {
+  let { data, error } = await db.from('products').update(payload).eq('id', id).select().single();
+  if (error && isMissingRetailPriceColumn(error)) {
+    const rest = { ...payload };
+    delete rest.retail_price;
+    ({ data, error } = await db.from('products').update(rest).eq('id', id).select().single());
+    if (!error) {
+      console.warn(
+        '[products] retail_price missing — run backend/database/supabase.migration.products_retail_price.sql'
+      );
+    }
+  }
+  return { data, error };
 }
 
 router.get('/', async (req, res) => {
@@ -219,7 +254,7 @@ router.post('/', async (req, res) => {
       business_id: req.profile.business_id,
     };
 
-    const { data, error } = await req.db.from('products').insert(payload).select().single();
+    const { data, error } = await insertProduct(req.db, payload);
 
     assertNoError(error);
     await logActivity(req, {
@@ -255,7 +290,7 @@ router.put('/:id', async (req, res) => {
 
     const payload = normalizeProductPayload(req.body, existing);
 
-    const { data, error } = await req.db.from('products').update(payload).eq('id', id).select().single();
+    const { data, error } = await updateProduct(req.db, id, payload);
 
     assertNoError(error);
     await logActivity(req, {

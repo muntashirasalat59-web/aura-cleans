@@ -24,6 +24,9 @@ ALTER TABLE public.products
   ADD COLUMN IF NOT EXISTS price NUMERIC(12, 2) NOT NULL DEFAULT 0;
 
 ALTER TABLE public.products
+  ADD COLUMN IF NOT EXISTS retail_price NUMERIC(12, 2) NOT NULL DEFAULT 0;
+
+ALTER TABLE public.products
   ADD COLUMN IF NOT EXISTS cost_price NUMERIC(12, 2) NOT NULL DEFAULT 0;
 
 ALTER TABLE public.products
@@ -55,6 +58,8 @@ ALTER TABLE public.products
 
 -- Backfill NULLs on columns that may pre-date NOT NULL defaults
 UPDATE public.products SET price = 0 WHERE price IS NULL;
+UPDATE public.products SET retail_price = 0 WHERE retail_price IS NULL;
+UPDATE public.products SET retail_price = price WHERE COALESCE(retail_price, 0) = 0 AND COALESCE(price, 0) > 0;
 UPDATE public.products SET cost_price = 0 WHERE cost_price IS NULL;
 UPDATE public.products SET stock_quantity = 0 WHERE stock_quantity IS NULL;
 UPDATE public.products SET supplier = '' WHERE supplier IS NULL;
@@ -101,7 +106,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_products_sku_unique
   WHERE sku IS NOT NULL AND sku <> '';
 
 -- Column documentation
-COMMENT ON COLUMN public.products.price IS 'Selling price (MRP / retail)';
+COMMENT ON COLUMN public.products.price IS 'Wholesale selling price (B2B)';
+COMMENT ON COLUMN public.products.retail_price IS 'Retail / consumer selling price (MRP)';
 COMMENT ON COLUMN public.products.cost_price IS 'Manufacturing or purchase cost per unit';
 COMMENT ON COLUMN public.products.supplier IS 'Primary supplier / vendor name';
 COMMENT ON COLUMN public.products.unit_type IS 'Pack unit: ML, L, KG, Gram, Piece, Box, Dozen';

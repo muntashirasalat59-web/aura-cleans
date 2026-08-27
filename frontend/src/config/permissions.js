@@ -5,7 +5,7 @@ export const ROLES = {
 };
 
 /** Route paths staff may open (Parties API still used by Sales form). */
-export const STAFF_ALLOWED_PATHS = ['/', '/products', '/sales', '/pre-bookings'];
+export const STAFF_ALLOWED_PATHS = ['/', '/products', '/sales', '/pre-bookings', '/offers'];
 
 export function isPathAllowed(role, pathname) {
   if (role === ROLES.ADMIN || role === ROLES.SUPER_ADMIN) return true;

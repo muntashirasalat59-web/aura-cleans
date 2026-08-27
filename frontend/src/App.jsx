@@ -24,6 +24,7 @@ const Parties = lazy(() => import('./pages/Parties'));
 const Purchases = lazy(() => import('./pages/Purchases'));
 const Sales = lazy(() => import('./pages/Sales'));
 const PreBookings = lazy(() => import('./pages/PreBookings'));
+const Offers = lazy(() => import('./pages/Offers'));
 const Expenses = lazy(() => import('./pages/Expenses'));
 const Employees = lazy(() => import('./pages/Employees'));
 const Reports = lazy(() => import('./pages/Reports'));
@@ -104,6 +105,7 @@ function App() {
                   <Route path="purchases" element={<Purchases />} />
                   <Route path="sales" element={<Sales />} />
                   <Route path="pre-bookings" element={<PreBookings />} />
+                  <Route path="offers" element={<Offers />} />
                   <Route path="expenses" element={<Expenses />} />
                   <Route path="reports" element={<Reports />} />
                   <Route path="city-reports" element={<CityReports />} />

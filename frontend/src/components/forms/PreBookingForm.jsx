@@ -12,6 +12,7 @@ export default function PreBookingForm({
   onChange,
   parties,
   products,
+  offers = [],
   onPartyCreated,
   onSubmit,
   onCancel,
@@ -37,6 +38,25 @@ export default function PreBookingForm({
       >
         <form onSubmit={onSubmit}>
           <div className="form-grid mb-6">
+            <FormField
+              label="Select offer (optional)"
+              className="md:col-span-2"
+              hint="Picking a combo auto-fills products. You can still add, remove, or edit lines."
+            >
+              <select
+                className="input input-premium"
+                value={form.offer_id || ''}
+                onChange={(e) => setField({ offer_id: e.target.value })}
+              >
+                <option value="">No offer — enter products manually</option>
+                {offers.map((offer) => (
+                  <option key={offer.id} value={offer.id}>
+                    {offer.offer_name}
+                    {offer.combo_price != null ? ` · ₹${Number(offer.combo_price).toLocaleString('en-IN')}` : ''}
+                  </option>
+                ))}
+              </select>
+            </FormField>
             <PartySelectField
               label="Party"
               required

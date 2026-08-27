@@ -37,6 +37,7 @@ const emptyForm = {
   supplier: '',
   cost_price: '',
   price: '',
+  retail_price: '',
   pack_size: '500 ML',
   fragrance: 'Unscented',
   custom_fragrance: '',
@@ -153,6 +154,7 @@ export default function Products() {
       supplier: product.supplier || '',
       cost_price: product.cost_price ?? '',
       price: product.price ?? '',
+      retail_price: product.retail_price ?? '',
       pack_size: productToPackSize(product),
       fragrance: isPreset ? stored : 'Other',
       custom_fragrance: isPreset ? '' : stored,
@@ -205,11 +207,18 @@ export default function Products() {
     const costErr = positiveMoney(form.cost_price, { field: 'Cost price', min: 0.01 });
     if (costErr) errors.cost_price = costErr;
 
-    const priceErr = positiveMoney(form.price, { field: 'Selling price', min: 0.01 });
+    const priceErr = positiveMoney(form.price, { field: 'Wholesale price', min: 0.01 });
     if (priceErr) errors.price = priceErr;
 
+    const retailErr = positiveMoney(form.retail_price, { field: 'Retail price', min: 0.01 });
+    if (retailErr) errors.retail_price = retailErr;
+
     if (!costErr && !priceErr && Number(form.price) < Number(form.cost_price)) {
-      warnings.price = 'Selling price is lower than cost';
+      warnings.price = 'Wholesale price is lower than cost';
+    }
+
+    if (!priceErr && !retailErr && Number(form.retail_price) < Number(form.price)) {
+      warnings.retail_price = 'Retail price is lower than wholesale';
     }
 
     const stockErr = nonNegativeInteger(form.stock_quantity, { field: 'Stock quantity' });
@@ -232,8 +241,17 @@ export default function Products() {
     Number.isFinite(Number(form.price)) &&
     Number.isFinite(Number(form.cost_price)) &&
     Number(form.price) < Number(form.cost_price)
-      ? 'Selling price is lower than cost'
+      ? 'Wholesale price is lower than cost'
       : formWarnings.price || null;
+
+  const retailBelowWholesaleWarning =
+    form.retail_price !== '' &&
+    form.price !== '' &&
+    Number.isFinite(Number(form.retail_price)) &&
+    Number.isFinite(Number(form.price)) &&
+    Number(form.retail_price) < Number(form.price)
+      ? 'Retail price is lower than wholesale'
+      : formWarnings.retail_price || null;
 
   function handleGenerateSku() {
     setForm((prev) => ({ ...prev, sku: generateSkuPreview(prev.name) }));
@@ -268,6 +286,7 @@ export default function Products() {
         supplier: form.supplier,
         cost_price: parseFloat(form.cost_price) || 0,
         price: parseFloat(form.price) || 0,
+        retail_price: parseFloat(form.retail_price) || 0,
         unit_type,
         unit_size,
         sku: form.sku.trim(),
@@ -351,7 +370,7 @@ export default function Products() {
     <div>
       <PageHeader
         title="Products"
-        description="Detailed catalog with cost, selling price, units, and supplier info."
+        description="Detailed catalog with cost, wholesale, and retail prices."
         action={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             <ExportMenu
@@ -575,10 +594,11 @@ export default function Products() {
                     />
                   </FormField>
                   <FormField
-                    label="Selling price (₹)"
+                    label="Wholesale price (₹)"
                     required
                     error={formErrors.price}
                     warning={sellingBelowCostWarning}
+                    hint="B2B / dealer rate"
                   >
                     <input
                       type="text"
@@ -591,13 +611,31 @@ export default function Products() {
                       placeholder="0.00"
                     />
                   </FormField>
+                  <FormField
+                    label="Retail price (₹)"
+                    required
+                    error={formErrors.retail_price}
+                    warning={retailBelowWholesaleWarning}
+                    hint="Consumer / MRP rate"
+                  >
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      className={inputClassName(formErrors.retail_price)}
+                      value={form.retail_price}
+                      onChange={(e) =>
+                        updateForm({ retail_price: sanitizeDecimalInput(e.target.value) })
+                      }
+                      placeholder="0.00"
+                    />
+                  </FormField>
                 </div>
                 <div className="form-summary-card">
                   <div className="flex items-end justify-between gap-4">
                     <div>
                       <p className="form-summary-label">Margin per unit</p>
                       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        Selling − cost (auto-calculated)
+                        Selling − cost uses wholesale (auto-calculated)
                       </p>
                     </div>
                     <div>
@@ -688,7 +726,7 @@ export default function Products() {
                 ? 'Try another name, category, HSN/SAC code, or barcode.'
                 : stockFilterActive
                   ? `Nothing at or below ${stockThreshold} units with the current filters.`
-                  : 'Add your first product to track cost, selling price, and stock.'
+                  : 'Add your first product to track cost, wholesale, retail, and stock.'
             }
             actionLabel={
               listSearch.trim() || stockFilterActive ? undefined : 'Add product'
@@ -704,7 +742,8 @@ export default function Products() {
                   <th>Status</th>
                   <th>Supplier</th>
                   <th className="col-num">Cost</th>
-                  <th className="col-num">Selling</th>
+                  <th className="col-num">Wholesale</th>
+                  <th className="col-num">Retail</th>
                   <th>Pack size</th>
                   <th>HSN/SAC</th>
                   <th>Barcode</th>
@@ -753,6 +792,9 @@ export default function Products() {
                       </td>
                       <td className="col-num font-medium">
                         ₹{Number(product.price || 0).toLocaleString('en-IN')}
+                      </td>
+                      <td className="col-num font-medium">
+                        ₹{Number(product.retail_price || 0).toLocaleString('en-IN')}
                       </td>
                       <td>
                         {formatPackSize(product) ? (
