@@ -39,20 +39,43 @@ async function applyInvoiceAddressMeta(db, saleId, body) {
   const place = String(body?.place_of_supply || '').trim();
   const shipping = String(body?.shipping_address || '').trim();
   const sameAsBilling = body?.ship_same_as_billing !== false && !shipping;
-  const { error } = await db
-    .from('sales')
-    .update({
-      place_of_supply: place || null,
-      shipping_address: sameAsBilling ? null : shipping,
-    })
-    .eq('id', saleId);
-  if (error && /column|schema cache|could not find|does not exist/i.test(error.message || '')) {
+  const shipCity = String(body?.ship_to_city || '').trim();
+  const shipAddr = String(body?.ship_to_address || '').trim();
+
+  const gstMeta = {
+    place_of_supply: place || null,
+    shipping_address: sameAsBilling ? null : shipping,
+  };
+  const courierMeta = {
+    ship_to_city: shipCity || null,
+    ship_to_address: shipAddr || null,
+  };
+
+  const attempts = [{ ...gstMeta, ...courierMeta }, gstMeta];
+  let lastError = null;
+  for (const patch of attempts) {
+    const { error } = await db.from('sales').update(patch).eq('id', saleId);
+    if (!error) {
+      if (!('ship_to_city' in patch) && (shipCity || shipAddr)) {
+        console.warn(
+          '[sales] ship_to_city/ship_to_address missing — run supabase.migration.sales_ship_to.sql'
+        );
+      }
+      return;
+    }
+    lastError = error;
+    if (!/column|schema cache|could not find|does not exist/i.test(error.message || '')) {
+      break;
+    }
+  }
+
+  if (lastError && /column|schema cache|could not find|does not exist/i.test(lastError.message || '')) {
     console.warn(
       '[sales] place_of_supply/shipping_address missing — run supabase.migration.sales_place_of_supply.sql'
     );
     return;
   }
-  if (error) assertNoError(error);
+  if (lastError) assertNoError(lastError);
 }
 
 function omitUndefined(obj) {

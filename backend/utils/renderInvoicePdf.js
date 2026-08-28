@@ -281,8 +281,23 @@ function drawSectionLabel(doc, label, x, y) {
   });
 }
 
+function courierShipToLines(sale) {
+  const city = String(sale?.ship_to_city || '').trim();
+  if (!city) return null;
+  const lines = [{ bold: true, size: 13, color: C.text, text: city.toUpperCase() }];
+  const address = String(sale?.ship_to_address || '').trim();
+  if (address) {
+    for (const part of address.split(/\n/).map((s) => s.trim()).filter(Boolean)) {
+      lines.push({ text: part });
+    }
+  }
+  return lines;
+}
+
 function partyCardLines(sale, { shipping = false } = {}) {
   if (shipping) {
+    const courier = courierShipToLines(sale);
+    if (courier) return courier;
     if (shippingIsSameAsBilling(sale.shipping_address, sale.address)) {
       return [{ text: 'Same as billing' }];
     }
@@ -299,7 +314,7 @@ function partyCardLines(sale, { shipping = false } = {}) {
 function drawPartyCard(doc, label, lines, cardX, startY, cardW) {
   const pad = 12;
   const labelH = 10;
-  const contentH = lines.reduce((acc, line) => acc + (line.bold ? 16 : 14), 0);
+  const contentH = lines.reduce((acc, line) => acc + (line.bold ? (line.size >= 13 ? 20 : 16) : 14), 0);
   const cardH = pad + labelH + 8 + contentH + pad;
 
   doc.save();

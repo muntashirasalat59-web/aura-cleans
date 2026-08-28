@@ -53,6 +53,8 @@ export default function InvoiceLetterPreview({
   placeOfSupply = '',
   shippingAddress = '',
   shipSameAsBilling = true,
+  shipToCity = '',
+  shipToAddress = '',
   items = [],
   gstPercent = 18,
   subtotal = 0,
@@ -78,6 +80,8 @@ export default function InvoiceLetterPreview({
     derivePlaceOfSupply({ gst_number: gstin, address: formatBusinessAddress(settings) });
   const sameShipping =
     shipSameAsBilling || shippingIsSameAsBilling(shippingAddress, party?.address);
+  const courierCity = String(shipToCity || '').trim();
+  const courierAddress = String(shipToAddress || '').trim();
   const settlement = paymentBreakdown(payment, total);
   const resolvedPlace =
     resolveInvoicePlaceOfSupply({
@@ -156,7 +160,14 @@ export default function InvoiceLetterPreview({
         </div>
         <div className="invoice-bill-to">
           <p className="invoice-section-label">Ship to</p>
-          {sameShipping ? (
+          {courierCity ? (
+            <>
+              <p className="invoice-ship-to-city">{courierCity}</p>
+              {courierAddress ? (
+                <p className="invoice-meta-line whitespace-pre-wrap">{courierAddress}</p>
+              ) : null}
+            </>
+          ) : sameShipping ? (
             <p className="invoice-meta-line">Same as billing</p>
           ) : (
             <p className="invoice-meta-line whitespace-pre-wrap">{shippingAddress}</p>

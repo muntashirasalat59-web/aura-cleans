@@ -22,6 +22,7 @@ import MarkPaidModal from '../components/invoice/MarkPaidModal';
 import ErrorModal from '../components/ErrorModal';
 import { computeGstTotals } from '../utils/invoiceGst';
 import { resolveInvoicePlaceOfSupply, shippingIsSameAsBilling } from '../utils/placeOfSupply';
+import { shipToFromParty, shipToMatchesParty } from '../utils/shipTo';
 import { formatInrAmount, formatLineGstDisplay, enrichInvoiceLine } from '../utils/invoiceLineItems';
 import { formatProductNameWithSize, formatProductOptionLabel } from '../utils/productDisplay';
 import { catalogRate } from '../utils/productPricing';
@@ -92,6 +93,9 @@ export default function Sales() {
     place_of_supply: '',
     ship_same_as_billing: true,
     shipping_address: '',
+    ship_to_same_as_party: false,
+    ship_to_city: '',
+    ship_to_address: '',
     items: [{ product_id: '', quantity: 1, rate: 0, price_type: 'wholesale' }],
     payment: emptyPaymentDetails(),
     ...emptySaleChannel,
@@ -341,6 +345,9 @@ export default function Sales() {
       place_of_supply: '',
       ship_same_as_billing: true,
       shipping_address: '',
+      ship_to_same_as_party: false,
+      ship_to_city: '',
+      ship_to_address: '',
       items: [{ product_id: '', quantity: 1, rate: 0, price_type: 'wholesale' }],
       payment: emptyPaymentDetails(),
       ...emptySaleChannel,
@@ -396,6 +403,9 @@ export default function Sales() {
       }),
       ship_same_as_billing: true,
       shipping_address: '',
+      ship_to_same_as_party: false,
+      ship_to_city: '',
+      ship_to_address: '',
       items,
       payment: emptyPaymentDetails(),
       ...emptySaleChannel,
@@ -498,6 +508,13 @@ export default function Sales() {
         }),
         ship_same_as_billing: shippingIsSameAsBilling(data.shipping_address, data.address),
         shipping_address: data.shipping_address || '',
+        ship_to_city: data.ship_to_city || '',
+        ship_to_address: data.ship_to_address || '',
+        ship_to_same_as_party: shipToMatchesParty(
+          data.ship_to_city,
+          data.ship_to_address,
+          { address: data.address }
+        ),
         items: data.items.map((item) => ({
           product_id: String(item.product_id),
           quantity: item.quantity,
@@ -594,6 +611,8 @@ export default function Sales() {
         place_of_supply: form.place_of_supply.trim(),
         ship_same_as_billing: form.ship_same_as_billing,
         shipping_address: form.ship_same_as_billing ? '' : form.shipping_address.trim(),
+        ship_to_city: form.ship_to_city.trim(),
+        ship_to_address: form.ship_to_address.trim(),
         items: validItems.map((item) => ({
           product_id: parseInt(item.product_id),
           quantity: parseInt(item.quantity),
@@ -928,17 +947,27 @@ export default function Sales() {
                   value={form.party_id}
                   onChange={(partyId) => {
                     const party = parties.find((p) => String(p.id) === String(partyId));
-                    setForm((prev) => ({
-                      ...prev,
-                      party_id: partyId,
-                      place_of_supply: resolveInvoicePlaceOfSupply({
-                        party,
-                        shippingAddress: prev.ship_same_as_billing
-                          ? party?.address
-                          : prev.shipping_address,
-                        business: businessSettings,
-                      }),
-                    }));
+                    setForm((prev) => {
+                      const next = {
+                        ...prev,
+                        party_id: partyId,
+                        place_of_supply: resolveInvoicePlaceOfSupply({
+                          party,
+                          shippingAddress: prev.ship_same_as_billing
+                            ? party?.address
+                            : prev.shipping_address,
+                          business: businessSettings,
+                        }),
+                      };
+                      if (prev.ship_to_same_as_party) {
+                        const from = shipToFromParty(party);
+                        if (from.ship_to_city || from.ship_to_address) {
+                          next.ship_to_city = from.ship_to_city;
+                          next.ship_to_address = from.ship_to_address;
+                        }
+                      }
+                      return next;
+                    });
                   }}
                   parties={parties}
                   onPartyCreated={handlePartyCreated}
@@ -984,6 +1013,77 @@ export default function Sales() {
                     />
                   </FormField>
                 )}
+              </div>
+
+              <p className="form-section-label">Shipping / delivery details</p>
+              <div className="form-grid mb-8">
+                <FormField
+                  label="Courier destination"
+                  hint="Optional. Prints a SHIP TO city on the invoice for courier delivery. Leave empty for local invoices — City/Branch above is not printed."
+                  className="md:col-span-2"
+                >
+                  <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={form.ship_to_same_as_party}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setForm((prev) => {
+                          if (!checked) {
+                            return { ...prev, ship_to_same_as_party: false };
+                          }
+                          const party = parties.find((p) => String(p.id) === String(prev.party_id));
+                          const from = shipToFromParty(party);
+                          if (!from.ship_to_city && !from.ship_to_address) {
+                            return { ...prev, ship_to_same_as_party: true };
+                          }
+                          return {
+                            ...prev,
+                            ship_to_same_as_party: true,
+                            ship_to_city: from.ship_to_city,
+                            ship_to_address: from.ship_to_address,
+                          };
+                        });
+                      }}
+                    />
+                    Same as party's city/address
+                  </label>
+                </FormField>
+                <FormField
+                  label="Ship to City"
+                  hint='Destination city for courier (e.g. Surat, Vadodara)'
+                >
+                  <input
+                    className="input input-premium"
+                    value={form.ship_to_city}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        ship_to_city: e.target.value,
+                        ship_to_same_as_party: false,
+                      }))
+                    }
+                    placeholder="Surat"
+                  />
+                </FormField>
+                <FormField
+                  label="Ship to Address"
+                  hint="Optional full delivery address"
+                  className="md:col-span-2"
+                >
+                  <textarea
+                    className="input input-premium min-h-[84px]"
+                    value={form.ship_to_address}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        ship_to_address: e.target.value,
+                        ship_to_same_as_party: false,
+                      }))
+                    }
+                    placeholder="Optional street / landmark"
+                  />
+                </FormField>
               </div>
 
               <p className="form-section-label">Product line items</p>
@@ -1158,6 +1258,8 @@ export default function Sales() {
                     placeOfSupply={form.place_of_supply}
                     shippingAddress={form.shipping_address}
                     shipSameAsBilling={form.ship_same_as_billing}
+                    shipToCity={form.ship_to_city}
+                    shipToAddress={form.ship_to_address}
                     items={getPreviewLineItems()}
                     gstPercent={form.gst_percent}
                     subtotal={calculateSubtotal()}
@@ -1213,6 +1315,8 @@ export default function Sales() {
               placeOfSupply={form.place_of_supply}
               shippingAddress={form.shipping_address}
               shipSameAsBilling={form.ship_same_as_billing}
+              shipToCity={form.ship_to_city}
+              shipToAddress={form.ship_to_address}
               items={getPreviewLineItems()}
               gstPercent={form.gst_percent}
               subtotal={calculateSubtotal()}
@@ -1259,6 +1363,8 @@ export default function Sales() {
                   viewInvoice.shipping_address,
                   viewInvoice.address
                 )}
+                shipToCity={viewInvoice.ship_to_city}
+                shipToAddress={viewInvoice.ship_to_address}
                 items={viewInvoice.items.map((item) => ({
                   product_name: item.product_name,
                   unit_size: item.unit_size,
