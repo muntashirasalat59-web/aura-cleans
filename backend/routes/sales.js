@@ -25,7 +25,7 @@ function paymentForDb(paymentRow) {
 }
 const { rollbackSale } = require('../utils/saleRollback');
 const { formatSaleDeleteMessage } = require('../utils/stockMessages');
-const { createSaleDirect, updateSaleDirect, applyInvoiceAddressMeta } = require('../utils/createSaleDirect');
+const { createSaleDirect, updateSaleDirect, applyInvoiceAddressMeta, applySaleGstFlag } = require('../utils/createSaleDirect');
 const { buildInvoicePdfBuffer } = require('../utils/invoicePdfBuffer');
 const {
   normalizeIndiaWhatsAppPhone,
@@ -33,6 +33,7 @@ const {
   buildWhatsAppShareUrl,
   uploadInvoicePdf,
 } = require('../utils/whatsappShare');
+const { resolveSaleGst } = require('../utils/saleGst');
 const { ensureDefaultCity, pickDefaultCity, missingCitiesTable } = require('../utils/businessCities');
 
 /** Pull sale-channel fields out of the request body, normalized for storage. */
@@ -305,6 +306,11 @@ async function createSaleWithPayment(db, body, invoiceNumber, gstRate) {
     console.warn('[sales] invoice address meta after create:', metaErr.message);
   }
   try {
+    await applySaleGstFlag(db, data, resolveSaleGst(body).is_gst_invoice);
+  } catch (gstErr) {
+    console.warn('[sales] is_gst_invoice after create:', gstErr.message);
+  }
+  try {
     await saveSaleChannel(db, data, body);
   } catch (channelErr) {
     console.warn('[sales] saveSaleChannel after create:', channelErr.message);
@@ -349,6 +355,11 @@ async function updateSaleWithPayment(db, saleId, body, gstRate) {
     await applyInvoiceAddressMeta(db, saleId, body);
   } catch (metaErr) {
     console.warn('[sales] invoice address meta after update:', metaErr.message);
+  }
+  try {
+    await applySaleGstFlag(db, saleId, resolveSaleGst(body).is_gst_invoice);
+  } catch (gstErr) {
+    console.warn('[sales] is_gst_invoice after update:', gstErr.message);
   }
   try {
     await saveSaleChannel(db, saleId, body);
@@ -587,7 +598,9 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Party, date and items are required' });
     }
 
-    const gstRate = gst_percent || 18;
+    const gst = resolveSaleGst(req.body);
+    const gstRate = gst.gstPercent;
+    req.body = { ...req.body, is_gst_invoice: gst.is_gst_invoice, gst_percent: gstRate };
     const { saleId } = await createSaleWithUniqueInvoice(req.db, req.body, gstRate);
     try {
       await saveSaleCity(req.db, saleId, req.body, req.profile?.business_id);
@@ -649,7 +662,9 @@ router.put('/:id', async (req, res) => {
       return res.status(400).json({ error: 'Party, date and items are required' });
     }
 
-    const gstRate = gst_percent ?? 18;
+    const gst = resolveSaleGst(req.body);
+    const gstRate = gst.gstPercent;
+    req.body = { ...req.body, is_gst_invoice: gst.is_gst_invoice, gst_percent: gstRate };
 
     const updatedId = await updateSaleWithPayment(req.db, id, req.body, gstRate);
     try {

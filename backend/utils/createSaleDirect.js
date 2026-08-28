@@ -11,6 +11,7 @@ const {
   resolveAmountPaid,
   resolvePaymentStatus,
 } = require('./salePayment');
+const { resolveSaleGst, computeSaleGstTotals } = require('./saleGst');
 
 function paymentFieldsForUpdate(body, totalAmount) {
   const paymentRow = pickPaymentPayload(body);
@@ -76,6 +77,20 @@ async function applyInvoiceAddressMeta(db, saleId, body) {
     return;
   }
   if (lastError) assertNoError(lastError);
+}
+
+async function applySaleGstFlag(db, saleId, isGstInvoice) {
+  const { error } = await db
+    .from('sales')
+    .update({ is_gst_invoice: Boolean(isGstInvoice) })
+    .eq('id', saleId);
+  if (error && /column|schema cache|could not find|does not exist/i.test(error.message || '')) {
+    console.warn(
+      '[sales] is_gst_invoice missing — run supabase.migration.sales_is_gst_invoice.sql'
+    );
+    return;
+  }
+  if (error) assertNoError(error);
 }
 
 function omitUndefined(obj) {
@@ -158,9 +173,12 @@ async function createSaleDirect(db, body, invoiceNumber, gstRate) {
     normalized.push({ product_id: productId, quantity: qty, rate, amount });
   }
 
-  const gstPercent = Number(gstRate) || 18;
-  const gstAmount = (subtotal * gstPercent) / 100;
-  const total = subtotal + gstAmount;
+  const gst = resolveSaleGst({
+    is_gst_invoice: body?.is_gst_invoice,
+    gst_percent: gstRate != null && gstRate !== '' ? gstRate : body?.gst_percent,
+  });
+  const gstPercent = gst.gstPercent;
+  const { gstAmount, total } = computeSaleGstTotals(subtotal, gstPercent);
 
   const { data: sale, error: saleError } = await db
     .from('sales')
@@ -219,6 +237,7 @@ async function createSaleDirect(db, body, invoiceNumber, gstRate) {
 
     await applyPaymentUpdate(db, saleId, body, total);
     await applyInvoiceAddressMeta(db, saleId, body);
+    await applySaleGstFlag(db, saleId, gst.is_gst_invoice);
   } catch (err) {
     // Best-effort cleanup of the draft sale row
     await db.from('sale_items').delete().eq('sale_id', saleId);
@@ -301,9 +320,12 @@ async function updateSaleDirect(db, saleId, body, gstRate) {
     normalized.push({ product_id: productId, quantity: qty, rate, amount });
   }
 
-  const gstPercent = Number(gstRate) || 18;
-  const gstAmount = (subtotal * gstPercent) / 100;
-  const total = subtotal + gstAmount;
+  const gst = resolveSaleGst({
+    is_gst_invoice: body?.is_gst_invoice,
+    gst_percent: gstRate != null && gstRate !== '' ? gstRate : body?.gst_percent,
+  });
+  const gstPercent = gst.gstPercent;
+  const { gstAmount, total } = computeSaleGstTotals(subtotal, gstPercent);
 
   const { error: updErr } = await db
     .from('sales')
@@ -356,7 +378,14 @@ async function updateSaleDirect(db, saleId, body, gstRate) {
 
   await applyPaymentUpdate(db, id, body, total);
   await applyInvoiceAddressMeta(db, id, body);
+  await applySaleGstFlag(db, id, gst.is_gst_invoice);
   return id;
 }
 
-module.exports = { createSaleDirect, updateSaleDirect, paymentFieldsForUpdate, applyInvoiceAddressMeta };
+module.exports = {
+  createSaleDirect,
+  updateSaleDirect,
+  paymentFieldsForUpdate,
+  applyInvoiceAddressMeta,
+  applySaleGstFlag,
+};

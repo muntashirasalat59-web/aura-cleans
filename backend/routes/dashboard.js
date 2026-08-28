@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { assertNoError } = require('../database/supabase');
 const { fetchBusinessSettings } = require('../utils/businessSettings');
+const { isGstInvoiceSale } = require('../utils/saleGst');
 const {
   LIST_SELECT: PRE_BOOKING_LIST_SELECT,
   isMissingTableError: isMissingPreBookingsTable,
@@ -631,7 +632,7 @@ router.get('/', async (req, res) => {
       duePreBookings,
     ] = await Promise.all([
       db.from('products').select('*'),
-      db.from('sales').select('total_amount, invoice_date, gst_amount').eq('is_deleted', false),
+      db.from('sales').select('total_amount, invoice_date, gst_amount, is_gst_invoice').eq('is_deleted', false),
       db.from('purchases').select('total_amount, purchase_date'),
       db
         .from('sales')
@@ -659,7 +660,14 @@ router.get('/', async (req, res) => {
     ]);
 
     assertNoError(productsRes.error);
-    assertNoError(salesRes.error);
+    let salesResult = salesRes;
+    if (salesRes.error && /is_gst_invoice|column|schema cache|could not find/i.test(salesRes.error.message || '')) {
+      salesResult = await db
+        .from('sales')
+        .select('total_amount, invoice_date, gst_amount')
+        .eq('is_deleted', false);
+    }
+    assertNoError(salesResult.error);
     assertNoError(purchasesRes.error);
     assertNoError(recentSalesRes.error);
     assertNoError(partiesRes.error);
@@ -670,7 +678,7 @@ router.get('/', async (req, res) => {
     assertNoError(partiesBalanceRes.error);
 
     const products = productsRes.data || [];
-    const salesRows = salesRes.data || [];
+    const salesRows = salesResult.data || [];
     const purchaseRows = purchasesRes.data || [];
     const today = formatDate(new Date());
     const yesterday = formatDate(new Date(Date.now() - 86400000));
@@ -699,7 +707,10 @@ router.get('/', async (req, res) => {
     const monthGrossProfit = monthRevenue - monthPurchases;
     const gstThisMonth = (salesRows || [])
       .filter((r) => normalizeDateKey(r.invoice_date) >= monthStart)
-      .reduce((acc, r) => acc + Number(r.gst_amount || 0), 0);
+      .reduce((acc, r) => {
+        if (!isGstInvoiceSale(r)) return acc;
+        return acc + Number(r.gst_amount || 0);
+      }, 0);
     const invoiceCountToday = salesRows.filter((r) => normalizeDateKey(r.invoice_date) === today).length;
     const invoiceCountYesterday = salesRows.filter(
       (r) => normalizeDateKey(r.invoice_date) === yesterday

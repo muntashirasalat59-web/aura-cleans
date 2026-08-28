@@ -20,7 +20,7 @@ import InvoicePaymentStatusBadge from '../components/invoice/InvoicePaymentStatu
 import DeleteInvoiceModal from '../components/invoice/DeleteInvoiceModal';
 import MarkPaidModal from '../components/invoice/MarkPaidModal';
 import ErrorModal from '../components/ErrorModal';
-import { computeGstTotals } from '../utils/invoiceGst';
+import { computeGstTotals, isGstInvoice } from '../utils/invoiceGst';
 import { resolveInvoicePlaceOfSupply, shippingIsSameAsBilling } from '../utils/placeOfSupply';
 import { shipToFromParty, shipToMatchesParty } from '../utils/shipTo';
 import { formatInrAmount, formatLineGstDisplay, enrichInvoiceLine } from '../utils/invoiceLineItems';
@@ -321,7 +321,7 @@ export default function Sales() {
     setBarcodeInput('');
   }
 
-  const gstTotals = computeGstTotals(form.items, form.gst_percent);
+  const gstTotals = computeGstTotals(form.items, gstEnabled ? form.gst_percent : 0);
   const calculateSubtotal = () => gstTotals.subtotal;
   const calculateGST = () => gstTotals.gstAmount;
   const calculateTotal = () => gstTotals.total;
@@ -493,9 +493,10 @@ export default function Sales() {
       setEditStockBaseline(baseline);
       setBarcodeInput('');
       setBarcodeError('');
-      const loadedGst = Number(data.gst_percent) || 0;
-      setGstEnabled(loadedGst > 0);
-      setSavedGstPercent(loadedGst > 0 ? loadedGst : DEFAULT_GST_RATE);
+      const gstOn = isGstInvoice(data);
+      const loadedGst = gstOn ? Number(data.gst_percent) || DEFAULT_GST_RATE : 0;
+      setGstEnabled(gstOn);
+      setSavedGstPercent(gstOn ? loadedGst : DEFAULT_GST_RATE);
       setForm({
         party_id: String(data.party_id),
         invoice_date: data.invoice_date,
@@ -608,6 +609,7 @@ export default function Sales() {
         party_id: parseInt(form.party_id),
         invoice_date: form.invoice_date,
         gst_percent: gstEnabled ? parseFloat(form.gst_percent) : 0,
+        is_gst_invoice: gstEnabled,
         place_of_supply: form.place_of_supply.trim(),
         ship_same_as_billing: form.ship_same_as_billing,
         shipping_address: form.ship_same_as_billing ? '' : form.shipping_address.trim(),
@@ -882,13 +884,25 @@ export default function Sales() {
                     >
                       {gstEnabled ? 'GST ON' : 'GST OFF'}
                     </button>
-                    <input
-                      type="number"
-                      className="input input-premium"
-                      value={form.gst_percent}
-                      disabled={!gstEnabled}
-                      onChange={(e) => setForm({ ...form, gst_percent: e.target.value })}
-                    />
+                    {gstEnabled ? (
+                      <input
+                        type="number"
+                        className="input input-premium"
+                        value={form.gst_percent}
+                        min="0"
+                        step="0.01"
+                        onChange={(e) => setForm({ ...form, gst_percent: e.target.value })}
+                      />
+                    ) : (
+                      <input
+                        type="number"
+                        className="input input-premium bg-slate-50 text-slate-400"
+                        value={0}
+                        disabled
+                        readOnly
+                        aria-label="GST percent (off)"
+                      />
+                    )}
                   </div>
                 </FormField>
                 <FormField label="Invoice no.">
@@ -1127,8 +1141,12 @@ export default function Sales() {
                       <th className="col-qty text-right">Qty</th>
                       <th className="col-price-type whitespace-nowrap">Price type</th>
                       <th className="col-rate text-right whitespace-nowrap">Price/Unit (₹)</th>
-                      <th className="col-gst text-right whitespace-nowrap">GST</th>
-                      <th className="col-amount text-right whitespace-nowrap">Amount (excl. GST)</th>
+                      {gstEnabled ? (
+                        <th className="col-gst text-right whitespace-nowrap">GST</th>
+                      ) : null}
+                      <th className="col-amount text-right whitespace-nowrap">
+                        {gstEnabled ? 'Amount (excl. GST)' : 'Amount'}
+                      </th>
                       <th className="col-actions" />
                     </tr>
                   </thead>
@@ -1203,11 +1221,13 @@ export default function Sales() {
                               onChange={(e) => updateItem(index, 'rate', e.target.value)}
                             />
                           </td>
-                          <td className="col-gst">
-                            <span className="line-item-cell-gst">
-                              {line ? formatLineGstDisplay(line) : '—'}
-                            </span>
-                          </td>
+                          {gstEnabled ? (
+                            <td className="col-gst">
+                              <span className="line-item-cell-gst">
+                                {line ? formatLineGstDisplay(line) : '—'}
+                              </span>
+                            </td>
+                          ) : null}
                           <td className="col-amount">
                             <span className="line-item-cell-amount">
                               {line ? formatInrAmount(line.taxable) : '—'}
@@ -1232,7 +1252,9 @@ export default function Sales() {
                 </table>
               </div>
               <p className="text-[10px] text-slate-500 mb-4">
-                Line amounts exclude GST. GST updates automatically when qty, rate, or invoice GST % changes.
+                {gstEnabled
+                  ? 'Line amounts exclude GST. GST updates automatically when qty, rate, or invoice GST % changes.'
+                  : 'GST is off. Line amounts equal the total payable — no CGST/SGST will be added.'}
               </p>
 
               <button type="button" onClick={addItemRow} className="link-action text-sm mb-6">
@@ -1261,7 +1283,8 @@ export default function Sales() {
                     shipToCity={form.ship_to_city}
                     shipToAddress={form.ship_to_address}
                     items={getPreviewLineItems()}
-                    gstPercent={form.gst_percent}
+                    gstPercent={gstEnabled ? form.gst_percent : 0}
+                    isGstInvoice={gstEnabled}
                     subtotal={calculateSubtotal()}
                     gstAmount={calculateGST()}
                     total={calculateTotal()}
@@ -1318,7 +1341,8 @@ export default function Sales() {
               shipToCity={form.ship_to_city}
               shipToAddress={form.ship_to_address}
               items={getPreviewLineItems()}
-              gstPercent={form.gst_percent}
+              gstPercent={gstEnabled ? form.gst_percent : 0}
+              isGstInvoice={gstEnabled}
               subtotal={calculateSubtotal()}
               gstAmount={calculateGST()}
               total={calculateTotal()}
@@ -1374,6 +1398,7 @@ export default function Sales() {
                   rate: item.rate,
                 }))}
                 gstPercent={viewInvoice.gst_percent}
+                isGstInvoice={isGstInvoice(viewInvoice)}
                 subtotal={viewInvoice.subtotal}
                 gstAmount={viewInvoice.gst_amount}
                 total={viewInvoice.total_amount}
@@ -1483,6 +1508,11 @@ export default function Sales() {
                   <tr key={sale.id}>
                     <td>
                       <p className="list-primary whitespace-nowrap">{sale.invoice_number}</p>
+                      <span
+                        className={`badge mt-1 ${isGstInvoice(sale) ? 'badge-green' : 'badge-red'}`}
+                      >
+                        {isGstInvoice(sale) ? 'GST' : 'Non-GST'}
+                      </span>
                     </td>
                     <td className="whitespace-nowrap tabular-nums">{sale.invoice_date}</td>
                     <td>

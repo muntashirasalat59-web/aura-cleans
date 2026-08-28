@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { assertNoError } = require('../database/supabase');
+const { isGstInvoiceSale } = require('../utils/saleGst');
 
 function sumAmount(rows, field = 'total_amount') {
   return (rows || []).reduce((acc, row) => acc + Number(row[field] || 0), 0);
@@ -253,6 +254,11 @@ router.get('/', async (req, res) => {
       }))
       .sort((a, b) => String(b.purchase_date).localeCompare(String(a.purchase_date)));
 
+    const gstCollected = sales.reduce((acc, row) => {
+      if (!isGstInvoiceSale(row)) return acc;
+      return acc + Number(row.gst_amount || 0);
+    }, 0);
+
     const totalSales = sumAmount(sales);
     const totalPurchases = sumAmount(purchases);
     const totalExpenses = sumAmount(expenses, 'amount');
@@ -263,6 +269,7 @@ router.get('/', async (req, res) => {
       to,
       summary: {
         totalSales,
+        gstCollected,
         totalPurchases,
         totalExpenses,
         netProfit,

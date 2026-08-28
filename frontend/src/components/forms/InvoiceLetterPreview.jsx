@@ -13,6 +13,7 @@ import {
   formatDisplayDate,
 } from '../../config/business';
 import { paymentBreakdown } from '../../utils/invoicePayment';
+import { isGstInvoice } from '../../utils/invoiceGst';
 import {
   derivePlaceOfSupply,
   resolveInvoicePlaceOfSupply,
@@ -57,6 +58,7 @@ export default function InvoiceLetterPreview({
   shipToAddress = '',
   items = [],
   gstPercent = 18,
+  isGstInvoice: isGstInvoiceProp,
   subtotal = 0,
   gstAmount = 0,
   total = 0,
@@ -82,6 +84,7 @@ export default function InvoiceLetterPreview({
     shipSameAsBilling || shippingIsSameAsBilling(shippingAddress, party?.address);
   const courierCity = String(shipToCity || '').trim();
   const courierAddress = String(shipToAddress || '').trim();
+  const showGst = isGstInvoice(isGstInvoiceProp, gstPercent);
   const settlement = paymentBreakdown(payment, total);
   const resolvedPlace =
     resolveInvoicePlaceOfSupply({
@@ -113,7 +116,7 @@ export default function InvoiceLetterPreview({
                 )}
                 {address && <p className="invoice-meta-line">{address}</p>}
                 {phone && <p className="invoice-meta-line">Phone: {phone}</p>}
-                {gstin && <p className="invoice-meta-line">GSTIN: {gstin}</p>}
+                {gstin && showGst && <p className="invoice-meta-line">GSTIN: {gstin}</p>}
                 {issuerState && <p className="invoice-meta-line">State: {issuerState}</p>}
               </>
             ) : (
@@ -129,7 +132,7 @@ export default function InvoiceLetterPreview({
           </div>
         </div>
         <div className="invoice-tax-heading">
-          <p className="invoice-doc-type">TAX INVOICE</p>
+          <p className="invoice-doc-type">{showGst ? 'TAX INVOICE' : 'INVOICE'}</p>
           <div className="invoice-tax-meta">
             <p>
               <span>Invoice No.:</span> {invoiceNumber}
@@ -152,7 +155,7 @@ export default function InvoiceLetterPreview({
               <p className="invoice-party-name">{party.name}</p>
               {party.contact && <p className="invoice-meta-line">{party.contact}</p>}
               {party.address && <p className="invoice-meta-line">{party.address}</p>}
-              {party.gst_number && <p className="invoice-meta-line">GST: {party.gst_number}</p>}
+              {showGst && party.gst_number && <p className="invoice-meta-line">GST: {party.gst_number}</p>}
             </>
           ) : (
             <p className="text-slate-400 italic text-sm">Select a party to preview</p>
@@ -178,6 +181,7 @@ export default function InvoiceLetterPreview({
       <InvoiceLineItemsTable
         items={items}
         gstPercent={gstPercent}
+        showGst={showGst}
         compact={compact}
         fitContainer
         emptyMessage="Add products to see line items"
@@ -191,6 +195,7 @@ export default function InvoiceLetterPreview({
             subtotal={subtotal}
             total={total}
             settlement={settlement}
+            showGst={showGst}
           />
         </div>
       </div>

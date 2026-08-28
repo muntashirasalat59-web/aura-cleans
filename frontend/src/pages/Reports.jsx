@@ -6,6 +6,7 @@ import {
   Scale,
   FileSpreadsheet,
   CalendarRange,
+  Receipt,
 } from 'lucide-react';
 import { reportsAPI } from '../api';
 import LoadingState from '../components/LoadingState';
@@ -272,6 +273,13 @@ export default function Reports() {
               value={`₹${(summary?.totalSales ?? 0).toLocaleString('en-IN')}`}
               icon={TrendingUp}
               tone="emerald"
+            />
+            <SummaryStatCard
+              title="GST collected"
+              value={`₹${(summary?.gstCollected ?? 0).toLocaleString('en-IN')}`}
+              subtitle="GST invoices only — Non-GST bills excluded"
+              icon={Receipt}
+              tone="indigo"
             />
             <SummaryStatCard
               title="Total purchases"

@@ -7,6 +7,7 @@ const { hasPaymentData, enrichPaymentFields } = require('./salePayment');
 const { formatAddress, formatStreetAddress, isConfigured } = require('./businessSettings');
 const { invoicePlaceOfSupply, shippingIsSameAsBilling, derivePlaceOfSupply } = require('./placeOfSupply');
 const { fetchImageAsset } = require('./imageFetch');
+const { isGstInvoiceSale } = require('./saleGst');
 
 const PAGE_W = 595.28;
 const M = 48;
@@ -44,6 +45,30 @@ const COL_W = {
   gst: 74,
   amount: RIGHT - (M + 408),
 };
+
+function tableLayout(showGst) {
+  if (showGst) {
+    return { col: COL, width: COL_W };
+  }
+  return {
+    col: {
+      sn: M,
+      item: M + 22,
+      hsn: M + 210,
+      qty: M + 288,
+      rate: M + 346,
+      amount: M + 418,
+    },
+    width: {
+      sn: 18,
+      item: 180,
+      hsn: 70,
+      qty: 50,
+      rate: 64,
+      amount: RIGHT - (M + 418),
+    },
+  };
+}
 
 const LOGO_PATH = path.join(__dirname, '../assets/logo.png');
 const LOGO_BOX_W = 200;
@@ -192,7 +217,7 @@ function drawDetailMetaLine(doc, text, x, y, maxWidth) {
   return lineBottom + META_DETAIL_GAP;
 }
 
-function drawCompanyMeta(doc, x, startY, maxWidth, business) {
+function drawCompanyMeta(doc, x, startY, maxWidth, business, { showGstin = true } = {}) {
   let y = startY;
 
   if (!isConfigured(business)) {
@@ -217,7 +242,7 @@ function drawCompanyMeta(doc, x, startY, maxWidth, business) {
   }
 
   const gstin = String(business.gstin || '').trim();
-  if (gstin) {
+  if (showGstin && gstin) {
     y = drawDetailMetaLine(doc, `GSTIN: ${gstin}`, x, y, maxWidth);
   }
 
@@ -242,8 +267,11 @@ function drawHeader(doc, sale, business, logoAsset) {
   const detailsY = logo.stacked ? topY + logo.height + 14 : topY + 2;
   const metaWidth = Math.max(180, metaX - detailsX - 12);
 
-  const leftBottom = drawCompanyMeta(doc, detailsX, detailsY, metaWidth, business);
-  doc.font('InvoiceBold').fontSize(20).fillColor(C.text).text('TAX INVOICE', metaX, topY, {
+  const showGst = isGstInvoiceSale(sale);
+  const leftBottom = drawCompanyMeta(doc, detailsX, detailsY, metaWidth, business, {
+    showGstin: showGst,
+  });
+  doc.font('InvoiceBold').fontSize(20).fillColor(C.text).text(showGst ? 'TAX INVOICE' : 'INVOICE', metaX, topY, {
     width: metaW,
     align: 'right',
   });
@@ -307,7 +335,7 @@ function partyCardLines(sale, { shipping = false } = {}) {
   lines.push({ bold: true, size: 11, color: C.text, text: sale.party_name || '—' });
   if (sale.contact) lines.push({ text: `Contact: ${sale.contact}` });
   if (sale.address) lines.push({ text: sale.address });
-  if (sale.gst_number) lines.push({ text: `GSTIN: ${sale.gst_number}` });
+  if (isGstInvoiceSale(sale) && sale.gst_number) lines.push({ text: `GSTIN: ${sale.gst_number}` });
   return lines;
 }
 
@@ -353,8 +381,9 @@ function drawBillToCard(doc, sale, startY) {
   return startY + Math.max(billH, shipH) + 16;
 }
 
-function drawTableHeader(doc, y) {
+function drawTableHeader(doc, y, showGst = true) {
   const h = 26;
+  const { col, width } = tableLayout(showGst);
   doc.save();
   setFill(doc, C.headerBg);
   doc.rect(M, y, CONTENT_W, h).fill();
@@ -362,19 +391,24 @@ function drawTableHeader(doc, y) {
 
   const ty = y + 8;
   doc.font('InvoiceBold').fontSize(7).fillColor(C.white);
-  doc.text('#', COL.sn, ty, { width: COL_W.sn });
-  doc.text('ITEM NAME', COL.item, ty, { width: COL_W.item });
-  doc.text('HSN/SAC', COL.hsn, ty, { width: COL_W.hsn });
-  doc.text('QTY', COL.qty, ty, { width: COL_W.qty, align: 'right' });
-  doc.text('PRICE/UNIT', COL.rate, ty, { width: COL_W.rate, align: 'right' });
-  doc.text('GST', COL.gst, ty, { width: COL_W.gst, align: 'right' });
-  doc.text('AMT (EXCL.)', COL.amount, ty, { width: COL_W.amount, align: 'right' });
+  doc.text('#', col.sn, ty, { width: width.sn });
+  doc.text('ITEM NAME', col.item, ty, { width: width.item });
+  doc.text('HSN/SAC', col.hsn, ty, { width: width.hsn });
+  doc.text('QTY', col.qty, ty, { width: width.qty, align: 'right' });
+  doc.text('PRICE/UNIT', col.rate, ty, { width: width.rate, align: 'right' });
+  if (showGst) {
+    doc.text('GST', col.gst, ty, { width: width.gst, align: 'right' });
+    doc.text('AMT (EXCL.)', col.amount, ty, { width: width.amount, align: 'right' });
+  } else {
+    doc.text('AMOUNT', col.amount, ty, { width: width.amount, align: 'right' });
+  }
 
   return y + h;
 }
 
-function drawTableRow(doc, item, lineNum, gstRate, y, stripe) {
+function drawTableRow(doc, item, lineNum, gstRate, y, stripe, showGst = true) {
   const rowH = 22;
+  const { col, width } = tableLayout(showGst);
   if (stripe) {
     doc.save();
     setFill(doc, C.stripe);
@@ -396,16 +430,18 @@ function drawTableRow(doc, item, lineNum, gstRate, y, stripe) {
 
   const ty = y + 6;
   doc.font('InvoiceRegular').fontSize(8).fillColor(C.text);
-  doc.text(String(lineNum), COL.sn, ty, { width: COL_W.sn });
-  doc.text(itemName, COL.item, ty, { width: COL_W.item, lineGap: 0 });
-  doc.fillColor(C.muted).text(hsn, COL.hsn, ty, { width: COL_W.hsn });
-  doc.fillColor(C.text).text(String(item.quantity), COL.qty, ty, { width: COL_W.qty, align: 'right' });
-  doc.text(formatInr(item.rate), COL.rate, ty, { width: COL_W.rate, align: 'right' });
-  doc.text(`${formatInr(lineGst)} (${gstRate.toFixed(1)}%)`, COL.gst, ty, {
-    width: COL_W.gst,
-    align: 'right',
-  });
-  doc.font('InvoiceBold').text(formatInr(taxable), COL.amount, ty, { width: COL_W.amount, align: 'right' });
+  doc.text(String(lineNum), col.sn, ty, { width: width.sn });
+  doc.text(itemName, col.item, ty, { width: width.item, lineGap: 0 });
+  doc.fillColor(C.muted).text(hsn, col.hsn, ty, { width: width.hsn });
+  doc.fillColor(C.text).text(String(item.quantity), col.qty, ty, { width: width.qty, align: 'right' });
+  doc.text(formatInr(item.rate), col.rate, ty, { width: width.rate, align: 'right' });
+  if (showGst) {
+    doc.text(`${formatInr(lineGst)} (${gstRate.toFixed(1)}%)`, col.gst, ty, {
+      width: width.gst,
+      align: 'right',
+    });
+  }
+  doc.font('InvoiceBold').text(formatInr(taxable), col.amount, ty, { width: width.amount, align: 'right' });
 
   doc.save();
   doc.strokeColor(C.border).lineWidth(0.25).moveTo(M, y + rowH).lineTo(RIGHT, y + rowH).stroke();
@@ -415,6 +451,7 @@ function drawTableRow(doc, item, lineNum, gstRate, y, stripe) {
 }
 
 function drawSummaryCard(doc, sale, startY) {
+  const showGst = isGstInvoiceSale(sale);
   const { cgstRate, sgstRate, cgstAmount, sgstAmount } = splitGst(sale.gst_percent, sale.gst_amount);
   const payment = enrichPaymentFields(sale);
   const isPartial = payment.payment_status === 'partial';
@@ -424,7 +461,8 @@ function drawSummaryCard(doc, sale, startY) {
   const rowH = 18;
   const totalBlockH = 36;
   const extraH = isPartial ? rowH + totalBlockH : 0;
-  const cardH = pad + rowH * 5 + totalBlockH + extraH + pad;
+  const summaryRows = showGst ? 4 : 1;
+  const cardH = pad + rowH * (summaryRows + 1) + totalBlockH + extraH + pad;
 
   doc.save();
   doc.roundedRect(cardX, startY, cardW, cardH, 8).fill(C.white);
@@ -433,12 +471,14 @@ function drawSummaryCard(doc, sale, startY) {
 
   drawSectionLabel(doc, 'Summary', cardX + pad, startY + pad);
 
-  const rows = [
-    ['Subtotal', formatInr(sale.subtotal)],
-    [`CGST (${cgstRate}%)`, formatInr(cgstAmount)],
-    [`SGST (${sgstRate}%)`, formatInr(sgstAmount)],
-    [`Total GST (${sale.gst_percent}%)`, formatInr(sale.gst_amount)],
-  ];
+  const rows = showGst
+    ? [
+        ['Subtotal', formatInr(sale.subtotal)],
+        [`CGST (${cgstRate}%)`, formatInr(cgstAmount)],
+        [`SGST (${sgstRate}%)`, formatInr(sgstAmount)],
+        [`Total GST (${sale.gst_percent}%)`, formatInr(sale.gst_amount)],
+      ]
+    : [['Subtotal', formatInr(sale.subtotal)]];
 
   let y = startY + pad + 14;
   doc.font('InvoiceRegular').fontSize(9).fillColor(C.muted);
@@ -635,7 +675,7 @@ function ensureLineItemSpace(doc, y, needed, ctx) {
   doc.addPage();
   doc.font('InvoiceRegular');
   const nextY = drawContinuationHeader(doc, ctx.business, ctx.logoAsset);
-  return drawTableHeader(doc, nextY);
+  return drawTableHeader(doc, nextY, isGstInvoiceSale(ctx.sale));
 }
 
 function ensureBlockSpace(doc, y, needed, ctx) {
@@ -657,24 +697,27 @@ async function renderPremiumInvoicePdf(doc, sale, business = null) {
 
   drawSectionLabel(doc, 'Line Items', M, y - 4);
   y += 10;
-  y = drawTableHeader(doc, y);
+  const showGst = isGstInvoiceSale(sale);
+  y = drawTableHeader(doc, y, showGst);
 
-  const gstRate = Number(sale.gst_percent) || 0;
+  const gstRate = showGst ? Number(sale.gst_percent) || 0 : 0;
   let lineNum = 1;
   for (const item of sale.items || []) {
     y = ensureLineItemSpace(doc, y, 24, ctx);
-    y = drawTableRow(doc, item, lineNum, gstRate, y, lineNum % 2 === 0);
+    y = drawTableRow(doc, item, lineNum, gstRate, y, lineNum % 2 === 0, showGst);
     lineNum += 1;
   }
 
   y += 10;
-  y = ensureBlockSpace(doc, y, 24, ctx);
-  doc.font('InvoiceRegular').fontSize(7).fillColor(C.muted).text(
-    'Amounts exclude GST; invoice total includes CGST/SGST in the summary.',
-    M,
-    y
-  );
-  y = doc.y + 12;
+  if (showGst) {
+    y = ensureBlockSpace(doc, y, 24, ctx);
+    doc.font('InvoiceRegular').fontSize(7).fillColor(C.muted).text(
+      'Amounts exclude GST; invoice total includes CGST/SGST in the summary.',
+      M,
+      y
+    );
+    y = doc.y + 12;
+  }
 
   const payment = enrichPaymentFields(sale);
   const approxSummaryH = payment.payment_status === 'partial' ? 220 : 170;
