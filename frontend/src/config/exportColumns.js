@@ -1,3 +1,4 @@
+import { isGstInvoice } from '../utils/invoiceGst';
 import { formatPackSize } from '../utils/productDisplay';
 import { formatRelativeTime } from '../utils/relativeTime';
 
@@ -101,8 +102,10 @@ export const SALE_EXPORT_COLUMNS = [
   { key: 'invoice_date', header: 'Date' },
   { key: 'party_name', header: 'Party' },
   { key: 'city', header: 'City' },
+  { key: 'bill_type', header: 'Bill type' },
   { key: 'total_quantity', header: 'Qty' },
   { key: 'subtotal', header: 'Subtotal' },
+  { key: 'gst_percent', header: 'GST %' },
   { key: 'gst_amount', header: 'GST' },
   { key: 'total_amount', header: 'Total billed' },
   { key: 'amount_paid', header: 'Amount received' },
@@ -127,8 +130,10 @@ export function mapSaleExportRow(sale, { paymentStatus, balanceDue } = {}) {
     invoice_date: sale.invoice_date || '',
     party_name: sale.party_name || '',
     city: sale.city_name || '',
+    bill_type: isGstInvoice(sale) ? 'GST' : 'Non-GST',
     total_quantity: Number(sale.total_quantity ?? 0),
     subtotal: Number(sale.subtotal || 0),
+    gst_percent: isGstInvoice(sale) ? Number(sale.gst_percent || 0) : 0,
     gst_amount: Number(sale.gst_amount || 0),
     total_amount: Number(sale.total_amount || 0),
     amount_paid: Number(sale.amount_paid ?? 0),

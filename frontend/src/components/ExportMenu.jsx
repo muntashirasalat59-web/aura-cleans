@@ -3,6 +3,12 @@ import { Download, FileSpreadsheet, FileText, Loader2 } from 'lucide-react';
 import { exportTable } from '../utils/exportData';
 import { useToast } from '../context/ToastContext';
 
+const GST_SCOPE_LABELS = { all: '', gst: 'GST', nongst: 'Non-GST' };
+const GST_SCOPE_SUFFIX = { gst: 'gst', nongst: 'without-gst' };
+
+const MENU_ITEM_CLASS =
+  'flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-slate-800 hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800';
+
 /**
  * Dropdown: Export as CSV / Excel for the currently visible rows.
  *
@@ -12,6 +18,8 @@ import { useToast } from '../context/ToastContext';
  * @param {string} props.filePrefix - e.g. "products"
  * @param {string} props.successLabel - e.g. "Products"
  * @param {boolean} [props.disabled]
+ * @param {boolean} [props.gstSplit] - also offer "GST only" / "Without GST" downloads;
+ *   getRows is then called with the scope: 'all' | 'gst' | 'nongst'
  */
 export default function ExportMenu({
   getRows,
@@ -19,6 +27,7 @@ export default function ExportMenu({
   filePrefix,
   successLabel,
   disabled = false,
+  gstSplit = false,
 }) {
   const { showToast } = useToast();
   const [open, setOpen] = useState(false);
@@ -43,19 +52,23 @@ export default function ExportMenu({
     };
   }, [open]);
 
-  async function handleExport(format) {
+  async function handleExport(format, scope = 'all') {
     if (exporting) return;
     setOpen(false);
-    const rows = typeof getRows === 'function' ? getRows() : [];
+    const rows = typeof getRows === 'function' ? getRows(scope) : [];
+    const scopeLabel = GST_SCOPE_LABELS[scope] || '';
     if (!rows.length) {
-      showToast(`No ${successLabel.toLowerCase()} to export`, { type: 'error' });
+      showToast(`No ${scopeLabel ? `${scopeLabel.toLowerCase()} ` : ''}${successLabel.toLowerCase()} to export`, {
+        type: 'error',
+      });
       return;
     }
 
     try {
       setExporting(true);
-      await exportTable(format, rows, columns, filePrefix);
-      showToast(`${successLabel} exported successfully`);
+      const prefix = scope === 'all' ? filePrefix : `${filePrefix}-${GST_SCOPE_SUFFIX[scope]}`;
+      await exportTable(format, rows, columns, prefix);
+      showToast(`${scopeLabel ? `${scopeLabel} ` : ''}${successLabel} exported successfully`);
     } catch (err) {
       showToast(err.message || 'Export failed', { type: 'error' });
     } finally {
@@ -86,24 +99,40 @@ export default function ExportMenu({
           role="menu"
           className="absolute right-0 z-40 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl dark:border-slate-700 dark:bg-slate-900"
         >
-          <button
-            type="button"
-            role="menuitem"
-            className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-slate-800 hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
-            onClick={() => handleExport('csv')}
-          >
-            <FileText className="h-4 w-4 text-slate-500" />
-            Export as CSV
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-slate-800 hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
-            onClick={() => handleExport('xlsx')}
-          >
-            <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-            Export as Excel (.xlsx)
-          </button>
+          {(gstSplit
+            ? [
+                ['all', 'All'],
+                ['gst', 'With GST only'],
+                ['nongst', 'Without GST only'],
+              ]
+            : [['all', '']]
+          ).map(([scope, label]) => (
+            <div key={scope}>
+              {label && (
+                <p className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  {label}
+                </p>
+              )}
+              <button
+                type="button"
+                role="menuitem"
+                className={MENU_ITEM_CLASS}
+                onClick={() => handleExport('csv', scope)}
+              >
+                <FileText className="h-4 w-4 text-slate-500" />
+                Export as CSV
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className={MENU_ITEM_CLASS}
+                onClick={() => handleExport('xlsx', scope)}
+              >
+                <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+                Export as Excel (.xlsx)
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </div>

@@ -112,10 +112,21 @@ CREATE TABLE IF NOT EXISTS public.expenses (
     category IN (
       'Rent',
       'Salary',
+      'Labour / Wages',
       'Electricity',
+      'Water',
       'Transport',
+      'Petrol / Fuel',
+      'Food',
+      'Chai / Tea',
+      'Packaging',
+      'Courier / Shipping',
+      'Mobile & Internet',
+      'Office Supplies',
       'Maintenance',
+      'Repairs',
       'Marketing',
+      'Cleaning Supplies',
       'Other'
     )
   ),

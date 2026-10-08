@@ -764,10 +764,17 @@ export default function Sales() {
               filePrefix="sales"
               successLabel="Sales"
               columns={SALE_EXPORT_COLUMNS}
-              getRows={() =>
-                displayedSales.map((s) =>
-                  mapSaleExportRow(s, { paymentStatus, balanceDue })
-                )
+              gstSplit
+              getRows={(scope = 'all') =>
+                displayedSales
+                  .filter((s) =>
+                    scope === 'gst'
+                      ? isGstInvoice(s)
+                      : scope === 'nongst'
+                        ? !isGstInvoice(s)
+                        : true
+                  )
+                  .map((s) => mapSaleExportRow(s, { paymentStatus, balanceDue }))
               }
             />
             <button

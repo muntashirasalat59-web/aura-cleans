@@ -16,6 +16,7 @@ import SummaryStatCard from '../components/ui/SummaryStatCard';
 import { downloadCsv } from '../utils/csvExport';
 import { formatProductNameWithSize } from '../utils/productDisplay';
 import { useDataSync } from '../hooks/useDataSync';
+import { isGstInvoice } from '../utils/invoiceGst';
 
 /** Local calendar YYYY-MM-DD (not UTC — toISOString() shifts IST dates back a day). */
 function formatDateISO(d) {
@@ -68,6 +69,7 @@ export default function Reports() {
   const [fromDate, setFromDate] = useState(monthDefault.from);
   const [toDate, setToDate] = useState(monthDefault.to);
   const [preset, setPreset] = useState('month');
+  const [gstScope, setGstScope] = useState('all');
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -77,7 +79,7 @@ export default function Reports() {
     try {
       if (!silent) setLoading(true);
       setLoadError('');
-      const data = await reportsAPI.get({ from: fromDate, to: toDate });
+      const data = await reportsAPI.get({ from: fromDate, to: toDate, gst: gstScope });
       setReport(data);
     } catch (err) {
       setLoadError(err.message || 'Failed to load report');
@@ -85,7 +87,7 @@ export default function Reports() {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [fromDate, toDate]);
+  }, [fromDate, toDate, gstScope]);
 
   useEffect(() => {
     loadReport();
@@ -118,14 +120,19 @@ export default function Reports() {
   const purchaseLineItems = report?.purchaseLineItems || [];
   const realizedByProduct = report?.realizedByProduct || [];
 
+  const gstFileSuffix = gstScope === 'gst' ? '-gst' : gstScope === 'nongst' ? '-without-gst' : '';
+
   function exportSalesCsv() {
     downloadCsv(
-      `sales-report-${fromDate}-to-${toDate}`,
-      ['Date', 'Invoice No.', 'Party', 'Amount (₹)'],
+      `sales-report${gstFileSuffix}-${fromDate}-to-${toDate}`,
+      ['Date', 'Invoice No.', 'Party', 'Bill type', 'Subtotal (₹)', 'GST (₹)', 'Amount (₹)'],
       sales.map((row) => [
         row.invoice_date,
         row.invoice_number,
         row.party_name || '',
+        isGstInvoice(row) ? 'GST' : 'Non-GST',
+        Number(row.subtotal || 0).toFixed(2),
+        isGstInvoice(row) ? Number(row.gst_amount || 0).toFixed(2) : '0.00',
         Number(row.total_amount).toFixed(2),
       ])
     );
@@ -146,7 +153,7 @@ export default function Reports() {
 
   function exportSalesLineItemsCsv() {
     downloadCsv(
-      `sales-line-items-${fromDate}-to-${toDate}`,
+      `sales-line-items${gstFileSuffix}-${fromDate}-to-${toDate}`,
       ['Date', 'Invoice No.', 'Party', 'Product', 'Qty', 'Amount (₹)'],
       salesLineItems.map((row) => [
         row.invoice_date,
@@ -190,7 +197,7 @@ export default function Reports() {
 
   function exportRealizedMarginCsv() {
     downloadCsv(
-      `realized-margin-${fromDate}-to-${toDate}`,
+      `realized-margin${gstFileSuffix}-${fromDate}-to-${toDate}`,
       [
         'Product',
         'Qty sold',
@@ -250,6 +257,20 @@ export default function Reports() {
               { value: 'week', label: 'This week' },
               { value: 'month', label: 'This month' },
               { value: 'year', label: 'This year' },
+            ]}
+          />
+        </div>
+        <div className="mt-4 flex flex-col gap-1.5 text-sm">
+          <span className="font-medium text-slate-600 dark:text-slate-300">
+            Sales bill type (applies to sales figures &amp; downloads)
+          </span>
+          <SegmentedControl
+            value={gstScope}
+            onChange={setGstScope}
+            options={[
+              { value: 'all', label: 'All bills' },
+              { value: 'gst', label: 'With GST' },
+              { value: 'nongst', label: 'Without GST' },
             ]}
           />
         </div>
@@ -389,7 +410,7 @@ export default function Reports() {
 
           <ReportSection
             title="Sales report"
-            description={`${sales.length} invoice(s) · ${formatDisplayDate(fromDate)} – ${formatDisplayDate(toDate)}`}
+            description={`${sales.length} ${gstScope === 'gst' ? 'GST ' : gstScope === 'nongst' ? 'Non-GST ' : ''}invoice(s) · ${formatDisplayDate(fromDate)} – ${formatDisplayDate(toDate)}`}
             onExport={exportSalesCsv}
             exportLabel="Export sales CSV"
           >
@@ -399,13 +420,14 @@ export default function Reports() {
                   <th>Date</th>
                   <th>Invoice no.</th>
                   <th>Party</th>
+                  <th>Bill type</th>
                   <th className="text-right">Amount</th>
                 </tr>
               </thead>
               <tbody>
                 {sales.length === 0 ? (
                   <tr>
-                    <td colSpan="4" className="py-10 text-center text-slate-500">
+                    <td colSpan="5" className="py-10 text-center text-slate-500">
                       No sales in this range.
                     </td>
                   </tr>
@@ -415,6 +437,11 @@ export default function Reports() {
                       <td className="tabular-nums whitespace-nowrap">{formatDisplayDate(row.invoice_date)}</td>
                       <td className="font-medium text-slate-900">{row.invoice_number}</td>
                       <td>{row.party_name || '—'}</td>
+                      <td>
+                        <span className={`badge ${isGstInvoice(row) ? 'badge-blue' : 'badge-orange'}`}>
+                          {isGstInvoice(row) ? 'GST' : 'Non-GST'}
+                        </span>
+                      </td>
                       <td className="text-right font-semibold tabular-nums text-emerald-700">
                         ₹{Number(row.total_amount).toLocaleString('en-IN')}
                       </td>

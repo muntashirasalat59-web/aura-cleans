@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Plus, Pencil, Trash2, Banknote, CalendarRange } from 'lucide-react';
+import ExportMenu from '../components/ExportMenu';
 import { expensesAPI } from '../api';
 import LoadingState from '../components/LoadingState';
 import PageHeader from '../components/PageHeader';
@@ -13,10 +14,21 @@ import { notifyDataSync, removeById } from '../lib/dataSync';
 const CATEGORIES = [
   'Rent',
   'Salary',
+  'Labour / Wages',
   'Electricity',
+  'Water',
   'Transport',
+  'Petrol / Fuel',
+  'Food',
+  'Chai / Tea',
+  'Packaging',
+  'Courier / Shipping',
+  'Mobile & Internet',
+  'Office Supplies',
   'Maintenance',
+  'Repairs',
   'Marketing',
+  'Cleaning Supplies',
   'Other',
 ];
 
@@ -51,6 +63,7 @@ export default function Expenses() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm());
+  const [categoryFilter, setCategoryFilter] = useState('all');
 
   useEffect(() => {
     loadExpenses();
@@ -82,6 +95,28 @@ export default function Expenses() {
     }
     return { monthTotal: month, yearTotal: year };
   }, [expenses]);
+
+  const categoryTotals = useMemo(() => {
+    const monthStart = monthStartISO();
+    const totals = new Map();
+    for (const row of expenses) {
+      if (row.expense_date < monthStart) continue;
+      const key = row.category || 'Other';
+      totals.set(key, (totals.get(key) || 0) + (Number(row.amount) || 0));
+    }
+    return Array.from(totals.entries())
+      .map(([category, total]) => ({ category, total }))
+      .sort((a, b) => b.total - a.total);
+  }, [expenses]);
+
+  const visibleExpenses = useMemo(
+    () =>
+      categoryFilter === 'all'
+        ? expenses
+        : expenses.filter((row) => row.category === categoryFilter),
+    [expenses, categoryFilter]
+  );
+  const visibleTotal = visibleExpenses.reduce((acc, row) => acc + (Number(row.amount) || 0), 0);
 
   function openAddForm() {
     setEditingId(null);
@@ -144,12 +179,36 @@ export default function Expenses() {
     <div className="space-y-6">
       <PageHeader
         title="Expenses"
-        description="Track rent, salaries, utilities, and other operating costs."
+        description="Track rent, salaries, food, chai, petrol, and other operating costs."
         action={
-          <button onClick={openAddForm} className="btn btn-primary w-full sm:w-auto">
-            <Plus className="h-4 w-4" />
-            Add expense
-          </button>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <ExportMenu
+              filePrefix="expenses"
+              successLabel="Expenses"
+              columns={[
+                { key: 'expense_date', header: 'Date' },
+                { key: 'category', header: 'Category' },
+                { key: 'title', header: 'Title' },
+                { key: 'amount', header: 'Amount' },
+                { key: 'payment_method', header: 'Payment' },
+                { key: 'notes', header: 'Notes' },
+              ]}
+              getRows={() =>
+                visibleExpenses.map((row) => ({
+                  expense_date: row.expense_date,
+                  category: row.category,
+                  title: row.title,
+                  amount: Number(row.amount) || 0,
+                  payment_method: row.payment_method,
+                  notes: row.notes || '',
+                }))
+              }
+            />
+            <button onClick={openAddForm} className="btn btn-primary w-full sm:w-auto">
+              <Plus className="h-4 w-4" />
+              Add expense
+            </button>
+          </div>
         }
       />
 
@@ -168,6 +227,33 @@ export default function Expenses() {
         />
       </div>
 
+      {categoryTotals.length > 0 && (
+        <div className="surface-panel p-5 sm:p-6">
+          <h2 className="mb-3 text-lg font-semibold text-[var(--app-heading)] dark:text-white">
+            This month by category
+          </h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+            {categoryTotals.map(({ category, total }) => (
+              <button
+                type="button"
+                key={category}
+                onClick={() => setCategoryFilter(categoryFilter === category ? 'all' : category)}
+                className={`rounded-xl border px-3 py-2.5 text-left transition ${
+                  categoryFilter === category
+                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40'
+                    : 'border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800'
+                }`}
+              >
+                <p className="text-xs text-slate-500 dark:text-slate-400">{category}</p>
+                <p className="font-semibold tabular-nums text-rose-700 dark:text-rose-400">
+                  ₹{total.toLocaleString('en-IN')}
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {showForm && (
         <div className="form-panel">
           <FormShell
@@ -181,7 +267,7 @@ export default function Expenses() {
                   className="input input-premium"
                   value={form.title}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  placeholder="e.g. Shop rent — March"
+                  placeholder="e.g. Chai for staff, Petrol for delivery"
                   required
                 />
               </FormField>
@@ -252,6 +338,26 @@ export default function Expenses() {
       )}
 
       <div className="table-wrap">
+        <div className="flex flex-col gap-2 border-b border-slate-100 px-6 py-3 dark:border-slate-700 sm:flex-row sm:items-center sm:justify-between">
+          <label className="flex items-center gap-2 text-sm">
+            <span className="font-medium text-slate-600 dark:text-slate-300">Category</span>
+            <select
+              className="input input-premium"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+            >
+              <option value="all">All categories</option>
+              {CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            {visibleExpenses.length} expense(s) · ₹{visibleTotal.toLocaleString('en-IN')}
+          </p>
+        </div>
         <div className="overflow-x-auto">
           <table className="data-table">
             <thead>
@@ -265,14 +371,16 @@ export default function Expenses() {
               </tr>
             </thead>
             <tbody>
-              {expenses.length === 0 ? (
+              {visibleExpenses.length === 0 ? (
                 <tr>
                   <td colSpan="6" className="py-12 text-center text-slate-500">
-                    No expenses yet. Add rent, salary, or other costs to track spending.
+                    {expenses.length === 0
+                      ? 'No expenses yet. Add rent, food, chai, petrol, or other costs to track spending.'
+                      : 'No expenses in this category.'}
                   </td>
                 </tr>
               ) : (
-                expenses.map((expense) => (
+                visibleExpenses.map((expense) => (
                   <tr key={expense.id}>
                     <td className="tabular-nums text-slate-700 whitespace-nowrap">
                       {new Date(expense.expense_date + 'T12:00:00').toLocaleDateString('en-IN', {

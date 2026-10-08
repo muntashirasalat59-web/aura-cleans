@@ -170,7 +170,14 @@ router.get('/', async (req, res) => {
       listExpensesForReport(db),
     ]);
 
-    const sales = allSales.filter((row) => inDateRange(row.invoice_date, from, to)).map(mapSale);
+    // gst=all (default) | gst (GST invoices only) | nongst (Non-GST bills only) — applies to sales.
+    const gstScope = ['gst', 'nongst'].includes(req.query.gst) ? req.query.gst : 'all';
+    const sales = allSales
+      .filter((row) => inDateRange(row.invoice_date, from, to))
+      .filter((row) =>
+        gstScope === 'all' ? true : gstScope === 'gst' ? isGstInvoiceSale(row) : !isGstInvoiceSale(row)
+      )
+      .map(mapSale);
     const purchases = allPurchases
       .filter((row) => inDateRange(row.purchase_date, from, to))
       .map(mapPurchase);
@@ -267,6 +274,7 @@ router.get('/', async (req, res) => {
     res.json({
       from,
       to,
+      gstScope,
       summary: {
         totalSales,
         gstCollected,

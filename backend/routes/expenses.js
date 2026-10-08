@@ -6,10 +6,21 @@ const { logActivity } = require('../utils/activityLog');
 const EXPENSE_CATEGORIES = [
   'Rent',
   'Salary',
+  'Labour / Wages',
   'Electricity',
+  'Water',
   'Transport',
+  'Petrol / Fuel',
+  'Food',
+  'Chai / Tea',
+  'Packaging',
+  'Courier / Shipping',
+  'Mobile & Internet',
+  'Office Supplies',
   'Maintenance',
+  'Repairs',
   'Marketing',
+  'Cleaning Supplies',
   'Other',
 ];
 

@@ -238,7 +238,10 @@ export const employeesAPI = {
 
 // Reports API
 export const reportsAPI = {
-  get: ({ from, to }) => request(`/reports?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+  get: ({ from, to, gst = 'all' }) =>
+    request(
+      `/reports?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&gst=${encodeURIComponent(gst)}`
+    ),
 };
 
 export const authAPI = {
