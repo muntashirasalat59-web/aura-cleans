@@ -60,6 +60,7 @@ export default function InvoiceLetterPreview({
   gstPercent = 18,
   isGstInvoice: isGstInvoiceProp,
   subtotal = 0,
+  discountAmount = 0,
   gstAmount = 0,
   total = 0,
   payment,
@@ -193,6 +194,7 @@ export default function InvoiceLetterPreview({
             gstPercent={gstPercent}
             gstAmount={gstAmount}
             subtotal={subtotal}
+            discountAmount={discountAmount}
             total={total}
             settlement={settlement}
             showGst={showGst}

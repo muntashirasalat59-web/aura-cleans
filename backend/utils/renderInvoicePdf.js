@@ -406,7 +406,7 @@ function drawTableHeader(doc, y, showGst = true) {
   return y + h;
 }
 
-function drawTableRow(doc, item, lineNum, gstRate, y, stripe, showGst = true) {
+function drawTableRow(doc, item, lineNum, gstRate, y, stripe, showGst = true, taxRatio = 1) {
   const rowH = 22;
   const { col, width } = tableLayout(showGst);
   if (stripe) {
@@ -417,7 +417,7 @@ function drawTableRow(doc, item, lineNum, gstRate, y, stripe, showGst = true) {
   }
 
   const taxable = Number(item.quantity) * Number(item.rate);
-  const lineGst = (taxable * gstRate) / 100;
+  const lineGst = (taxable * taxRatio * gstRate) / 100;
   const hsn = item.hsn_sac || '—';
   const itemName = formatProductNameWithSize(
     {
@@ -461,7 +461,9 @@ function drawSummaryCard(doc, sale, startY) {
   const rowH = 18;
   const totalBlockH = 36;
   const extraH = isPartial ? rowH + totalBlockH : 0;
-  const summaryRows = showGst ? 4 : 1;
+  const discount = Number(sale.discount_amount) || 0;
+  const discountRows = discount > 0 ? 2 : 0;
+  const summaryRows = (showGst ? 4 : 1) + discountRows;
   const cardH = pad + rowH * (summaryRows + 1) + totalBlockH + extraH + pad;
 
   doc.save();
@@ -471,14 +473,22 @@ function drawSummaryCard(doc, sale, startY) {
 
   drawSectionLabel(doc, 'Summary', cardX + pad, startY + pad);
 
+  const discountRowsData =
+    discount > 0
+      ? [
+          ['Discount', `- ${formatInr(discount)}`],
+          ['After discount', formatInr(Number(sale.subtotal) - discount)],
+        ]
+      : [];
   const rows = showGst
     ? [
         ['Subtotal', formatInr(sale.subtotal)],
+        ...discountRowsData,
         [`CGST (${cgstRate}%)`, formatInr(cgstAmount)],
         [`SGST (${sgstRate}%)`, formatInr(sgstAmount)],
         [`Total GST (${sale.gst_percent}%)`, formatInr(sale.gst_amount)],
       ]
-    : [['Subtotal', formatInr(sale.subtotal)]];
+    : [['Subtotal', formatInr(sale.subtotal)], ...discountRowsData];
 
   let y = startY + pad + 14;
   doc.font('InvoiceRegular').fontSize(9).fillColor(C.muted);
@@ -701,10 +711,14 @@ async function renderPremiumInvoicePdf(doc, sale, business = null) {
   y = drawTableHeader(doc, y, showGst);
 
   const gstRate = showGst ? Number(sale.gst_percent) || 0 : 0;
+  // With an invoice discount, GST is charged on the discounted value, so scale each line's GST.
+  const saleSubtotal = Number(sale.subtotal) || 0;
+  const saleDiscount = Math.min(Number(sale.discount_amount) || 0, saleSubtotal);
+  const taxRatio = saleSubtotal > 0 ? (saleSubtotal - saleDiscount) / saleSubtotal : 1;
   let lineNum = 1;
   for (const item of sale.items || []) {
     y = ensureLineItemSpace(doc, y, 24, ctx);
-    y = drawTableRow(doc, item, lineNum, gstRate, y, lineNum % 2 === 0, showGst);
+    y = drawTableRow(doc, item, lineNum, gstRate, y, lineNum % 2 === 0, showGst, taxRatio);
     lineNum += 1;
   }
 

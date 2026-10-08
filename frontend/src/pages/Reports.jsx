@@ -125,13 +125,14 @@ export default function Reports() {
   function exportSalesCsv() {
     downloadCsv(
       `sales-report${gstFileSuffix}-${fromDate}-to-${toDate}`,
-      ['Date', 'Invoice No.', 'Party', 'Bill type', 'Subtotal (₹)', 'GST (₹)', 'Amount (₹)'],
+      ['Date', 'Invoice No.', 'Party', 'Bill type', 'Subtotal (₹)', 'Discount (₹)', 'GST (₹)', 'Amount (₹)'],
       sales.map((row) => [
         row.invoice_date,
         row.invoice_number,
         row.party_name || '',
         isGstInvoice(row) ? 'GST' : 'Non-GST',
         Number(row.subtotal || 0).toFixed(2),
+        Number(row.discount_amount || 0).toFixed(2),
         isGstInvoice(row) ? Number(row.gst_amount || 0).toFixed(2) : '0.00',
         Number(row.total_amount).toFixed(2),
       ])

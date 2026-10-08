@@ -5,6 +5,7 @@ export default function GstTaxSummary({
   gstPercent,
   gstAmount,
   subtotal,
+  discountAmount = 0,
   total,
   className = '',
   settlement = null,
@@ -19,6 +20,18 @@ export default function GstTaxSummary({
         <span>Subtotal</span>
         <span className="tabular-nums">{formatInr(subtotal)}</span>
       </div>
+      {Number(discountAmount) > 0 ? (
+        <>
+          <div className="invoice-summary-row">
+            <span>Discount</span>
+            <span className="tabular-nums text-rose-600">- {formatInr(discountAmount)}</span>
+          </div>
+          <div className="invoice-summary-row">
+            <span>After discount</span>
+            <span className="tabular-nums">{formatInr(Number(subtotal) - Number(discountAmount))}</span>
+          </div>
+        </>
+      ) : null}
       {showGst ? (
         <>
           <div className="invoice-summary-row">

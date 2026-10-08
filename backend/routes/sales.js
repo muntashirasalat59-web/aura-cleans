@@ -25,7 +25,7 @@ function paymentForDb(paymentRow) {
 }
 const { rollbackSale } = require('../utils/saleRollback');
 const { formatSaleDeleteMessage } = require('../utils/stockMessages');
-const { createSaleDirect, updateSaleDirect, applyInvoiceAddressMeta, applySaleGstFlag } = require('../utils/createSaleDirect');
+const { createSaleDirect, updateSaleDirect, applyInvoiceAddressMeta, applySaleGstFlag, applySaleDiscount } = require('../utils/createSaleDirect');
 const { buildInvoicePdfBuffer } = require('../utils/invoicePdfBuffer');
 const {
   normalizeIndiaWhatsAppPhone,
@@ -294,6 +294,7 @@ async function createSaleWithPayment(db, body, invoiceNumber, gstRate) {
   }
 
   assertNoError(error);
+  await applySaleDiscount(db, data, body);
   try {
     await saveSalePayment(db, data, body);
   } catch (paymentErr) {
@@ -345,6 +346,7 @@ async function updateSaleWithPayment(db, saleId, body, gstRate) {
   }
 
   assertNoError(error);
+  await applySaleDiscount(db, saleId, body);
   try {
     await saveSalePayment(db, saleId, body);
   } catch (paymentErr) {

@@ -11,7 +11,7 @@ const {
   resolveAmountPaid,
   resolvePaymentStatus,
 } = require('./salePayment');
-const { resolveSaleGst, computeSaleGstTotals } = require('./saleGst');
+const { resolveSaleGst, computeSaleGstTotals, resolveSaleDiscount } = require('./saleGst');
 
 function paymentFieldsForUpdate(body, totalAmount) {
   const paymentRow = pickPaymentPayload(body);
@@ -91,6 +91,71 @@ async function applySaleGstFlag(db, saleId, isGstInvoice) {
     return;
   }
   if (error) assertNoError(error);
+}
+
+/** Stored on its own so older databases (without the column) keep working when no discount is used. */
+async function saveSaleDiscountColumn(db, saleId, discountAmount) {
+  const { error } = await db
+    .from('sales')
+    .update({ discount_amount: discountAmount })
+    .eq('id', saleId);
+  if (error && /column|schema cache|could not find|does not exist/i.test(error.message || '')) {
+    if (discountAmount > 0) {
+      throw new Error(
+        'Discount needs a database update — run supabase.migration.sales_discount.sql in Supabase.'
+      );
+    }
+    return;
+  }
+  if (error) assertNoError(error);
+}
+
+/**
+ * After the create_sale / update_sale RPC (which knows nothing about discounts):
+ * re-price the sale with the discount, and correct the party balance by the difference.
+ */
+async function applySaleDiscount(db, saleId, body) {
+  const { data: sale, error } = await db
+    .from('sales')
+    .select('party_id, subtotal, gst_percent, total_amount')
+    .eq('id', saleId)
+    .single();
+  assertNoError(error);
+
+  const discount = resolveSaleDiscount(sale.subtotal, body);
+  if (discount <= 0) {
+    await saveSaleDiscountColumn(db, saleId, 0);
+    return;
+  }
+
+  const { gstAmount, total } = computeSaleGstTotals(sale.subtotal, sale.gst_percent, discount);
+  const oldTotal = Number(sale.total_amount) || 0;
+
+  const { error: updErr } = await db
+    .from('sales')
+    .update({ discount_amount: discount, gst_amount: gstAmount, total_amount: total })
+    .eq('id', saleId);
+  if (updErr && /column|schema cache|could not find|does not exist/i.test(updErr.message || '')) {
+    throw new Error(
+      'Discount needs a database update — run supabase.migration.sales_discount.sql in Supabase.'
+    );
+  }
+  assertNoError(updErr);
+
+  const delta = total - oldTotal;
+  if (delta !== 0) {
+    const { data: party, error: partyErr } = await db
+      .from('parties')
+      .select('balance')
+      .eq('id', sale.party_id)
+      .single();
+    assertNoError(partyErr);
+    const { error: balErr } = await db
+      .from('parties')
+      .update({ balance: Number(party.balance || 0) + delta })
+      .eq('id', sale.party_id);
+    assertNoError(balErr);
+  }
 }
 
 function omitUndefined(obj) {
@@ -178,7 +243,8 @@ async function createSaleDirect(db, body, invoiceNumber, gstRate) {
     gst_percent: gstRate != null && gstRate !== '' ? gstRate : body?.gst_percent,
   });
   const gstPercent = gst.gstPercent;
-  const { gstAmount, total } = computeSaleGstTotals(subtotal, gstPercent);
+  const discount = resolveSaleDiscount(subtotal, body);
+  const { gstAmount, total } = computeSaleGstTotals(subtotal, gstPercent, discount);
 
   const { data: sale, error: saleError } = await db
     .from('sales')
@@ -235,6 +301,7 @@ async function createSaleDirect(db, body, invoiceNumber, gstRate) {
       .eq('id', partyId);
     assertNoError(balErr);
 
+    await saveSaleDiscountColumn(db, saleId, discount);
     await applyPaymentUpdate(db, saleId, body, total);
     await applyInvoiceAddressMeta(db, saleId, body);
     await applySaleGstFlag(db, saleId, gst.is_gst_invoice);
@@ -325,7 +392,8 @@ async function updateSaleDirect(db, saleId, body, gstRate) {
     gst_percent: gstRate != null && gstRate !== '' ? gstRate : body?.gst_percent,
   });
   const gstPercent = gst.gstPercent;
-  const { gstAmount, total } = computeSaleGstTotals(subtotal, gstPercent);
+  const discount = resolveSaleDiscount(subtotal, body);
+  const { gstAmount, total } = computeSaleGstTotals(subtotal, gstPercent, discount);
 
   const { error: updErr } = await db
     .from('sales')
@@ -376,6 +444,7 @@ async function updateSaleDirect(db, saleId, body, gstRate) {
     .update({ balance: Number(party.balance || 0) + total })
     .eq('id', partyId);
 
+  await saveSaleDiscountColumn(db, id, discount);
   await applyPaymentUpdate(db, id, body, total);
   await applyInvoiceAddressMeta(db, id, body);
   await applySaleGstFlag(db, id, gst.is_gst_invoice);
@@ -388,4 +457,5 @@ module.exports = {
   paymentFieldsForUpdate,
   applyInvoiceAddressMeta,
   applySaleGstFlag,
+  applySaleDiscount,
 };

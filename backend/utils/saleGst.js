@@ -28,12 +28,27 @@ function isGstInvoiceSale(sale) {
   return Number(sale?.gst_percent) > 0;
 }
 
-function computeSaleGstTotals(subtotal, gstPercent) {
-  const gstAmount = (Number(subtotal) * Number(gstPercent || 0)) / 100;
+/** Discount is taken off the subtotal first; GST is charged on what is left. */
+function computeSaleGstTotals(subtotal, gstPercent, discount = 0) {
+  const taxable = Math.max(0, Number(subtotal) - (Number(discount) || 0));
+  const gstAmount = (taxable * Number(gstPercent || 0)) / 100;
   return {
+    taxable,
     gstAmount,
-    total: Number(subtotal) + gstAmount,
+    total: taxable + gstAmount,
   };
+}
+
+/**
+ * Resolve the discount in rupees from { discount_type: 'percent' | 'amount', discount_value }.
+ * Never negative, never more than the subtotal.
+ */
+function resolveSaleDiscount(subtotal, body) {
+  const value = Math.max(0, Number(body?.discount_value) || 0);
+  const type = body?.discount_type === 'percent' ? 'percent' : 'amount';
+  const gross = Number(subtotal) || 0;
+  const raw = type === 'percent' ? (gross * Math.min(value, 100)) / 100 : value;
+  return Math.round(Math.min(Math.max(raw, 0), gross) * 100) / 100;
 }
 
 module.exports = {
@@ -41,4 +56,5 @@ module.exports = {
   resolveSaleGst,
   isGstInvoiceSale,
   computeSaleGstTotals,
+  resolveSaleDiscount,
 };

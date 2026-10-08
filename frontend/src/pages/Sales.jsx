@@ -90,6 +90,8 @@ export default function Sales() {
     party_id: '',
     invoice_date: new Date().toISOString().split('T')[0],
     gst_percent: DEFAULT_GST_RATE,
+    discount_type: 'amount',
+    discount_value: '',
     place_of_supply: '',
     ship_same_as_billing: true,
     shipping_address: '',
@@ -321,8 +323,12 @@ export default function Sales() {
     setBarcodeInput('');
   }
 
-  const gstTotals = computeGstTotals(form.items, gstEnabled ? form.gst_percent : 0);
+  const gstTotals = computeGstTotals(form.items, gstEnabled ? form.gst_percent : 0, {
+    type: form.discount_type,
+    value: form.discount_value,
+  });
   const calculateSubtotal = () => gstTotals.subtotal;
+  const calculateDiscount = () => gstTotals.discountAmount;
   const calculateGST = () => gstTotals.gstAmount;
   const calculateTotal = () => gstTotals.total;
 
@@ -342,6 +348,8 @@ export default function Sales() {
       party_id: '',
       invoice_date: new Date().toISOString().split('T')[0],
       gst_percent: DEFAULT_GST_RATE,
+      discount_type: 'amount',
+      discount_value: '',
       place_of_supply: '',
       ship_same_as_billing: true,
       shipping_address: '',
@@ -501,6 +509,8 @@ export default function Sales() {
         party_id: String(data.party_id),
         invoice_date: data.invoice_date,
         gst_percent: loadedGst,
+        discount_type: 'amount',
+        discount_value: Number(data.discount_amount) > 0 ? String(data.discount_amount) : '',
         place_of_supply: resolveInvoicePlaceOfSupply({
           placeOfSupply: data.place_of_supply,
           party: { gst_number: data.gst_number, address: data.address },
@@ -610,6 +620,8 @@ export default function Sales() {
         invoice_date: form.invoice_date,
         gst_percent: gstEnabled ? parseFloat(form.gst_percent) : 0,
         is_gst_invoice: gstEnabled,
+        discount_type: form.discount_type,
+        discount_value: parseFloat(form.discount_value) || 0,
         place_of_supply: form.place_of_supply.trim(),
         ship_same_as_billing: form.ship_same_as_billing,
         shipping_address: form.ship_same_as_billing ? '' : form.shipping_address.trim(),
@@ -911,6 +923,34 @@ export default function Sales() {
                       />
                     )}
                   </div>
+                </FormField>
+                <FormField label="Discount (before GST)">
+                  <div className="flex gap-2">
+                    <select
+                      className="input input-premium w-24 shrink-0"
+                      value={form.discount_type}
+                      onChange={(e) => setForm({ ...form, discount_type: e.target.value })}
+                      aria-label="Discount type"
+                    >
+                      <option value="amount">₹</option>
+                      <option value="percent">%</option>
+                    </select>
+                    <input
+                      type="number"
+                      className="input input-premium"
+                      value={form.discount_value}
+                      min="0"
+                      max={form.discount_type === 'percent' ? 100 : undefined}
+                      step="0.01"
+                      placeholder="0"
+                      onChange={(e) => setForm({ ...form, discount_value: e.target.value })}
+                    />
+                  </div>
+                  {calculateDiscount() > 0 && (
+                    <p className="mt-1 text-xs text-slate-500">
+                      Discount: ₹{calculateDiscount().toLocaleString('en-IN')}
+                    </p>
+                  )}
                 </FormField>
                 <FormField label="Invoice no.">
                   <input
@@ -1293,6 +1333,7 @@ export default function Sales() {
                     gstPercent={gstEnabled ? form.gst_percent : 0}
                     isGstInvoice={gstEnabled}
                     subtotal={calculateSubtotal()}
+                    discountAmount={calculateDiscount()}
                     gstAmount={calculateGST()}
                     total={calculateTotal()}
                     payment={form.payment}
@@ -1351,6 +1392,7 @@ export default function Sales() {
               gstPercent={gstEnabled ? form.gst_percent : 0}
               isGstInvoice={gstEnabled}
               subtotal={calculateSubtotal()}
+              discountAmount={calculateDiscount()}
               gstAmount={calculateGST()}
               total={calculateTotal()}
               payment={form.payment}
@@ -1407,6 +1449,7 @@ export default function Sales() {
                 gstPercent={viewInvoice.gst_percent}
                 isGstInvoice={isGstInvoice(viewInvoice)}
                 subtotal={viewInvoice.subtotal}
+                discountAmount={viewInvoice.discount_amount}
                 gstAmount={viewInvoice.gst_amount}
                 total={viewInvoice.total_amount}
                 payment={paymentFromSale(viewInvoice)}
