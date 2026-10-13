@@ -2301,7 +2301,7 @@ GRANT EXECUTE ON FUNCTION public.update_sale(BIGINT, BIGINT, DATE, NUMERIC, JSON
 -- ######## supabase.migration.purchases_sales_step2_function.sql ########
 -- =============================================
 -- STEP 2 of 2 — Run AFTER step 1 succeeds
--- Creates create_purchase function (uses $$ — Supabase-safe)
+-- Creates create_purchase function (dollar-quoted body, Supabase-safe)
 -- =============================================
 
 DROP FUNCTION IF EXISTS public.create_purchase(BIGINT, DATE, TEXT, JSONB);

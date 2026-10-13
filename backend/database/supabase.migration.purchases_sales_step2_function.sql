@@ -1,6 +1,6 @@
 -- =============================================
 -- STEP 2 of 2 — Run AFTER step 1 succeeds
--- Creates create_purchase function (uses $$ — Supabase-safe)
+-- Creates create_purchase function (dollar-quoted body, Supabase-safe)
 -- =============================================
 
 DROP FUNCTION IF EXISTS public.create_purchase(BIGINT, DATE, TEXT, JSONB);
