@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   TrendingUp,
   ShoppingBag,
@@ -44,6 +44,9 @@ function getPresetRange(preset) {
   if (preset === 'year') {
     return { from: formatDateISO(new Date(today.getFullYear(), 0, 1)), to };
   }
+  if (preset === 'all') {
+    return { from: '2000-01-01', to };
+  }
   return { from: to, to };
 }
 
@@ -73,19 +76,25 @@ export default function Reports() {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const requestSeq = useRef(0);
 
   const loadReport = useCallback(async (silent = false) => {
     if (!fromDate || !toDate || fromDate > toDate) return;
+    // Ignore responses from older requests (e.g. quick preset clicks or background refreshes)
+    // so a stale, narrower range can never overwrite the latest report.
+    const seq = ++requestSeq.current;
     try {
       if (!silent) setLoading(true);
       setLoadError('');
       const data = await reportsAPI.get({ from: fromDate, to: toDate, gst: gstScope });
+      if (seq !== requestSeq.current) return;
       setReport(data);
     } catch (err) {
+      if (seq !== requestSeq.current) return;
       setLoadError(err.message || 'Failed to load report');
       if (!silent) alert('Error loading report: ' + err.message);
     } finally {
-      if (!silent) setLoading(false);
+      if (!silent && seq === requestSeq.current) setLoading(false);
     }
   }, [fromDate, toDate, gstScope]);
 
@@ -119,6 +128,15 @@ export default function Reports() {
   const salesLineItems = report?.salesLineItems || [];
   const purchaseLineItems = report?.purchaseLineItems || [];
   const realizedByProduct = report?.realizedByProduct || [];
+  const overall = report?.overall || {};
+
+  function emptyMessage(kind, label) {
+    const total = Number(overall[kind]) || 0;
+    if (total > 0) {
+      return `No ${label} in this range — ${total} on record in total. Try "This year" or "All time".`;
+    }
+    return `No ${label} recorded yet.`;
+  }
 
   const gstFileSuffix = gstScope === 'gst' ? '-gst' : gstScope === 'nongst' ? '-without-gst' : '';
 
@@ -258,6 +276,7 @@ export default function Reports() {
               { value: 'week', label: 'This week' },
               { value: 'month', label: 'This month' },
               { value: 'year', label: 'This year' },
+              { value: 'all', label: 'All time' },
             ]}
           />
         </div>
@@ -429,7 +448,7 @@ export default function Reports() {
                 {sales.length === 0 ? (
                   <tr>
                     <td colSpan="5" className="py-10 text-center text-slate-500">
-                      No sales in this range.
+                      {emptyMessage('sales', 'sales')}
                     </td>
                   </tr>
                 ) : (
@@ -474,7 +493,7 @@ export default function Reports() {
                 {salesLineItems.length === 0 ? (
                   <tr>
                     <td colSpan="6" className="py-10 text-center text-slate-500">
-                      No sales line items in this range.
+                      {emptyMessage('sales', 'sales line items')}
                     </td>
                   </tr>
                 ) : (
@@ -516,7 +535,7 @@ export default function Reports() {
                 {purchases.length === 0 ? (
                   <tr>
                     <td colSpan="4" className="py-10 text-center text-slate-500">
-                      No purchases in this range.
+                      {emptyMessage('purchases', 'purchases')}
                     </td>
                   </tr>
                 ) : (
@@ -556,7 +575,7 @@ export default function Reports() {
                 {purchaseLineItems.length === 0 ? (
                   <tr>
                     <td colSpan="6" className="py-10 text-center text-slate-500">
-                      No purchase line items in this range.
+                      {emptyMessage('purchases', 'purchase line items')}
                     </td>
                   </tr>
                 ) : (
@@ -599,7 +618,7 @@ export default function Reports() {
                 {expenses.length === 0 ? (
                   <tr>
                     <td colSpan="5" className="py-10 text-center text-slate-500">
-                      No expenses in this range.
+                      {emptyMessage('expenses', 'expenses')}
                     </td>
                   </tr>
                 ) : (

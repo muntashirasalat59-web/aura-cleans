@@ -275,6 +275,12 @@ router.get('/', async (req, res) => {
       from,
       to,
       gstScope,
+      // Record counts across all dates, so the UI can tell "nothing in this range" from "nothing at all".
+      overall: {
+        sales: allSales.length,
+        purchases: allPurchases.length,
+        expenses: allExpenses.length,
+      },
       summary: {
         totalSales,
         gstCollected,
