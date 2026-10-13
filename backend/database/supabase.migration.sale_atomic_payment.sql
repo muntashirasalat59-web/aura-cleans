@@ -29,6 +29,9 @@ END;
 $$;
 
 -- Reverses stock + party balance, then removes the sale (sale_items CASCADE).
+-- A newer version (stock_restore_on_delete) returns JSONB; drop so this can be re-run.
+DROP FUNCTION IF EXISTS public.delete_sale(BIGINT);
+
 CREATE OR REPLACE FUNCTION public.delete_sale(p_sale_id BIGINT)
 RETURNS VOID
 LANGUAGE plpgsql

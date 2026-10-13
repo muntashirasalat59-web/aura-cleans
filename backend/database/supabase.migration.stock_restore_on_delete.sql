@@ -4,6 +4,10 @@
 -- =============================================
 
 -- Returns { "restored": [...], "skipped": [...] }
+-- Older versions returned VOID; Postgres cannot change a return type in place.
+DROP FUNCTION IF EXISTS public.delete_sale(BIGINT);
+DROP FUNCTION IF EXISTS public.delete_purchase(BIGINT);
+
 CREATE OR REPLACE FUNCTION public.delete_sale(p_sale_id BIGINT)
 RETURNS JSONB
 LANGUAGE plpgsql
